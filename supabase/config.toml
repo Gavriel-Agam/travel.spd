@@ -1,0 +1,15 @@
+# Minimal Supabase CLI config. `npx supabase link` fills in the project ref.
+project_id = "travelspend-couple"
+
+[auth]
+site_url = "travelspend://"
+additional_redirect_urls = ["travelspend://**", "exp://**"]
+
+[auth.email]
+enabled = true
+# The app signs in with a 6-digit code: the email template must include {{ .Token }}
+otp_length = 6
+otp_expiry = 3600
+
+[functions.fx-rates]
+verify_jwt = true

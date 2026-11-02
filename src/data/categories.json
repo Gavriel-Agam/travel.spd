@@ -1,0 +1,13 @@
+[
+  { "key": "accommodation", "name": "Accommodation", "icon": "🏨", "color": "#5B6CFF" },
+  { "key": "restaurants", "name": "Restaurants", "icon": "🍽️", "color": "#FF7A59" },
+  { "key": "street_food", "name": "Street Food", "icon": "🍜", "color": "#FFB020" },
+  { "key": "transportation", "name": "Transportation", "icon": "🛺", "color": "#14B8A6" },
+  { "key": "flights", "name": "Flights", "icon": "✈️", "color": "#3B9EFF" },
+  { "key": "shopping", "name": "Shopping", "icon": "🛍️", "color": "#E05BD8" },
+  { "key": "activities", "name": "Activities & Attractions", "icon": "🎟️", "color": "#8B5CF6" },
+  { "key": "nightlife", "name": "Nightlife", "icon": "🍸", "color": "#6D28D9" },
+  { "key": "groceries", "name": "Groceries", "icon": "🛒", "color": "#22C55E" },
+  { "key": "health", "name": "Health", "icon": "💊", "color": "#EF4444" },
+  { "key": "other", "name": "Other", "icon": "🏷️", "color": "#8E8E93" }
+]

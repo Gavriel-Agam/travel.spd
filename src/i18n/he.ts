@@ -46,7 +46,7 @@ const he: Dict = {
     email: 'אימייל',
     emailPlaceholder: 'you@example.com',
     sendCode: 'שליחת קוד',
-    codeSent: 'שלחנו קוד בן 6 ספרות אל {{email}}',
+    codeSent: 'שלחנו קוד כניסה אל {{email}}',
     code: 'קוד',
     verify: 'התחברות',
     changeEmail: 'שימוש באימייל אחר',

@@ -44,7 +44,7 @@ const en = {
     email: 'Email',
     emailPlaceholder: 'you@example.com',
     sendCode: 'Send code',
-    codeSent: 'We sent a 6-digit code to {{email}}',
+    codeSent: 'We sent a sign-in code to {{email}}',
     code: 'Code',
     verify: 'Sign in',
     changeEmail: 'Use a different email',

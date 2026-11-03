@@ -2,8 +2,10 @@
 project_id = "travelspend-couple"
 
 [auth]
-site_url = "travelspend://"
-additional_redirect_urls = ["travelspend://**", "exp://**"]
+site_url = "https://gavriel-agam.github.io/travel.spd/"
+additional_redirect_urls = ["https://gavriel-agam.github.io/travel.spd/**", "travelspend://**", "exp://**"]
+# Only the two partners use this app; both accounts already exist
+enable_signup = false
 
 [auth.email]
 enabled = true

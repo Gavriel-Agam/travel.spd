@@ -72,12 +72,13 @@ export default function SignIn() {
           </Text>
           <Field
             value={code}
-            onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
+            onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 8))}
             placeholder="123456"
             keyboardType="number-pad"
             textContentType="oneTimeCode"
             autoComplete="one-time-code"
-            maxLength={6}
+            // Supabase sends 6 digits (supabase/config.toml); up to 8 is accepted in case that setting changes
+            maxLength={8}
             onSubmitEditing={verify}
             style={{ fontSize: 28, letterSpacing: 10, textAlign: 'center', fontWeight: '700' }}
             error={error}

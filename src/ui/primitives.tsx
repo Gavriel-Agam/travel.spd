@@ -439,14 +439,24 @@ export function EmptyState({ emoji, title, body, action, onAction }: {
 
 export function ErrorView({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useT();
+  const code = errorCode(error);
+  const detail = (error as { message?: string })?.message ?? String(error);
   return (
-    <EmptyState
-      emoji="⚠️"
-      title={t('errors.title')}
-      body={t(`errors.${errorCode(error)}`)}
-      action={onRetry ? t('common.retry') : undefined}
-      onAction={onRetry}
-    />
+    <View style={{ gap: space.sm }}>
+      <EmptyState
+        emoji="⚠️"
+        title={t('errors.title')}
+        body={t(`errors.${code}`)}
+        action={onRetry ? t('common.retry') : undefined}
+        onAction={onRetry}
+      />
+      {/* The technical reason, so a screenshot is enough to diagnose (also logged to the server) */}
+      {code === 'unknown' ? (
+        <Text variant="caption" faint center selectable>
+          {t('errors.reference', { detail: detail.slice(0, 160) })}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 

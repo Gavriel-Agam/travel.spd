@@ -1,14 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import { focusManager, QueryClient } from '@tanstack/react-query';
+import { focusManager, MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, Pressable, Text, View } from 'react-native';
+import type { ErrorBoundaryProps } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { applyDirection, deviceLang, initI18n } from '@/i18n';
+import { installGlobalErrorLogging, logError } from '@/lib/log';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { usePrefs } from '@/store/prefs';
@@ -21,7 +23,14 @@ const WEEK = 7 * 24 * 3600_000;
 const queryClient = new QueryClient({
   // Kept for a week so the last-loaded trip still shows when the app opens offline
   defaultOptions: { queries: { staleTime: 30_000, retry: 2, gcTime: WEEK } },
+  // Every failed load or save is logged (console + public.client_errors)
+  queryCache: new QueryCache({ onError: (e, query) => logError(e, `query:${JSON.stringify(query.queryKey)}`) }),
+  mutationCache: new MutationCache({
+    onError: (e, _vars, _ctx, mutation) => logError(e, `mutation:${mutation.options.mutationKey ? JSON.stringify(mutation.options.mutationKey) : 'unnamed'}`),
+  }),
 });
+
+installGlobalErrorLogging();
 
 const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: 'travelspend-cache', throttleTime: 2000 });
 
@@ -75,5 +84,26 @@ export default function RootLayout() {
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Shown instead of a blank screen if anything crashes while drawing. The crash
+ * is logged; "Try again" re-renders the app. Bilingual because the crash may
+ * happen before the language is set up.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => logError(error, 'render-crash'), [error]);
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12, backgroundColor: '#0E1020' }}>
+      <Text style={{ fontSize: 44 }}>⚠️</Text>
+      <Text style={{ color: '#F2F3F8', fontSize: 18, fontWeight: '700', textAlign: 'center' }}>משהו השתבש · Something went wrong</Text>
+      <Text style={{ color: '#A0A4BA', fontSize: 12, textAlign: 'center' }} selectable>
+        {error.message}
+      </Text>
+      <Pressable onPress={retry} style={{ backgroundColor: '#3366FF', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 14, marginTop: 8 }}>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>נסו שוב · Try again</Text>
+      </Pressable>
+    </View>
   );
 }

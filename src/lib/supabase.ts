@@ -64,6 +64,7 @@ export function errorCode(e: unknown): string {
     'invalid_currency',
     'not_authenticated',
     'rates_unavailable',
+    'session_expired',
   ];
   return known.find((k) => msg.includes(k)) ?? (/network|fetch/i.test(msg) ? 'network' : 'unknown');
 }

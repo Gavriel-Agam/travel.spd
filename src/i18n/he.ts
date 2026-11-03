@@ -35,6 +35,8 @@ const he: Dict = {
     invalid_currency: 'מטבע לא מוכר.',
     not_authenticated: 'פג תוקף ההתחברות. התחברו שוב.',
     rates_unavailable: 'שערי החליפין לא זמינים כרגע.',
+    session_expired: 'פג תוקף החיבור. מתחבר מחדש…',
+    reference: 'פרטים: {{detail}}',
     unknown: 'שגיאה לא צפויה. נסו שוב.',
   },
   setup: {

@@ -22,6 +22,9 @@ await db.exec(`
     $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
   grant usage on schema public, auth, storage to anon, authenticated;
   grant select, insert, delete on storage.objects to authenticated;
+  -- Like Supabase: new tables in public are fully granted to the API roles;
+  -- migrations then narrow that down with revoke / column grants
+  alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated;
 `);
 
 process.on("uncaughtException", (e) => { console.error("FAIL:", e.message, e.where ?? ""); process.exit(1); });
@@ -30,12 +33,6 @@ for (const f of readdirSync('supabase/migrations').sort()) {
   await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
   console.log('applied', f);
 }
-await db.exec(`
-  grant select, insert, update, delete on all tables in schema public to anon, authenticated;
-`);
-// Re-apply the column limits, since the blanket grant above mimics Supabase's defaults
-await db.exec(readFileSync('supabase/migrations/20261101000001_init.sql', 'utf8')
-  .split('-- Column-level write limits (RLS decides rows, grants decide columns)')[1].split('-- RPC access')[0]);
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -281,5 +278,20 @@ assert.deepEqual(sharedMembers.map((m) => [m.display_name, m.role]), [['Traveler
 assert.equal((await as(C, 'select * from trips where shared')).length, 1);
 await rejects(asAnon('select join_shared_trip()'), /permission denied/);
 ok('shared trip: created once, joined by every device, no duplicates');
+
+// A session whose user was deleted gets a clear code instead of a FK error
+const GONE = '44444444-4444-4444-4444-444444444444';
+await rejects(as(GONE, 'select join_shared_trip()'), /session_expired/);
+ok('join_shared_trip reports session_expired for a deleted user');
+
+// Error log: anyone can write, nobody can read through the API
+await asAnon(`insert into client_errors (code, message, context) values ('unknown', 'boom', 'test')`);
+await as(A, `insert into client_errors (code, message, context, details) values ('network', 'offline', 'home', '{"status": 0}')`);
+await rejects(as(A, 'select * from client_errors'), /permission denied/);
+await rejects(asAnon('select * from client_errors'), /permission denied/);
+await rejects(as(A, `insert into client_errors (user_id, message) values ('${B}', 'spoof')`), /permission denied/);
+const logged = (await db.query('select user_id, code from client_errors order by id')).rows;
+assert.deepEqual(logged.map((r) => [r.user_id, r.code]), [[null, 'unknown'], [A, 'network']]);
+ok('client_errors: write-only, user_id taken from the session');
 
 console.log(`\n${passed} SQL checks passed`);

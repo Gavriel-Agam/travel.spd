@@ -33,6 +33,8 @@ const en = {
     invalid_currency: 'Unknown currency.',
     not_authenticated: 'Your session expired. Please sign in again.',
     rates_unavailable: 'Exchange rates are unavailable right now.',
+    session_expired: 'Your session expired. Reconnecting…',
+    reference: 'Details: {{detail}}',
     unknown: 'Unexpected error. Please try again.',
   },
   setup: {

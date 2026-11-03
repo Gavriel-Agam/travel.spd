@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
-import { supabase } from '@/lib/supabase';
+import { logError } from '@/lib/log';
+import { errorCode, supabase } from '@/lib/supabase';
 import { usePrefs } from '@/store/prefs';
 import type { Budget, Category, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
 
@@ -101,7 +102,18 @@ export function useJoinSharedTrip() {
   const qc = useQueryClient();
   const setActive = usePrefs((s) => s.setActiveTrip);
   return useMutation({
-    mutationFn: async () => unwrap(await supabase.rpc('join_shared_trip')) as string,
+    mutationKey: ['join_shared_trip'],
+    mutationFn: async () => {
+      const first = await supabase.rpc('join_shared_trip');
+      if (!first.error) return first.data as string;
+      // The saved identity no longer exists on the server (e.g. after a data
+      // reset): start a fresh anonymous identity and join again, no user action
+      if (errorCode(first.error) !== 'session_expired') throw first.error;
+      logError(first.error, 'join_shared_trip:recovering');
+      const { error: signInError } = await supabase.auth.signInAnonymously();
+      if (signInError) throw signInError;
+      return unwrap(await supabase.rpc('join_shared_trip')) as string;
+    },
     onSuccess: async (tripId) => {
       setActive(tripId);
       await qc.invalidateQueries({ queryKey: keys.trips });

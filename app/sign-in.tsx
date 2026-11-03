@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 import { useT } from '@/i18n';
 import { supabase } from '@/lib/supabase';
-import { space, useColors } from '@/theme';
+import { space } from '@/theme';
 import { Button, Field, Screen, Text } from '@/ui/primitives';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignIn() {
   const { t } = useT();
-  const c = useColors();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -41,18 +40,7 @@ export default function SignIn() {
   return (
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: space.xl }}>
       <View style={{ alignItems: 'center', gap: space.sm }}>
-        <View
-          style={{
-            width: 76,
-            height: 76,
-            borderRadius: 24,
-            backgroundColor: c.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ fontSize: 38 }}>🧳</Text>
-        </View>
+        <Image source={require('../assets/icon.png')} style={{ width: 84, height: 84, borderRadius: 22 }} accessibilityIgnoresInvertColors />
         <Text variant="title" center>
           TravelSpend Couple
         </Text>

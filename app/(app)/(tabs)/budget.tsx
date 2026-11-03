@@ -154,7 +154,11 @@ export default function Budget() {
           </Row>
         ) : (
           <Text variant="caption" muted>
-            {t('budget.projectionNeedsDates')}
+            {trip.start_date && trip.end_date
+              ? t('home.startsOn', {
+                  date: new Date(trip.start_date + 'T12:00:00Z').toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', timeZone: 'UTC' }),
+                })
+              : t('budget.projectionNeedsDates')}
           </Text>
         )}
         {stats.projected != null && stats.budget ? (

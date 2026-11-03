@@ -51,6 +51,32 @@ describe('computeTripStats', () => {
     expect(s.topDays[0]).toEqual({ day: '2026-11-02', total: 9000 });
   });
 
+  it('keeps pre-trip spending out of the daily average (flights before the trip)', () => {
+    // Started: flights 3000 before the trip, then 1000 on each of the first two days
+    const s = computeTripStats({
+      ...base,
+      startDate: '2026-11-02',
+      endDate: '2026-11-11',
+      expenses: [e(3000, '2026-11-01T05:00:00Z', 'flights'), e(1000, '2026-11-02T05:00:00Z'), e(1000, '2026-11-03T04:00:00Z')],
+    });
+    expect(s.total).toBe(5000);
+    expect(s.dailyAverage).toBe(1000);
+    expect(s.projected).toBe(3000 + 1000 * 10);
+  });
+
+  it('before the trip starts: no average or projection (was 4,980 x 39 days)', () => {
+    const s = computeTripStats({
+      ...base,
+      startDate: '2026-11-10',
+      endDate: '2026-12-18',
+      expenses: [e(498000, '2026-11-03T04:00:00Z', 'flights')],
+    });
+    expect(s.total).toBe(498000);
+    expect(s.today).toBe(498000);
+    expect(s.dailyAverage).toBe(0);
+    expect(s.projected).toBeNull();
+  });
+
   it('handles an empty trip', () => {
     const s = computeTripStats({ ...base, expenses: [] });
     expect(s.total).toBe(0);

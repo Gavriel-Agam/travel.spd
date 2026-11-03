@@ -14,6 +14,9 @@ type PrefsState = {
   currencyUsage: Record<string, number>;
   /** Latest rate snapshots by requested date, for offline conversion previews. */
   rates: Record<string, RatesSnapshot>;
+  /** Order of the Home cards on this device (see lib/homeLayout). */
+  homeOrder: string[] | null;
+  setHomeOrder: (order: string[] | null) => void;
   setLang: (lang: Lang) => void;
   setActiveTrip: (id: string | null) => void;
   noteCurrencyUsed: (tripId: string, code: string) => void;
@@ -29,6 +32,8 @@ export const usePrefs = create<PrefsState>()(
       recentCurrencies: [],
       currencyUsage: {},
       rates: {},
+      homeOrder: null,
+      setHomeOrder: (homeOrder) => set({ homeOrder }),
       setLang: (lang) => set({ lang }),
       setActiveTrip: (activeTripId) => set({ activeTripId }),
       noteCurrencyUsed: (tripId, code) =>

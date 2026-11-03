@@ -75,13 +75,17 @@ export function computeTripStats(input: {
   const days = [...byDayMap.keys()].sort();
   // Average over the trip so far: from the trip start (or first expense) up to today
   // (or the trip end, if it is over). Spending before the trip (e.g. flights) counts
-  // in the total but not in elapsed days.
+  // in the total, but not in the daily average; the projection adds it once.
   const firstDay = input.startDate ?? days[0] ?? today;
   const lastDay = input.endDate && input.endDate < today ? input.endDate : today;
-  const daysElapsed = Math.max(1, daysInclusive(firstDay < lastDay ? firstDay : lastDay, lastDay));
+  const notStarted = !!input.startDate && today < input.startDate;
+  const daysElapsed = notStarted ? 0 : Math.max(1, daysInclusive(firstDay < lastDay ? firstDay : lastDay, lastDay));
   const tripDays = input.startDate && input.endDate ? daysInclusive(input.startDate, input.endDate) : null;
-  const dailyAverage = new Decimal(total).div(daysElapsed).toDecimalPlaces(0).toNumber();
-  const projected = tripDays ? Math.max(total, dailyAverage * tripDays) : null;
+  const preTrip = input.startDate ? days.filter((d) => d < input.startDate!).reduce((t, d) => t + byDayMap.get(d)!, 0) : 0;
+  const onTrip = total - preTrip;
+  const dailyAverage = daysElapsed ? new Decimal(onTrip).div(daysElapsed).toDecimalPlaces(0).toNumber() : 0;
+  // Nothing to project from before the first trip day
+  const projected = tripDays && !notStarted ? Math.max(total, preTrip + dailyAverage * tripDays) : null;
 
   const todayTotal = byDayMap.get(today) ?? 0;
   const pctUsed = input.totalBudget ? percent(total, input.totalBudget) : 0;

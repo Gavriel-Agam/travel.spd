@@ -41,6 +41,7 @@ const en = {
   },
   auth: {
     tagline: 'Travel spending, together.',
+    start: 'Start',
     email: 'Email',
     emailPlaceholder: 'you@example.com',
     sendCode: 'Send code',

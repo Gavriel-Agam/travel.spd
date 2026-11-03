@@ -43,6 +43,7 @@ const he: Dict = {
   },
   auth: {
     tagline: 'הוצאות הטיול, ביחד.',
+    start: 'התחל',
     email: 'אימייל',
     emailPlaceholder: 'you@example.com',
     sendCode: 'שליחת קוד',

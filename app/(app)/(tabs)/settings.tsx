@@ -9,6 +9,7 @@ import { useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 import { useOutbox } from '@/store/outbox';
 import { usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
@@ -27,6 +28,7 @@ export default function Settings() {
   const setLang = usePrefs((s) => s.setLang);
   const setActiveTrip = usePrefs((s) => s.setActiveTrip);
   const queryClient = useQueryClient();
+  const isAnonymous = useAuth().session?.user.is_anonymous ?? false;
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
@@ -165,7 +167,8 @@ export default function Settings() {
         <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => router.push('/onboarding/join')} />
       </Card>
 
-      <Button title={t('settings.signOut')} variant="danger" icon="log-out-outline" onPress={signOut} />
+      {/* Anonymous (MVP) devices would come back as a new traveller, so no sign-out */}
+      {!isAnonymous ? <Button title={t('settings.signOut')} variant="danger" icon="log-out-outline" onPress={signOut} /> : null}
       <Text variant="caption" faint center>
         {t('settings.version', { v: Constants.expoConfig?.version ?? '1.0.0' })}
       </Text>

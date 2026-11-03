@@ -270,4 +270,16 @@ await rejects(as(A, `select allocate_minor(100, '[]'::jsonb)`), /permission deni
 assert.ok((await as(A, `select * from ils_rates()`)).length > 0);
 ok('anon cannot call RPCs; internal helpers are not exposed');
 
+// MVP shared trip: first caller creates it, others join, repeats are harmless
+const [{ join_shared_trip: s1 }] = await as(C, 'select join_shared_trip()');
+const [{ join_shared_trip: s2 }] = await as(A, 'select join_shared_trip()');
+const [{ join_shared_trip: s3 }] = await as(C, 'select join_shared_trip()');
+assert.equal(s1, s2);
+assert.equal(s1, s3);
+const sharedMembers = await as(A, 'select display_name, role from trip_members where trip_id = $1 order by joined_at', [s1]);
+assert.deepEqual(sharedMembers.map((m) => [m.display_name, m.role]), [['Traveler 1', 'owner'], ['Traveler 2', 'member']]);
+assert.equal((await as(C, 'select * from trips where shared')).length, 1);
+await rejects(asAnon('select join_shared_trip()'), /permission denied/);
+ok('shared trip: created once, joined by every device, no duplicates');
+
 console.log(`\n${passed} SQL checks passed`);

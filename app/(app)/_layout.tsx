@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
-import { useActiveTrip, useCurrencyList, useRates, useTripRealtime } from '@/api/queries';
+import { useEffect } from 'react';
+import { useActiveTrip, useCurrencyList, useJoinSharedTrip, useRates, useTripRealtime } from '@/api/queries';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
 import { dayKey } from '@/lib/stats';
 import { ErrorView, Loading, Screen } from '@/ui/primitives';
@@ -7,14 +8,27 @@ import { useColors } from '@/theme';
 
 export default function AppLayout() {
   const c = useColors();
-  const { trip, isLoading, error, refetch } = useActiveTrip();
+  const { trip, isLoading, error, refetch, data: trips } = useActiveTrip();
+  const join = useJoinSharedTrip();
   useCurrencyList();
   useTripRealtime(trip?.id);
   useOutboxSync();
   // Fetch today's rates on launch so conversion keeps working if the connection drops later
   useRates(dayKey(new Date(), trip?.timezone ?? 'UTC'));
 
-  if (isLoading) return <Loading />;
+  // MVP: no onboarding; a device without a trip joins the shared one
+  const needsJoin = !isLoading && !error && trips?.length === 0;
+  useEffect(() => {
+    if (needsJoin && join.isIdle) join.mutate();
+  }, [needsJoin, join]);
+
+  if (isLoading || (needsJoin && !join.isError)) return <Loading />;
+  if (join.isError && !trip)
+    return (
+      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+        <ErrorView error={join.error} onRetry={() => join.mutate()} />
+      </Screen>
+    );
   if (error && !trip)
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>

@@ -4,13 +4,13 @@ project_id = "travelspend-couple"
 [auth]
 site_url = "https://gavriel-agam.github.io/travel.spd/"
 additional_redirect_urls = ["https://gavriel-agam.github.io/travel.spd/**", "travelspend://**", "exp://**"]
-# TEMPORARILY open (2026-11-03) until the second partner's account exists;
-# set back to false and run `supabase config push --yes` afterwards
+# MVP without login: each device signs in anonymously and joins the shared
+# trip (join_shared_trip). Anonymous sign-in needs sign-ups enabled.
 enable_signup = true
+enable_anonymous_sign_ins = true
 
 [auth.email]
 enabled = true
-# The app signs in with a 6-digit code: the email template must include {{ .Token }}
 otp_length = 6
 otp_expiry = 3600
 

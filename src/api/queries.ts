@@ -90,6 +90,19 @@ export function useJoinTrip() {
   });
 }
 
+/** MVP: adds this device to the one shared trip (creating it on first use). */
+export function useJoinSharedTrip() {
+  const qc = useQueryClient();
+  const setActive = usePrefs((s) => s.setActiveTrip);
+  return useMutation({
+    mutationFn: async () => unwrap(await supabase.rpc('join_shared_trip')) as string,
+    onSuccess: async (tripId) => {
+      setActive(tripId);
+      await qc.invalidateQueries({ queryKey: keys.trips });
+    },
+  });
+}
+
 export function useInviteCode(tripId: string | undefined) {
   return useQuery({
     queryKey: keys.invite(tripId ?? ''),

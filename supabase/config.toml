@@ -4,8 +4,9 @@ project_id = "travelspend-couple"
 [auth]
 site_url = "https://gavriel-agam.github.io/travel.spd/"
 additional_redirect_urls = ["https://gavriel-agam.github.io/travel.spd/**", "travelspend://**", "exp://**"]
-# Only the two partners use this app; both accounts already exist
-enable_signup = false
+# TEMPORARILY open (2026-11-03) until the second partner's account exists;
+# set back to false and run `supabase config push --yes` afterwards
+enable_signup = true
 
 [auth.email]
 enabled = true

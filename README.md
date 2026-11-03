@@ -42,7 +42,7 @@ On this Windows PC PowerShell scripts are blocked, so use `npm.cmd` / `npx.cmd`.
    npx.cmd supabase link --project-ref YOUR-PROJECT-REF
    ```
    ```bash
-   npx.cmd supabase db push --linked --yes
+   npx.cmd supabase db push --remote --yes
    ```
 2. **Deploy the exchange-rate function:**
    ```bash

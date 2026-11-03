@@ -12,12 +12,13 @@ import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import { Sheet } from '@/ui/Sheet';
-import { Avatar, Button, Card, Divider, EmptyState, Field, IconButton, Row, Screen, Text } from '@/ui/primitives';
+import { Avatar, Button, Card, Divider, EmptyState, ErrorView, Field, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
 
 export default function SettleUp() {
   const { t, lang } = useT();
   const c = useColors();
-  const { trip, balances, transfers, memberById, expenses, categoryById } = useTripData();
+  const data = useTripData();
+  const { trip, balances, transfers, memberById, expenses, categoryById } = data;
   const save = useSaveExpense(trip?.id ?? '');
   const [recording, setRecording] = useState<Transfer | null>(null);
   const [amount, setAmount] = useState('');
@@ -26,6 +27,14 @@ export default function SettleUp() {
   const name = (id: string) => memberById.get(id)?.display_name ?? '?';
 
   if (!trip) return null;
+  // Balances are only meaningful once everything has loaded
+  if (data.isLoading) return <Loading />;
+  if (data.error)
+    return (
+      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+        <ErrorView error={data.error} onRetry={data.refetch} />
+      </Screen>
+    );
   const history = expenses.filter((e) => e.kind === 'settlement');
 
   function open(tr: Transfer) {

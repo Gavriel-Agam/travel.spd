@@ -4,39 +4,63 @@ A shared travel expense app for two people: manual expenses in any currency, sho
 
 Stack: Expo (SDK 58) + Expo Router + TypeScript, Supabase (Postgres, Auth, Realtime, Storage, Edge Functions).
 
-## Requirements
+## Using the app (iPhone)
 
-- **Node.js 22.13 or newer** (Expo SDK 58 does not run on Node 20)
-- A Supabase project (free tier is enough)
-- Expo Go on both iPhones, for development
+The app is a home-screen web app, published free on GitHub Pages:
 
-## One-time setup
+**https://gavriel-agam.github.io/travel.spd/**
 
-1. **Create a Supabase project** at supabase.com.
-2. **Apply the database** (from this folder):
+1. Open the link in **Safari** on the iPhone.
+2. Tap **Share > Add to Home Screen > Add**.
+3. Open it from the new icon and sign in with your email (a 6-digit code is emailed).
+
+It works offline: the last-loaded trip is shown, and new expenses are saved on the phone
+("waiting to sync") and sent automatically when the connection returns. Editing and receipt
+photos need a connection.
+
+## Publishing
+
+Every push to `main` runs `.github/workflows/deploy-web.yml`: typecheck, unit tests, database
+tests, web build, then publish to the `gh-pages` branch. One-time setting: GitHub repo
+**Settings > Pages > Build and deployment > Source: Deploy from a branch, Branch: `gh-pages` / (root)**.
+
+`.env.production` holds the Supabase URL and anon key used by that build. Both are public by
+design (they are embedded in the website); Row Level Security protects the data. Never put the
+service_role / secret key in any committed file.
+
+## Backend setup (already done for the live project)
+
+Requirements: Node.js 22.13 or newer, a Supabase project (free tier is enough).
+
+On this Windows PC PowerShell scripts are blocked, so use `npm.cmd` / `npx.cmd`.
+
+1. **Apply the database:**
    ```bash
-   npx supabase login
-   npx supabase link --project-ref YOUR-PROJECT-REF
-   npx supabase db push
+   npx.cmd supabase login --no-browser
    ```
-3. **Deploy the exchange-rate function:**
    ```bash
-   npx supabase functions deploy fx-rates
+   npx.cmd supabase link --project-ref YOUR-PROJECT-REF
+   ```
+   ```bash
+   npx.cmd supabase db push --linked --yes
+   ```
+2. **Deploy the exchange-rate function:**
+   ```bash
+   npx.cmd supabase functions deploy fx-rates --use-api
    ```
    It uses Frankfurter (European Central Bank rates) plus a market dataset for other currencies. Neither needs an API key.
-4. **Email sign-in with a code:** in Supabase, open Authentication > Email Templates > Magic Link and make sure the template contains `{{ .Token }}`, so the email shows the 6-digit code.
-5. **Connect the app:** copy `.env.example` to `.env` and fill in the project URL and anon key (Project Settings > API).
-6. **Run:**
+3. **Email sign-in with a code:** in Supabase, open Authentication > Email Templates > Magic Link and make sure the template contains `{{ .Token }}`.
+4. **Local development:** copy `.env.example` to `.env` and fill in the project URL and anon key, then:
    ```bash
-   npm start
+   npx.cmd expo start
    ```
-   Scan the QR code with the iPhone camera to open the app in Expo Go.
+   Press `w` for the browser, or scan the QR code with Expo Go.
 
 ## Checks
 
 ```bash
 npm run typecheck   # TypeScript
-npm test            # money, currency, split, settlement and stats logic
+npm test            # money, currency, split, settlement, stats, budget and offline-queue logic
 npm run test:sql    # every migration + RLS + RPCs on an in-process Postgres
 ```
 
@@ -60,5 +84,8 @@ src/i18n/                 English + Hebrew
 src/data/                 currency and category reference data
 supabase/migrations/      schema, RLS, RPCs, reference data, storage
 supabase/functions/       fx-rates Edge Function
-scripts/                  SQL test harness, reference-data generator
+src/store/                device prefs, offline outbox
+public/                   web app shell: index.html, manifest, icons, service worker
+scripts/                  SQL test harness, reference-data and icon generators
+.github/workflows/        test + publish to GitHub Pages
 ```

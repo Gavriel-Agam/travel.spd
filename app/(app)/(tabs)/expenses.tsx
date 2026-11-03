@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, SectionList, TextInput, View } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDeleteExpense } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
@@ -17,7 +16,7 @@ import { dayKey } from '@/lib/stats';
 import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
-import { ExpenseRow } from '@/ui/ExpenseRow';
+import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
 import { Chip, EmptyState, ErrorView, Loading, Row, Text } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
 
@@ -201,54 +200,17 @@ export default function Expenses() {
             </Row>
           )}
           renderItem={({ item, index, section }) => (
-            <Swipeable
-              friction={2}
-              rightThreshold={40}
-              renderRightActions={(_p, _t, methods) => (
-                <Row gap={0}>
-                  {item.kind === 'expense' && !item.pending ? (
-                    <Pressable
-                      onPress={() => {
-                        methods.close();
-                        router.push({ pathname: '/expense/[id]/edit', params: { id: item.id } });
-                      }}
-                      style={{ width: 72, height: '100%', backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <Ionicons name="create-outline" size={22} color="#fff" />
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    onPress={() => {
-                      methods.close();
-                      confirmDelete(item);
-                    }}
-                    style={{ width: 72, height: '100%', backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Ionicons name="trash-outline" size={22} color="#fff" />
-                  </Pressable>
-                </Row>
-              )}
-            >
-              <View
-                style={{
-                  backgroundColor: c.card,
-                  paddingHorizontal: space.md,
-                  borderTopLeftRadius: index === 0 ? radius.lg : 0,
-                  borderTopRightRadius: index === 0 ? radius.lg : 0,
-                  borderBottomLeftRadius: index === section.data.length - 1 ? radius.lg : 0,
-                  borderBottomRightRadius: index === section.data.length - 1 ? radius.lg : 0,
-                  marginBottom: index === section.data.length - 1 ? space.md : 0,
-                }}
-              >
-                <ExpenseRow
-                  expense={item}
-                  category={item.category_id ? categoryById.get(item.category_id) : undefined}
-                  payer={memberById.get(item.paid_by_member_id)}
-                  recipient={memberById.get(item.expense_splits[0]?.member_id)}
-                  onPress={() => router.push({ pathname: '/expense/[id]', params: { id: item.id } })}
-                />
-              </View>
-            </Swipeable>
+            <SwipeableExpenseRow
+              expense={item}
+              first={index === 0}
+              last={index === section.data.length - 1}
+              category={item.category_id ? categoryById.get(item.category_id) : undefined}
+              payer={memberById.get(item.paid_by_member_id)}
+              recipient={memberById.get(item.expense_splits[0]?.member_id)}
+              onOpen={() => router.push({ pathname: '/expense/[id]', params: { id: item.id } })}
+              onEdit={() => router.push({ pathname: '/expense/[id]/edit', params: { id: item.id } })}
+              onDelete={() => confirmDelete(item)}
+            />
           )}
         />
       )}

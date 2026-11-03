@@ -26,6 +26,8 @@ function describe(error: unknown) {
 export function logError(error: unknown, context: string, extra?: Record<string, unknown>) {
   try {
     const code = errorCode(error);
+    // Expected in the read-only demo; nothing could be sent anyway
+    if (code === 'demo_readonly') return;
     const { message, details } = describe(error);
     console.error(`[${context}] ${code}: ${message}`, error);
 

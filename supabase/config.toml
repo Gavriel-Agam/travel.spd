@@ -3,14 +3,24 @@ project_id = "travelspend-couple"
 
 [auth]
 site_url = "https://gavriel-agam.github.io/travel.spd/"
-additional_redirect_urls = ["https://gavriel-agam.github.io/travel.spd/**", "travelspend://**", "exp://**"]
-# MVP without login: each device signs in anonymously and joins the shared
-# trip (join_shared_trip). Anonymous sign-in needs sign-ups enabled.
+additional_redirect_urls = [
+  "https://gavriel-agam.github.io/travel.spd/**",
+  "http://localhost:8081/**",
+  "travelspend://**",
+  "exp://**",
+]
+# Real accounts: email + password and Google (Google is configured in the
+# dashboard, so its secret never lives in this repo). Anonymous sign-in was the
+# no-login MVP; existing anonymous phones move to an account with
+# start/finish_account_transfer.
 enable_signup = true
-enable_anonymous_sign_ins = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
 
 [auth.email]
 enabled = true
+# No confirmation email: a new account can sign in immediately (no codes)
+enable_confirmations = false
 otp_length = 6
 otp_expiry = 3600
 

@@ -6,6 +6,8 @@ import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { space, useColors } from '@/theme';
+import { useExitDemo } from '@/hooks/useExitDemo';
+import { useIsDemo } from '@/store/prefs';
 import { Text, type IconName } from '@/ui/primitives';
 
 const ICONS: Record<string, [IconName, IconName]> = {
@@ -18,7 +20,10 @@ const ICONS: Record<string, [IconName, IconName]> = {
 
 function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const c = useColors();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
+  const demo = useIsDemo();
+  const exitDemo = useExitDemo();
   return (
     <View>
       {/* Floating add button, always one tap away */}
@@ -49,6 +54,19 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
       >
         <Ionicons name="add" size={34} color="#fff" />
       </Pressable>
+      {demo ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: c.warning, paddingHorizontal: space.lg, paddingVertical: 8 }}>
+          <Ionicons name="eye-outline" size={16} color="#111" />
+          <Text variant="caption" color="#111" style={{ flex: 1, fontWeight: '700' }} numberOfLines={2}>
+            {t('demo.banner')}
+          </Text>
+          <Pressable accessibilityRole="button" onPress={exitDemo} hitSlop={8} style={{ backgroundColor: '#111', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Text variant="caption" color="#fff" style={{ fontWeight: '700' }}>
+              {t('demo.exit')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       <View
         style={{
           flexDirection: 'row',

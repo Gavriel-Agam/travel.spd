@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { usePrefs } from '@/store/prefs';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -40,12 +41,19 @@ const webStorage = {
   removeItem: async (k: string) => localStorage.removeItem(k),
 };
 
+// The guest demo never talks to the server: any request (read or write) is refused
+const guardedFetch: typeof fetch = (input, init) =>
+  usePrefs.getState().demo ? Promise.reject(new Error('demo_readonly')) : fetch(input, init);
+
 export const supabase = createClient(url || 'https://not-configured.supabase.co', anonKey || 'not-configured', {
+  global: { fetch: guardedFetch },
   auth: {
     storage: Platform.OS === 'web' ? webStorage : secureChunked,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // Google sign-in returns to the site with ?code=…; the client exchanges it
+    detectSessionInUrl: Platform.OS === 'web',
+    flowType: 'pkce',
   },
 });
 
@@ -65,6 +73,18 @@ export function errorCode(e: unknown): string {
     'not_authenticated',
     'rates_unavailable',
     'session_expired',
+    'transfer_invalid',
+    'demo_readonly',
+    'invalid_credentials',
+    'user_already_exists',
+    'weak_password',
+    'signup_disabled',
+    'provider_disabled',
+    'over_email_send_rate_limit',
   ];
+  // Supabase Auth reports these as codes rather than in the message
+  const authCode = (e as { code?: string })?.code;
+  if (authCode && known.includes(authCode)) return authCode;
+  if (/provider is not enabled|Unsupported provider/i.test(msg)) return 'provider_disabled';
   return known.find((k) => msg.includes(k)) ?? (/network|fetch/i.test(msg) ? 'network' : 'unknown');
 }

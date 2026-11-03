@@ -13,7 +13,9 @@ import { applyDirection, deviceLang, initI18n } from '@/i18n';
 import { installGlobalErrorLogging, logError } from '@/lib/log';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
-import { usePrefs } from '@/store/prefs';
+import { useIsDemo, usePrefs } from '@/store/prefs';
+import { seedDemo } from '@/lib/demoSeed';
+import i18n from '@/i18n';
 import { DialogHost } from '@/ui/Dialog';
 import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
@@ -46,18 +48,24 @@ function usePrefsHydrated() {
 }
 
 function RootNavigator() {
-  const { session, loading } = useAuth();
+  const { session, loading, recovery, transferring } = useAuth();
+  const demo = useIsDemo();
   const c = useColors();
-  if (loading) return <Loading />;
+  if (loading || transferring) return <Loading />;
+  // An anonymous identity (from the no-login MVP) must sign in; its trips move to the account
+  const signedIn = !!session && !session.user.is_anonymous;
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
       <Stack.Protected guard={!isSupabaseConfigured}>
         <Stack.Screen name="setup" />
       </Stack.Protected>
-      <Stack.Protected guard={isSupabaseConfigured && !session}>
+      <Stack.Protected guard={isSupabaseConfigured && recovery && signedIn}>
+        <Stack.Screen name="reset-password" />
+      </Stack.Protected>
+      <Stack.Protected guard={isSupabaseConfigured && !signedIn && !demo}>
         <Stack.Screen name="sign-in" />
       </Stack.Protected>
-      <Stack.Protected guard={isSupabaseConfigured && !!session}>
+      <Stack.Protected guard={isSupabaseConfigured && (signedIn || demo) && !recovery}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
     </Stack>
@@ -75,7 +83,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: WEEK, buster: 'v1' }}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{ persister, maxAge: WEEK, buster: 'v1' }}
+          // Restoring the saved cache must not replace the demo trip
+          onSuccess={() => usePrefs.getState().demo && seedDemo(queryClient, i18n.t)}
+        >
           <AuthProvider>
             <StatusBar style="auto" />
             {hydrated ? <RootNavigator /> : <Loading />}

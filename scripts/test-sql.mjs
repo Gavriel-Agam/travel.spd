@@ -12,6 +12,8 @@ await db.exec(`
   create role authenticated nologin;
   create schema auth;
   create table auth.users (id uuid primary key, raw_user_meta_data jsonb default '{}'::jsonb);
+  create function auth.jwt() returns jsonb language sql stable as
+    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create schema storage;
@@ -39,8 +41,9 @@ const B = '22222222-2222-2222-2222-222222222222';
 const C = '33333333-3333-3333-3333-333333333333';
 await db.exec(`insert into auth.users (id) values ('${A}'), ('${B}'), ('${C}')`);
 
-async function as(uid, sql, params = []) {
-  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${uid}', false);`);
+async function as(uid, sql, params = [], { anonymous = false } = {}) {
+  const claims = JSON.stringify({ sub: uid, is_anonymous: anonymous });
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${uid}', false); select set_config('request.jwt.claims', '${claims}', false);`);
   try {
     return (await db.query(sql, params)).rows;
   } finally {
@@ -267,10 +270,15 @@ await rejects(as(A, `select allocate_minor(100, '[]'::jsonb)`), /permission deni
 assert.ok((await as(A, `select * from ils_rates()`)).length > 0);
 ok('anon cannot call RPCs; internal helpers are not exposed');
 
-// MVP shared trip: first caller creates it, others join, repeats are harmless
-const [{ join_shared_trip: s1 }] = await as(C, 'select join_shared_trip()');
-const [{ join_shared_trip: s2 }] = await as(A, 'select join_shared_trip()');
-const [{ join_shared_trip: s3 }] = await as(C, 'select join_shared_trip()');
+// MVP shared trip (retired for the app in 0010; the function itself is still
+// checked, called as the database owner with a user's id)
+async function asOwner(uid, sql) {
+  await db.exec(`select set_config('request.jwt.claim.sub', '${uid}', false);`);
+  return (await db.query(sql)).rows;
+}
+const [{ join_shared_trip: s1 }] = await asOwner(C, 'select join_shared_trip()');
+const [{ join_shared_trip: s2 }] = await asOwner(A, 'select join_shared_trip()');
+const [{ join_shared_trip: s3 }] = await asOwner(C, 'select join_shared_trip()');
 assert.equal(s1, s2);
 assert.equal(s1, s3);
 const sharedMembers = await as(A, 'select display_name, role from trip_members where trip_id = $1 order by joined_at', [s1]);
@@ -281,7 +289,7 @@ ok('shared trip: created once, joined by every device, no duplicates');
 
 // A session whose user was deleted gets a clear code instead of a FK error
 const GONE = '44444444-4444-4444-4444-444444444444';
-await rejects(as(GONE, 'select join_shared_trip()'), /session_expired/);
+await rejects(asOwner(GONE, 'select join_shared_trip()'), /session_expired/);
 ok('join_shared_trip reports session_expired for a deleted user');
 
 // Error log: anyone can write, nobody can read through the API
@@ -314,5 +322,29 @@ assert.equal((await db.query(`select name from expense_categories where id = $1`
 await as(A, `delete from category_overrides where trip_id = $1 and category_id = $2`, [trip, catHotel]);
 assert.equal((await as(A, 'select * from category_overrides')).length, 0);
 ok('category overrides: members edit built-ins per trip; shared rows unchanged');
+
+// Private trips: nobody joins the old shared trip any more without a code
+await rejects(as(C, 'select join_shared_trip()'), /permission denied/);
+ok('join_shared_trip retired for the app');
+
+// Account transfer: anonymous phone -> real account keeps memberships and authorship
+const ANON = '55555555-5555-4555-8555-555555555555';
+const REAL = '66666666-6666-4666-8666-666666666666';
+await db.exec(`insert into auth.users (id) values ('${ANON}'), ('${REAL}')`);
+const [{ create_trip: anonTrip }] = await as(ANON, `select create_trip('MVP trip', 'Noa')`, [], { anonymous: true });
+const [{ id: anonMember }] = await as(ANON, 'select id from trip_members where trip_id = $1', [anonTrip], { anonymous: true });
+await as(ANON, `select * from save_expense($1::jsonb)`, [JSON.stringify({ trip_id: anonTrip, paid_by_member_id: anonMember, amount_minor: 5000, currency: 'ILS', fx_rate: '1', split_type: 'equal', splits: [{ member_id: anonMember }] })], { anonymous: true });
+await rejects(as(REAL, 'select start_account_transfer()'), /not_anonymous/);
+const [{ start_account_transfer: token }] = await as(ANON, 'select start_account_transfer()', [], { anonymous: true });
+await rejects(as(ANON, 'select finish_account_transfer($1)', [token], { anonymous: true }), /still_anonymous/);
+await rejects(as(REAL, 'select finish_account_transfer($1)', ['00000000-0000-4000-8000-000000000000']), /transfer_invalid/);
+const [{ finish_account_transfer: moved }] = await as(REAL, 'select finish_account_transfer($1)', [token]);
+assert.equal(moved, 1);
+assert.equal((await as(REAL, 'select * from trips where id = $1', [anonTrip])).length, 1);
+assert.equal((await as(REAL, 'select count(*)::int n from expenses where trip_id = $1 and created_by = $2', [anonTrip, REAL]))[0].n, 1);
+assert.equal((await as(ANON, 'select * from trips where id = $1', [anonTrip], { anonymous: true })).length, 0);
+await rejects(as(REAL, 'select finish_account_transfer($1)', [token]), /transfer_invalid/);
+await rejects(as(REAL, 'select * from account_transfers'), /permission denied/);
+ok('account transfer: a one-time token moves an anonymous phone\'s trips to the real account');
 
 console.log(`\n${passed} SQL checks passed`);

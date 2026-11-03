@@ -16,6 +16,9 @@ type PrefsState = {
   rates: Record<string, RatesSnapshot>;
   /** Order of the Home cards on this device (see lib/homeLayout). */
   homeOrder: string[] | null;
+  /** Guest demo: a read-only sample trip on this device; nothing is sent to the server. */
+  demo: boolean;
+  setDemo: (demo: boolean) => void;
   setHomeOrder: (order: string[] | null) => void;
   setLang: (lang: Lang) => void;
   setActiveTrip: (id: string | null) => void;
@@ -33,6 +36,8 @@ export const usePrefs = create<PrefsState>()(
       currencyUsage: {},
       rates: {},
       homeOrder: null,
+      demo: false,
+      setDemo: (demo) => set({ demo }),
       setHomeOrder: (homeOrder) => set({ homeOrder }),
       setLang: (lang) => set({ lang }),
       setActiveTrip: (activeTripId) => set({ activeTripId }),
@@ -67,4 +72,9 @@ export function cachedRatesFor(rates: Record<string, RatesSnapshot>, date: strin
   const before = keys.filter((k) => k <= date).pop();
   const key = before ?? keys.pop();
   return key ? rates[key] : null;
+}
+
+/** True while the guest demo is open. */
+export function useIsDemo() {
+  return usePrefs((s) => s.demo);
 }

@@ -11,8 +11,9 @@ import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
+import { useExitDemo } from '@/hooks/useExitDemo';
 import { useOutbox } from '@/store/outbox';
-import { usePrefs } from '@/store/prefs';
+import { useIsDemo, usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
@@ -36,6 +37,8 @@ export default function Settings() {
   const setActiveTrip = usePrefs((s) => s.setActiveTrip);
   const queryClient = useQueryClient();
   const isAnonymous = useAuth().session?.user.is_anonymous ?? false;
+  const demo = useIsDemo();
+  const exitDemo = useExitDemo();
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
@@ -201,7 +204,11 @@ export default function Settings() {
       ) : null}
 
       {/* Anonymous (MVP) devices would come back as a new traveller, so no sign-out */}
-      {!isAnonymous ? <Button title={t('settings.signOut')} variant="danger" icon="log-out-outline" onPress={signOut} /> : null}
+      {demo ? (
+        <Button title={t('demo.exit')} variant="secondary" icon="exit-outline" onPress={exitDemo} />
+      ) : !isAnonymous ? (
+        <Button title={t('settings.signOut')} variant="danger" icon="log-out-outline" onPress={signOut} />
+      ) : null}
       <Text variant="caption" faint center>
         {t('settings.version', { v: Constants.expoConfig?.version ?? '1.0.0' })}
       </Text>

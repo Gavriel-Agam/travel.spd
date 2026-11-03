@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import { keys } from '@/api/queries';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useOutbox } from '@/store/outbox';
+import { useIsDemo } from '@/store/prefs';
 
 /** Browser connectivity (React Query tracks the online/offline events). */
 export function useOnline() {
@@ -22,7 +23,8 @@ export function useOnline() {
 export function useOutboxSync() {
   const qc = useQueryClient();
   const online = useOnline();
-  const waiting = useOutbox((s) => s.items.filter((i) => !i.error).length);
+  const demo = useIsDemo();
+  const waiting = useOutbox((s) => (demo ? 0 : s.items.filter((i) => !i.error).length));
   const running = useRef(false);
 
   const flush = useCallback(async () => {

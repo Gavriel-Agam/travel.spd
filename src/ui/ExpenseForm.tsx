@@ -210,6 +210,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // ---------------------------------------------------------------- save
   async function submit(overrideVersion?: number) {
     if (!trip) return;
+    if (usePrefs.getState().demo) return setError(t('errors.demo_readonly'));
     if (amountMinor == null) {
       setError(t('form.amountRequired'));
       amountRef.current?.focus();

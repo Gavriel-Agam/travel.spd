@@ -4,9 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
 import { mergeCategories } from '@/lib/categories';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
-import { logError } from '@/lib/log';
-import { errorCode, supabase } from '@/lib/supabase';
-import { usePrefs } from '@/store/prefs';
+import { supabase } from '@/lib/supabase';
+import { useIsDemo, usePrefs } from '@/store/prefs';
 import type { Budget, Category, CategoryOverride, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
 
 export const keys = {
@@ -28,12 +27,13 @@ function unwrap<T>({ data, error }: { data: T | null; error: unknown }): T {
 // ---------------------------------------------------------------- trips
 
 export function useTrips(enabled = true) {
+  const demo = useIsDemo();
   const { t, i18n } = useTranslation();
   // Re-created when the language changes so placeholder names follow it
   const select = useCallback((list: Trip[]) => list.map((tr) => ({ ...tr, name: displayTripName(tr.name, t) })), [t, i18n.language]);
   return useQuery({
     queryKey: keys.trips,
-    enabled,
+    enabled: enabled && !demo,
     queryFn: async () => unwrap(await supabase.from('trips').select('*').order('created_at', { ascending: false })) as Trip[],
     select,
   });
@@ -98,34 +98,11 @@ export function useJoinTrip() {
   });
 }
 
-/** MVP: adds this device to the one shared trip (creating it on first use). */
-export function useJoinSharedTrip() {
-  const qc = useQueryClient();
-  const setActive = usePrefs((s) => s.setActiveTrip);
-  return useMutation({
-    mutationKey: ['join_shared_trip'],
-    mutationFn: async () => {
-      const first = await supabase.rpc('join_shared_trip');
-      if (!first.error) return first.data as string;
-      // The saved identity no longer exists on the server (e.g. after a data
-      // reset): start a fresh anonymous identity and join again, no user action
-      if (errorCode(first.error) !== 'session_expired') throw first.error;
-      logError(first.error, 'join_shared_trip:recovering');
-      const { error: signInError } = await supabase.auth.signInAnonymously();
-      if (signInError) throw signInError;
-      return unwrap(await supabase.rpc('join_shared_trip')) as string;
-    },
-    onSuccess: async (tripId) => {
-      setActive(tripId);
-      await qc.invalidateQueries({ queryKey: keys.trips });
-    },
-  });
-}
-
 export function useInviteCode(tripId: string | undefined) {
+  const demo = useIsDemo();
   return useQuery({
     queryKey: keys.invite(tripId ?? ''),
-    enabled: !!tripId,
+    enabled: !!tripId && !demo,
     staleTime: 5 * 60_000,
     queryFn: async () => unwrap(await supabase.rpc('create_invite', { p_trip_id: tripId })) as string,
   });
@@ -143,6 +120,7 @@ export function useUpdateTrip(tripId: string) {
 // ---------------------------------------------------------------- members & categories
 
 export function useMembers(tripId: string | undefined) {
+  const demo = useIsDemo();
   const { t, i18n } = useTranslation();
   const select = useCallback(
     (list: Member[]) => list.map((m) => ({ ...m, display_name: displayMemberName(m.display_name, t) })),
@@ -150,7 +128,7 @@ export function useMembers(tripId: string | undefined) {
   );
   return useQuery({
     queryKey: keys.members(tripId ?? ''),
-    enabled: !!tripId,
+    enabled: !!tripId && !demo,
     queryFn: async () =>
       unwrap(await supabase.from('trip_members').select('*').eq('trip_id', tripId!).order('joined_at')) as Member[],
     select,
@@ -174,9 +152,10 @@ export function useUpdateMyMember(tripId: string) {
 }
 
 export function useCategories(tripId: string | undefined) {
+  const demo = useIsDemo();
   return useQuery({
     queryKey: keys.categories(tripId ?? ''),
-    enabled: !!tripId,
+    enabled: !!tripId && !demo,
     staleTime: 10 * 60_000,
     // All categories, including hidden and deleted ones, so past expenses still
     // show theirs; pickers filter with isSelectable
@@ -255,9 +234,10 @@ export function useAddCategory(tripId: string) {
 // ---------------------------------------------------------------- expenses
 
 export function useExpenses(tripId: string | undefined) {
+  const demo = useIsDemo();
   return useQuery({
     queryKey: keys.expenses(tripId ?? ''),
-    enabled: !!tripId,
+    enabled: !!tripId && !demo,
     queryFn: async () =>
       unwrap(
         await supabase
@@ -333,9 +313,10 @@ export async function uploadReceipt(tripId: string, uri: string, mime = 'image/j
 }
 
 export function useReceiptUrl(path: string | null | undefined) {
+  const demo = useIsDemo();
   return useQuery({
     queryKey: ['receipt', path],
-    enabled: !!path,
+    enabled: !!path && !demo,
     staleTime: 50 * 60_000,
     queryFn: async () => unwrap(await supabase.storage.from('receipts').createSignedUrl(path!, 3600)).signedUrl,
   });
@@ -344,9 +325,10 @@ export function useReceiptUrl(path: string | null | undefined) {
 // ---------------------------------------------------------------- budgets
 
 export function useBudgets(tripId: string | undefined) {
+  const demo = useIsDemo();
   return useQuery({
     queryKey: keys.budgets(tripId ?? ''),
-    enabled: !!tripId,
+    enabled: !!tripId && !demo,
     queryFn: async () => unwrap(await supabase.from('budgets').select('*').eq('trip_id', tripId!)) as Budget[],
   });
 }
@@ -382,8 +364,10 @@ export function useSetBudget(tripId: string) {
 // ---------------------------------------------------------------- currencies & rates
 
 export function useCurrencyList() {
+  const demo = useIsDemo();
   return useQuery({
     queryKey: keys.currencies,
+    enabled: !demo,
     staleTime: 24 * 3600_000,
     queryFn: async () => {
       const list = unwrap(await supabase.from('currencies').select('*').order('sort_order')) as Currency[];
@@ -398,9 +382,11 @@ export function useCurrencyList() {
  * back to the device cache so the conversion preview also works offline.
  */
 export function useRates(date: string) {
+  const demo = useIsDemo();
   const cache = usePrefs((s) => s.cacheRates);
   const query = useQuery({
     queryKey: keys.rates(date),
+    enabled: !demo,
     staleTime: 30 * 60_000,
     retry: 1,
     queryFn: async () => {
@@ -420,8 +406,9 @@ export function useRates(date: string) {
 /** Live sync: any change by either partner refreshes the affected lists. */
 export function useTripRealtime(tripId: string | undefined) {
   const qc = useQueryClient();
+  const demo = useIsDemo();
   useEffect(() => {
-    if (!tripId) return;
+    if (!tripId || demo) return;
     const filter = `trip_id=eq.${tripId}`;
     const channel = supabase
       .channel(`trip:${tripId}`)
@@ -447,5 +434,5 @@ export function useTripRealtime(tripId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tripId, qc]);
+  }, [tripId, qc, demo]);
 }

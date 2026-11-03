@@ -33,6 +33,20 @@ export type Category = {
   color: string;
   sort_order: number;
   archived: boolean;
+  /** Set on built-ins this trip edited (from category_overrides). */
+  renamed?: boolean;
+  hidden?: boolean;
+  edited?: boolean;
+};
+
+/** A trip's edit of a shared built-in category. Null fields keep the default. */
+export type CategoryOverride = {
+  trip_id: string;
+  category_id: string;
+  name: string | null;
+  icon: string | null;
+  color: string | null;
+  hidden: boolean;
 };
 
 export type ExpenseSplit = {

@@ -6,7 +6,7 @@ import { byPaymentMethod, dailySeries, sizeDistribution } from '@/lib/budget';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, percent } from '@/lib/money';
-import { spendByCurrency } from '@/lib/stats';
+import { dayKey, spendByCurrency } from '@/lib/stats';
 import { alertColor, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
 import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
@@ -19,6 +19,7 @@ export default function Stats() {
   const data = useTripData();
   const { trip, stats, expenses, categoryById, memberById, balances, budgetStatuses, isLoading } = data;
   const [selCategory, setSelCategory] = useState<string | null>(null);
+  const [selPayment, setSelPayment] = useState<string | null>(null);
   const [selDay, setSelDay] = useState<string | null>(null);
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
   const ilsShort = (m: number) => formatMoney(m, HOME_CURRENCY, { lang, compact: true });
@@ -51,7 +52,9 @@ export default function Stats() {
   const sel = slices.find((s) => s.key === selCategory);
   const selDayRow = series.find((d) => d.day === selDay);
   const last = series[series.length - 1];
+  const notStarted = !!trip.start_date && dayKey(new Date(), trip.timezone) < trip.start_date;
   const payments = byPaymentMethod(expenses);
+  const selPay = payments.find((p) => p.key === selPayment);
   const sizes = sizeDistribution(expenses);
   const maxSizeCount = Math.max(1, ...sizes.map((s) => s.count));
   const categoryBudgets = budgetStatuses.filter((s) => s.scope === 'category');
@@ -167,7 +170,11 @@ export default function Stats() {
                       </Text>
                     </Row>
                   </Row>
-                  {last?.pace != null ? (
+                  {notStarted ? (
+                    <Text variant="caption" muted>
+                      {t('budget.notStarted', { date: fmtDay(trip.start_date!, { day: 'numeric', month: 'long' }), amount: ils(stats.total) })}
+                    </Text>
+                  ) : last?.pace != null ? (
                     <Text variant="caption" muted>
                       {t('stats.paceSoFar', { actual: ils(last.cumulative), planned: ils(last.pace) })}
                     </Text>
@@ -241,11 +248,41 @@ export default function Stats() {
           {/* Payment method */}
           <Card>
             <SectionHeader title={t('stats.byPayment')} />
-            {payments.map((p) => (
-              <View key={p.key} style={{ gap: 4 }}>
-                <LegendRow color={PAYMENT_COLORS[p.key] ?? c.textFaint} label={t(`payment.${p.key}`)} value={ils(p.total)} pct={p.pct} />
-              </View>
-            ))}
+            <DonutChart
+              data={payments.map((p) => ({ key: p.key, value: p.total, color: PAYMENT_COLORS[p.key] ?? c.textFaint }))}
+              size={170}
+              thickness={22}
+              selected={selPayment}
+              onSelect={setSelPayment}
+              center={
+                <>
+                  <Text variant="caption" muted center numberOfLines={1}>
+                    {selPay ? t(`payment.${selPay.key}`) : t('stats.total')}
+                  </Text>
+                  <Text variant="h2" center numberOfLines={1} adjustsFontSizeToFit>
+                    {ils(selPay ? selPay.total : stats.total)}
+                  </Text>
+                  {selPay ? (
+                    <Text variant="caption" muted center>
+                      {selPay.pct}%
+                    </Text>
+                  ) : null}
+                </>
+              }
+            />
+            <View>
+              {payments.map((p) => (
+                <LegendRow
+                  key={p.key}
+                  color={PAYMENT_COLORS[p.key] ?? c.textFaint}
+                  label={t(`payment.${p.key}`)}
+                  value={ils(p.total)}
+                  pct={p.pct}
+                  selected={selPayment === p.key}
+                  onPress={() => setSelPayment(selPayment === p.key ? null : p.key)}
+                />
+              ))}
+            </View>
           </Card>
 
           {/* Distribution */}
@@ -280,7 +317,8 @@ export default function Stats() {
                       {t('stats.expensesCount', { count: row.count })}
                     </Text>
                   </View>
-                  <Text variant="mono">{ils(row.ilsMinor)}</Text>
+                  {/* Shekel rows would show the same amount twice */}
+                  {row.currency !== HOME_CURRENCY ? <Text variant="mono">{ils(row.ilsMinor)}</Text> : null}
                 </Row>
               );
             })}

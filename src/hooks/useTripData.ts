@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useActiveTrip, useBudgets, useCategories, useExpenses, useMembers } from '@/api/queries';
 import { budgetStatuses, topAlert } from '@/lib/budget';
-import { categoryMap } from '@/lib/categories';
+import { categoryMap, isSelectable } from '@/lib/categories';
 import { computeBalances, settleUp } from '@/lib/settlement';
 import { mergePending } from '@/lib/pending';
 import { computeTripStats } from '@/lib/stats';
@@ -68,7 +68,9 @@ export function useTripData() {
   return {
     trip,
     members: members.data ?? [],
-    categories: categories.data ?? [],
+    // Pickers, filters and budgets: only categories still in use; categoryById has all
+    categories: (categories.data ?? []).filter(isSelectable),
+    allCategories: categories.data ?? [],
     expenses: list,
     budgets: budgets.data ?? [],
     isLoading: queries.some((q) => q.isLoading),

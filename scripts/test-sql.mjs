@@ -294,4 +294,25 @@ const logged = (await db.query('select user_id, code from client_errors order by
 assert.deepEqual(logged.map((r) => [r.user_id, r.code]), [[null, 'unknown'], [A, 'network']]);
 ok('client_errors: write-only, user_id taken from the session');
 
+// Category overrides: per-trip edits of built-ins, members only
+const [{ id: catHotel }] = (await db.query(`select id from expense_categories where key = 'accommodation'`)).rows;
+await as(A, `insert into category_overrides (trip_id, category_id, name, icon, color) values ($1, $2, 'מלונות', '🛏️', '#112233')`, [trip, catHotel]);
+await as(B, `update category_overrides set hidden = true where trip_id = $1 and category_id = $2`, [trip, catHotel]);
+const ov = await as(A, 'select name, icon, hidden from category_overrides where trip_id = $1', [trip]);
+assert.deepEqual(ov.map((o) => [o.name, o.icon, o.hidden]), [['מלונות', '🛏️', true]]);
+assert.equal((await as(C, 'select * from category_overrides')).length, 0);
+await rejects(as(C, `insert into category_overrides (trip_id, category_id, name) values ($1, $2, 'x')`, [trip, catStreet]), /row-level security/);
+const [{ id: customCat }] = await as(A, `select id from expense_categories where trip_id = $1 limit 1`, [trip]);
+await rejects(as(A, `insert into category_overrides (trip_id, category_id, name) values ($1, $2, 'x')`, [trip, customCat]), /override_builtin_only/);
+await rejects(as(A, `insert into category_overrides (trip_id, category_id, color) values ($1, $2, 'red')`, [trip, catStreet]), /check constraint/);
+// The shared built-in row itself is untouched, and a custom category can be edited in place
+assert.equal((await db.query(`select name from expense_categories where id = $1`, [catHotel])).rows[0].name, 'Accommodation');
+await as(B, `update expense_categories set name = 'עיסוי', icon = '💆' where id = $1`, [customCat]);
+assert.equal((await as(A, 'select name from expense_categories where id = $1', [customCat]))[0].name, 'עיסוי');
+await rejects(as(A, `update expense_categories set name = 'hack' where id = $1`, [catHotel]).then((r) => { if ((r ?? []).length === 0) throw new Error('row-level security: no rows'); }), /row-level security|no rows/);
+assert.equal((await db.query(`select name from expense_categories where id = $1`, [catHotel])).rows[0].name, 'Accommodation');
+await as(A, `delete from category_overrides where trip_id = $1 and category_id = $2`, [trip, catHotel]);
+assert.equal((await as(A, 'select * from category_overrides')).length, 0);
+ok('category overrides: members edit built-ins per trip; shared rows unchanged');
+
 console.log(`\n${passed} SQL checks passed`);

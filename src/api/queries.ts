@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
+import { mergeCategories } from '@/lib/categories';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { logError } from '@/lib/log';
 import { errorCode, supabase } from '@/lib/supabase';
 import { usePrefs } from '@/store/prefs';
-import type { Budget, Category, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
+import type { Budget, Category, CategoryOverride, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
 
 export const keys = {
   trips: ['trips'] as const,
@@ -177,16 +178,62 @@ export function useCategories(tripId: string | undefined) {
     queryKey: keys.categories(tripId ?? ''),
     enabled: !!tripId,
     staleTime: 10 * 60_000,
-    queryFn: async () =>
+    // All categories, including hidden and deleted ones, so past expenses still
+    // show theirs; pickers filter with isSelectable
+    queryFn: async () => {
+      const [cats, overrides] = await Promise.all([
+        supabase.from('expense_categories').select('*').or(`trip_id.is.null,trip_id.eq.${tripId}`).order('sort_order').order('created_at'),
+        supabase.from('category_overrides').select('*').eq('trip_id', tripId!),
+      ]);
+      return mergeCategories(unwrap(cats) as Category[], unwrap(overrides) as CategoryOverride[]);
+    },
+  });
+}
+
+/** Edit a category: custom ones in place, built-ins through this trip's override. */
+export function useUpdateCategory(tripId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['update_category'],
+    mutationFn: async (p: { category: Category; name: string; icon: string; color: string }) => {
+      if (p.category.trip_id) {
+        unwrap(await supabase.from('expense_categories').update({ name: p.name, icon: p.icon, color: p.color }).eq('id', p.category.id).select().single());
+        return;
+      }
       unwrap(
         await supabase
-          .from('expense_categories')
-          .select('*')
-          .or(`trip_id.is.null,trip_id.eq.${tripId}`)
-          .eq('archived', false)
-          .order('sort_order')
-          .order('created_at'),
-      ) as Category[],
+          .from('category_overrides')
+          .upsert({ trip_id: tripId, category_id: p.category.id, name: p.name, icon: p.icon, color: p.color, hidden: false }),
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
+  });
+}
+
+/** Hide (built-in) or delete (custom) a category, or bring it back. Past expenses are unaffected. */
+export function useSetCategoryHidden(tripId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['hide_category'],
+    mutationFn: async (p: { category: Category; hidden: boolean }) => {
+      if (p.category.trip_id) {
+        unwrap(await supabase.from('expense_categories').update({ archived: p.hidden }).eq('id', p.category.id).select().single());
+        return;
+      }
+      unwrap(await supabase.from('category_overrides').upsert({ trip_id: tripId, category_id: p.category.id, hidden: p.hidden }));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
+  });
+}
+
+/** Undo all of this trip's edits to a built-in category. */
+export function useResetCategory(tripId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['reset_category'],
+    mutationFn: async (categoryId: string) =>
+      unwrap(await supabase.from('category_overrides').delete().eq('trip_id', tripId).eq('category_id', categoryId)),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
   });
 }
 
@@ -201,15 +248,6 @@ export function useAddCategory(tripId: string) {
           .select()
           .single(),
       ) as Category,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
-  });
-}
-
-export function useArchiveCategory(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) =>
-      unwrap(await supabase.from('expense_categories').update({ archived: true }).eq('id', id).select().single()),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
   });
 }
@@ -397,6 +435,9 @@ export function useTripRealtime(tripId: string | undefined) {
         qc.invalidateQueries({ queryKey: keys.budgets(tripId) }),
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expense_categories', filter }, () =>
+        qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'category_overrides', filter }, () =>
         qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
       )
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, () =>

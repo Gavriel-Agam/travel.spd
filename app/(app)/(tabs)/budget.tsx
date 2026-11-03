@@ -106,7 +106,14 @@ export default function Budget() {
         />
         {stats.budget ? (
           <View style={{ gap: 6 }}>
-            {paceDiff != null ? (
+            {today < (trip.start_date ?? '') ? (
+              <Text variant="caption" muted>
+                {t('budget.notStarted', {
+                  date: new Date(trip.start_date + 'T12:00:00Z').toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', timeZone: 'UTC' }),
+                  amount: ils(stats.total),
+                })}
+              </Text>
+            ) : paceDiff != null ? (
               <Row gap={6}>
                 <Ionicons name={paceDiff > 0 ? 'trending-up' : 'checkmark-circle'} size={16} color={paceDiff > 0 ? c.warning : c.success} />
                 <Text variant="caption" color={paceDiff > 0 ? c.warning : c.success}>

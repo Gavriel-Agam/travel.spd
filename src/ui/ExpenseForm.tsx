@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { onlineManager } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +28,8 @@ import { rateSourceLabel } from '@/lib/rateLabels';
 import { previewShares, toSplitEntries, validateSplit, type SplitConfig, type SplitType } from '@/lib/split';
 import { dayKey } from '@/lib/stats';
 import { errorCode, supabase } from '@/lib/supabase';
+import { useUserId } from '@/providers/AuthProvider';
+import { useOutbox } from '@/store/outbox';
 import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import type { Expense } from '@/types/db';
@@ -65,6 +69,10 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [rateDirection, setRateDirection] = useState<RateDirection>('homePerUnit');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Identifies a new expense across offline retries, so it is never saved twice
+  const [clientId] = useState(() => Crypto.randomUUID());
+  const addToOutbox = useOutbox((s) => s.add);
+  const userId = useUserId();
 
   const [splitType, setSplitType] = useState<SplitType>(existing?.split_type ?? 'equal');
   const [equalIds, setEqualIds] = useState<string[]>(
@@ -204,42 +212,62 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     if (!effectiveRate) return setError(t('form.rateRequired'));
     if (!splitCheck.ok) return setError(t('errors.invalid_split'));
     setError(null);
+
+    const auto = rateMode === 'auto' && currency !== HOME_CURRENCY;
+    const build = (receipt: string | null): SaveExpenseInput => ({
+      id: existing?.id,
+      client_id: existing ? undefined : clientId,
+      version: overrideVersion ?? existing?.version,
+      trip_id: trip.id,
+      kind: existing?.kind ?? 'expense',
+      paid_by_member_id: payerId,
+      amount_minor: amountMinor,
+      currency,
+      fx_rate: effectiveRate,
+      // The server re-checks automatic rates against what it published and sets the source
+      fx_source: currency === HOME_CURRENCY ? 'par' : rateMode === 'manual' ? 'manual' : rateMode === 'stored' ? existing!.fx_source : autoEntry!.source,
+      fx_rate_date: auto ? autoEntry!.date : rateMode === 'stored' ? existing!.fx_rate_date : rateDate,
+      fx_fetched_at: auto ? snapshot!.fetched_at : rateMode === 'stored' ? existing!.fx_fetched_at : new Date().toISOString(),
+      fx_is_manual: rateMode === 'manual' && currency !== HOME_CURRENCY,
+      category_id: categoryId,
+      description: description.trim(),
+      notes: notes.trim() || null,
+      occurred_at: occurredAt.toISOString(),
+      receipt_path: receipt,
+      payment_method: paymentMethod,
+      split_type: splitType,
+      splits: toSplitEntries(splitConfig, payerId),
+    });
+
+    const done = () => {
+      noteCurrencyUsed(trip.id, currency);
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.back();
+    };
+
+    // No signal: keep new expenses on the phone and send them later
+    const queueOffline = () => {
+      if (localReceipt) return setError(t('form.receiptOffline'));
+      const { version: _v, ...payload } = build(null);
+      addToOutbox({ clientId, tripId: trip.id, createdBy: userId ?? '', queuedAt: new Date().toISOString(), payload: { ...payload, client_id: clientId } });
+      done();
+    };
+
+    if (!existing && !onlineManager.isOnline()) return queueOffline();
+
     setBusy(true);
     try {
       let path = receiptPath;
       if (localReceipt) path = await uploadReceipt(trip.id, localReceipt.uri, localReceipt.mime);
-
-      const auto = rateMode === 'auto' && currency !== HOME_CURRENCY;
-      const payload: SaveExpenseInput = {
-        id: existing?.id,
-        version: overrideVersion ?? existing?.version,
-        trip_id: trip.id,
-        kind: existing?.kind ?? 'expense',
-        paid_by_member_id: payerId,
-        amount_minor: amountMinor,
-        currency,
-        fx_rate: effectiveRate,
-        // The server re-checks automatic rates against what it published and sets the source
-        fx_source: currency === HOME_CURRENCY ? 'par' : rateMode === 'manual' ? 'manual' : rateMode === 'stored' ? existing!.fx_source : autoEntry!.source,
-        fx_rate_date: auto ? autoEntry!.date : rateMode === 'stored' ? existing!.fx_rate_date : rateDate,
-        fx_fetched_at: auto ? snapshot!.fetched_at : rateMode === 'stored' ? existing!.fx_fetched_at : new Date().toISOString(),
-        fx_is_manual: rateMode === 'manual' && currency !== HOME_CURRENCY,
-        category_id: categoryId,
-        description: description.trim(),
-        notes: notes.trim() || null,
-        occurred_at: occurredAt.toISOString(),
-        receipt_path: path,
-        payment_method: paymentMethod,
-        split_type: splitType,
-        splits: toSplitEntries(splitConfig, payerId),
-      };
-      await save.mutateAsync(payload);
-      noteCurrencyUsed(trip.id, currency);
-      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      router.back();
+      await save.mutateAsync(build(path));
+      done();
     } catch (e) {
       const code = errorCode(e);
-      if (code === 'conflict' && existing) {
+      if (code === 'network' && !existing) {
+        queueOffline();
+      } else if (code === 'network') {
+        setError(t('form.editOffline'));
+      } else if (code === 'conflict' && existing) {
         const keepMine = await confirmDialog(t('form.conflictTitle'), t('errors.conflict'), t('form.conflictKeepMine'), t('form.conflictUseTheirs'));
         if (!keepMine) {
           router.back();

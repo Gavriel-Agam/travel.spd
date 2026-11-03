@@ -78,6 +78,15 @@ export function toSplitEntries(config: SplitConfig, payerId: string): SplitEntry
   }
 }
 
+/** Shares from the RPC payload form (split_type + entries), as save_expense computes them. */
+export function sharesFromEntries(splitType: SplitType, entries: SplitEntry[], payerId: string, homeTotalMinor: number): Share[] {
+  const weights: Record<string, Decimal.Value> = {};
+  for (const e of entries) {
+    weights[e.member_id] = splitType === 'percent' || splitType === 'amount' ? (e.value ?? 0) : 1;
+  }
+  return allocate(homeTotalMinor, weights, payerId);
+}
+
 /** Home-currency shares the server will compute for this configuration. */
 export function previewShares(config: SplitConfig, payerId: string, homeTotalMinor: number): Share[] {
   const weights: Record<string, Decimal.Value> = {};

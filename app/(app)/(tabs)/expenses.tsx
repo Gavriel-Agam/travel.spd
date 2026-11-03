@@ -6,6 +6,8 @@ import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDeleteExpense } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
+import { useOutbox } from '@/store/outbox';
+import { SyncStatus } from '@/ui/SyncStatus';
 import { useT } from '@/i18n';
 import { categoryLabel } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
@@ -79,6 +81,12 @@ export default function Expenses() {
         : new Date(d + 'T12:00:00Z').toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
   async function confirmDelete(e: Expense) {
+    if (e.pending) {
+      if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
+        useOutbox.getState().remove(e.id);
+      }
+      return;
+    }
     const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
     if (!ok) return;
     del.mutate({ id: e.id, version: e.version }, { onError: (err) => showDialog(t('errors.title'), t(`errors.${errorCode(err)}`)) });
@@ -88,6 +96,7 @@ export default function Expenses() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
         <Text variant="title">{t('expenses.title')}</Text>
+        <SyncStatus tripId={trip.id} />
         <Row gap={space.sm}>
           <Row gap={space.sm} style={{ flex: 1, backgroundColor: c.card, borderRadius: radius.md, paddingHorizontal: space.md }}>
             <Ionicons name="search" size={18} color={c.textMuted} />
@@ -197,7 +206,7 @@ export default function Expenses() {
               rightThreshold={40}
               renderRightActions={(_p, _t, methods) => (
                 <Row gap={0}>
-                  {item.kind === 'expense' ? (
+                  {item.kind === 'expense' && !item.pending ? (
                     <Pressable
                       onPress={() => {
                         methods.close();

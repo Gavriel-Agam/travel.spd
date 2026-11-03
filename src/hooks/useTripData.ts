@@ -3,8 +3,10 @@ import { useActiveTrip, useBudgets, useCategories, useExpenses, useMembers } fro
 import { budgetStatuses, topAlert } from '@/lib/budget';
 import { categoryMap } from '@/lib/categories';
 import { computeBalances, settleUp } from '@/lib/settlement';
+import { mergePending } from '@/lib/pending';
 import { computeTripStats } from '@/lib/stats';
 import { useUserId } from '@/providers/AuthProvider';
+import { useOutbox } from '@/store/outbox';
 
 /** Everything a trip screen needs, plus the derived figures. */
 export function useTripData() {
@@ -15,9 +17,15 @@ export function useTripData() {
   const categories = useCategories(tripId);
   const expenses = useExpenses(tripId);
   const budgets = useBudgets(tripId);
+  const outbox = useOutbox((s) => s.items);
+
+  // Saved expenses plus ones queued offline on this device
+  const list = useMemo(
+    () => (tripId ? mergePending(expenses.data ?? [], outbox, tripId) : []),
+    [expenses.data, outbox, tripId],
+  );
 
   const derived = useMemo(() => {
-    const list = expenses.data ?? [];
     const memberList = members.data ?? [];
     const totalBudget = budgets.data?.find((b) => b.scope === 'total')?.amount_ils_minor ?? null;
     const dailyBudget = budgets.data?.find((b) => b.scope === 'daily')?.amount_ils_minor ?? null;
@@ -54,17 +62,18 @@ export function useTripData() {
       categoryById: categoryMap(categories.data),
       me: memberList.find((m) => m.user_id === userId) ?? null,
     };
-  }, [expenses.data, members.data, budgets.data, categories.data, trip, userId]);
+  }, [list, members.data, budgets.data, categories.data, trip, userId]);
 
   const queries = [members, categories, expenses, budgets];
   return {
     trip,
     members: members.data ?? [],
     categories: categories.data ?? [],
-    expenses: expenses.data ?? [],
+    expenses: list,
     budgets: budgets.data ?? [],
     isLoading: queries.some((q) => q.isLoading),
-    error: queries.find((q) => q.error)?.error ?? null,
+    // Only a problem when there is nothing to show; offline, the saved copy is used
+    error: queries.find((q) => q.error && q.data === undefined)?.error ?? null,
     refetch: async () => {
       await Promise.all(queries.map((q) => q.refetch()));
     },

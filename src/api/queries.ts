@@ -197,6 +197,8 @@ export function useExpenses(tripId: string | undefined) {
 
 export type SaveExpenseInput = {
   id?: string;
+  /** Set on new expenses; lets an offline retry return the saved row instead of duplicating it. */
+  client_id?: string;
   version?: number;
   trip_id: string;
   kind?: 'expense' | 'settlement';
@@ -221,6 +223,8 @@ export type SaveExpenseInput = {
 export function useSaveExpense(tripId: string) {
   const qc = useQueryClient();
   return useMutation({
+    // Fail fast when offline so the form can queue the expense instead of waiting
+    networkMode: 'always',
     mutationFn: async ({ version, ...expense }: SaveExpenseInput) =>
       unwrap(await supabase.rpc('save_expense', { p_expense: expense, p_expected_version: version ?? null })) as Expense,
     onSettled: () => qc.invalidateQueries({ queryKey: keys.expenses(tripId) }),
@@ -230,6 +234,7 @@ export function useSaveExpense(tripId: string) {
 export function useDeleteExpense(tripId: string) {
   const qc = useQueryClient();
   return useMutation({
+    networkMode: 'always',
     mutationFn: async (p: { id: string; version: number }) =>
       unwrap(await supabase.rpc('delete_expense', { p_id: p.id, p_expected_version: p.version })),
     onMutate: async (p) => {

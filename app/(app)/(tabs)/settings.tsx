@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Platform, Pressable, Share, View } from 'react-native';
 import { useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { supabase } from '@/lib/supabase';
+import { useOutbox } from '@/store/outbox';
 import { usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
@@ -24,6 +26,7 @@ export default function Settings() {
   const updateMe = useUpdateMyMember(trip?.id ?? '');
   const setLang = usePrefs((s) => s.setLang);
   const setActiveTrip = usePrefs((s) => s.setActiveTrip);
+  const queryClient = useQueryClient();
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
@@ -48,9 +51,14 @@ export default function Settings() {
   }
 
   async function signOut() {
-    if (!(await confirmDialog(t('settings.signOutConfirm'), undefined, t('settings.signOut'), t('common.cancel'), true))) return;
+    const pending = useOutbox.getState().items.length;
+    const body = pending > 0 ? t('settings.signOutPending', { count: pending }) : undefined;
+    if (!(await confirmDialog(t('settings.signOutConfirm'), body, t('settings.signOut'), t('common.cancel'), true))) return;
     setActiveTrip(null);
     await supabase.auth.signOut();
+    // Nothing from this account stays on the device
+    useOutbox.setState({ items: [] });
+    queryClient.clear();
   }
 
   return (

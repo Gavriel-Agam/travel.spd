@@ -11,6 +11,7 @@ import { formatMoney, percent } from '@/lib/money';
 import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
 import { alertColor, radius, space, useColors } from '@/theme';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
+import { SyncStatus } from '@/ui/SyncStatus';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import {
   Avatar,
@@ -96,6 +97,7 @@ export default function Home() {
         )}
       </View>
 
+      <SyncStatus tripId={trip.id} />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
 
       {/* Today / average */}

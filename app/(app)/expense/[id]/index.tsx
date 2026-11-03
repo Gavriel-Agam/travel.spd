@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Image, View } from 'react-native';
 import { useDeleteExpense, useReceiptUrl } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
+import { useOutbox } from '@/store/outbox';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
@@ -10,7 +11,7 @@ import { rateSourceName } from '@/lib/rateLabels';
 import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
-import { Avatar, Button, Card, Divider, EmptyState, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
+import { Avatar, Banner, Button, Card, Divider, EmptyState, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
 
 export default function ExpenseDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,6 +38,13 @@ export default function ExpenseDetails() {
   const isHome = e.currency === HOME_CURRENCY;
 
   async function remove() {
+    if (e!.pending) {
+      if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
+        useOutbox.getState().remove(e!.id);
+        router.back();
+      }
+      return;
+    }
     const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
     if (!ok) return;
     del.mutate(
@@ -61,10 +69,18 @@ export default function ExpenseDetails() {
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
         <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
-        {e.kind === 'expense' ? (
+        {e.kind === 'expense' && !e.pending ? (
           <IconButton name="create-outline" onPress={() => router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
         ) : null}
       </Row>
+
+      {e.pending ? (
+        <Banner
+          text={e.pending === 'failed' ? t('sync.detailFailed', { reason: t(`errors.${e.pending_error ?? 'unknown'}`) }) : t('sync.detailWaiting')}
+          color={e.pending === 'failed' ? c.danger : c.warning}
+          icon={e.pending === 'failed' ? 'alert-circle' : 'cloud-upload-outline'}
+        />
+      ) : null}
 
       <View style={{ alignItems: 'center', gap: space.sm }}>
         <View

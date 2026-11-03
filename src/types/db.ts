@@ -68,7 +68,11 @@ export type Expense = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  client_id?: string | null;
   expense_splits: ExpenseSplit[];
+  /** Only on expenses queued on this device and not yet saved on the server. */
+  pending?: 'waiting' | 'failed';
+  pending_error?: string;
 };
 
 export type Budget = {

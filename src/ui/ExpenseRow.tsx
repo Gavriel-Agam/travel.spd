@@ -57,6 +57,11 @@ export function ExpenseRow({
             <Text variant="caption" muted numberOfLines={1} style={{ flexShrink: 1 }}>
               {payer?.display_name ?? ''} · {time}
             </Text>
+            {expense.pending ? (
+              <Text variant="caption" color={expense.pending === 'failed' ? c.danger : c.warning} numberOfLines={1}>
+                · {expense.pending === 'failed' ? t('sync.rowFailed') : t('sync.rowWaiting')}
+              </Text>
+            ) : null}
           </Row>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 3 }}>

@@ -1,4 +1,7 @@
-import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { focusManager, QueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -13,9 +16,14 @@ import { DialogHost } from '@/ui/Dialog';
 import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
 
+const WEEK = 7 * 24 * 3600_000;
+
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 2 } },
+  // Kept for a week so the last-loaded trip still shows when the app opens offline
+  defaultOptions: { queries: { staleTime: 30_000, retry: 2, gcTime: WEEK } },
 });
+
+const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: 'travelspend-cache', throttleTime: 2000 });
 
 // Refetch when the app returns to the foreground
 if (Platform.OS !== 'web') {
@@ -58,13 +66,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: WEEK, buster: 'v1' }}>
           <AuthProvider>
             <StatusBar style="auto" />
             {hydrated ? <RootNavigator /> : <Loading />}
             <DialogHost />
           </AuthProvider>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

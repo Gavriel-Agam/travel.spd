@@ -238,4 +238,18 @@ splits = await as(A, 'select member_id, share_ils_minor::int s from expense_spli
 assert.deepEqual(splits.map((s) => [s.member_id, s.s]), [[mA, 4321]]);
 ok('settle-up payment stored as a settlement owned by the receiver');
 
+// Offline retries: the same client id never creates a second expense
+const clientId = '99999999-9999-4999-8999-999999999999';
+const before = (await as(A, 'select count(*)::int n from expenses'))[0].n;
+const [o1] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ client_id: clientId, description: 'Offline' })]);
+const [o2] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ client_id: clientId, description: 'Offline' })]);
+assert.equal(o1.id, o2.id);
+assert.equal(o1.client_id, clientId);
+assert.equal((await as(A, 'select count(*)::int n from expenses'))[0].n, before + 1);
+await rejects(as(C, `select * from save_expense($1::jsonb)`, [expense({ client_id: clientId })]), /forbidden/);
+await rejects(as(A, 'select * from save_expense_core($1::jsonb, null)', [expense({})]), /permission denied/);
+const [o3] = await as(A, `select * from save_expense($1::jsonb, $2)`, [expense({ id: o1.id, description: 'Edited' }), o1.version]);
+assert.equal(o3.description, 'Edited');
+ok('offline retries are idempotent; core function not callable directly');
+
 console.log(`\n${passed} SQL checks passed`);

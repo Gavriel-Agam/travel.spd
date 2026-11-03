@@ -231,6 +231,8 @@ const he: Dict = {
     other: 'אחר',
     uncategorized: 'ללא קטגוריה',
     add: 'קטגוריה חדשה',
+    deleteConfirm: 'למחוק את “{{name}}”?',
+    deleteBody: 'ההוצאות הקיימות נשארות עם הסכומים שלהן ויופיעו ללא קטגוריה.',
     name: 'שם',
     icon: 'אימוג׳י',
     manage: 'קטגוריות',

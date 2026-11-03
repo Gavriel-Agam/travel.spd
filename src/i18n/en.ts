@@ -229,6 +229,8 @@ const en = {
     other: 'Other',
     uncategorized: 'Uncategorized',
     add: 'New category',
+    deleteConfirm: 'Delete “{{name}}”?',
+    deleteBody: 'Existing expenses keep their amounts and show as uncategorized.',
     name: 'Name',
     icon: 'Emoji',
     manage: 'Categories',

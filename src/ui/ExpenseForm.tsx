@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, type SaveExpenseInput } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
@@ -30,6 +30,7 @@ import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import type { Expense } from '@/types/db';
 import { CurrencyPicker } from './CurrencyPicker';
+import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
 import { Button, Chip, Divider, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
 
@@ -239,17 +240,13 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     } catch (e) {
       const code = errorCode(e);
       if (code === 'conflict' && existing) {
-        Alert.alert(t('form.conflictTitle'), t('errors.conflict'), [
-          { text: t('form.conflictUseTheirs'), style: 'cancel', onPress: () => router.back() },
-          {
-            text: t('form.conflictKeepMine'),
-            style: 'destructive',
-            onPress: async () => {
-              const { data } = await supabase.from('expenses').select('version').eq('id', existing.id).single();
-              if (data) submit(data.version as number);
-            },
-          },
-        ]);
+        const keepMine = await confirmDialog(t('form.conflictTitle'), t('errors.conflict'), t('form.conflictKeepMine'), t('form.conflictUseTheirs'));
+        if (!keepMine) {
+          router.back();
+          return;
+        }
+        const { data } = await supabase.from('expenses').select('version').eq('id', existing.id).single();
+        if (data) await submit(data.version as number);
       } else {
         setError(t(`errors.${code}`));
       }

@@ -32,7 +32,11 @@ export function initI18n(lang: Lang) {
 export function applyDirection(lang: Lang): boolean {
   const rtl = lang === 'he';
   if (Platform.OS === 'web') {
-    if (typeof document !== 'undefined') document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+    if (typeof document !== 'undefined') {
+      // Takes effect immediately in the browser; no reload needed
+      document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+      document.documentElement.lang = lang;
+    }
     return false;
   }
   I18nManager.allowRTL(rtl);

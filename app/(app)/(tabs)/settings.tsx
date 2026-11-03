@@ -3,13 +3,14 @@ import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, Share, View } from 'react-native';
+import { Platform, Pressable, Share, View } from 'react-native';
 import { useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { supabase } from '@/lib/supabase';
 import { usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
+import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Divider, Field, ListRow, Row, Screen, Segmented, Text } from '@/ui/primitives';
 
@@ -32,7 +33,7 @@ export default function Settings() {
   function changeLang(l: Lang) {
     setLang(l);
     initI18n(l);
-    if (applyDirection(l)) Alert.alert(t('settings.language'), t('settings.languageRestart'));
+    if (applyDirection(l)) showDialog(t('settings.language'), t('settings.languageRestart'));
   }
 
   async function shareInvite() {
@@ -46,16 +47,10 @@ export default function Settings() {
     }
   }
 
-  function signOut() {
-    const run = async () => {
-      setActiveTrip(null);
-      await supabase.auth.signOut();
-    };
-    if (Platform.OS === 'web') return run();
-    Alert.alert(t('settings.signOutConfirm'), undefined, [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('settings.signOut'), style: 'destructive', onPress: run },
-    ]);
+  async function signOut() {
+    if (!(await confirmDialog(t('settings.signOutConfirm'), undefined, t('settings.signOut'), t('common.cancel'), true))) return;
+    setActiveTrip(null);
+    await supabase.auth.signOut();
   }
 
   return (

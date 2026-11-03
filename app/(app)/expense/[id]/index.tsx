@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Image, Platform, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { useDeleteExpense, useReceiptUrl } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -9,6 +9,7 @@ import { formatMoney, invertRate, trimRate } from '@/lib/money';
 import { rateSourceName } from '@/lib/rateLabels';
 import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
+import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { Avatar, Button, Card, Divider, EmptyState, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
 
 export default function ExpenseDetails() {
@@ -35,23 +36,16 @@ export default function ExpenseDetails() {
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const isHome = e.currency === HOME_CURRENCY;
 
-  function remove() {
-    const run = () =>
-      del.mutate(
-        { id: e!.id, version: e!.version },
-        {
-          onSuccess: () => router.back(),
-          onError: (err) => Alert.alert(t('errors.title'), t(`errors.${errorCode(err)}`)),
-        },
-      );
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('expenses.deleteConfirm'))) run();
-      return;
-    }
-    Alert.alert(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.delete'), style: 'destructive', onPress: run },
-    ]);
+  async function remove() {
+    const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
+    if (!ok) return;
+    del.mutate(
+      { id: e!.id, version: e!.version },
+      {
+        onSuccess: () => router.back(),
+        onError: (err) => showDialog(t('errors.title'), t(`errors.${errorCode(err)}`)),
+      },
+    );
   }
 
   const Line = ({ label, value }: { label: string; value: string }) => (

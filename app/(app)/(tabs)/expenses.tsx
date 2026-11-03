@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, RefreshControl, ScrollView, SectionList, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, SectionList, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDeleteExpense } from '@/api/queries';
@@ -14,6 +14,7 @@ import { errorCode } from '@/lib/supabase';
 import { dayKey } from '@/lib/stats';
 import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
+import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import { Chip, EmptyState, ErrorView, Loading, Row, Text } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
@@ -77,17 +78,10 @@ export default function Expenses() {
         ? t('common.yesterday')
         : new Date(d + 'T12:00:00Z').toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
-  function confirmDelete(e: Expense) {
-    const run = () =>
-      del.mutate({ id: e.id, version: e.version }, { onError: (err) => Alert.alert(t('errors.title'), t(`errors.${errorCode(err)}`)) });
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('expenses.deleteConfirm'))) run();
-      return;
-    }
-    Alert.alert(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.delete'), style: 'destructive', onPress: run },
-    ]);
+  async function confirmDelete(e: Expense) {
+    const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
+    if (!ok) return;
+    del.mutate({ id: e.id, version: e.version }, { onError: (err) => showDialog(t('errors.title'), t(`errors.${errorCode(err)}`)) });
   }
 
   return (
@@ -102,7 +96,7 @@ export default function Expenses() {
               onChangeText={setQuery}
               placeholder={t('expenses.searchPlaceholder')}
               placeholderTextColor={c.textFaint}
-              style={{ flex: 1, height: 44, fontSize: 15, color: c.text, textAlign: 'auto' }}
+              style={{ flex: 1, height: 44, fontSize: 16, color: c.text, textAlign: 'auto' }}
             />
             {query ? <Ionicons name="close-circle" size={18} color={c.textFaint} onPress={() => setQuery('')} /> : null}
           </Row>

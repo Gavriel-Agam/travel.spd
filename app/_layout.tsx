@@ -9,6 +9,7 @@ import { applyDirection, deviceLang, initI18n } from '@/i18n';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { usePrefs } from '@/store/prefs';
+import { DialogHost } from '@/ui/Dialog';
 import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
           <AuthProvider>
             <StatusBar style="auto" />
             {hydrated ? <RootNavigator /> : <Loading />}
+            <DialogHost />
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

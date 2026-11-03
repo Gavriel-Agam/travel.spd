@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useAddCategory, useArchiveCategory } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel } from '@/lib/categories';
 import { errorCode } from '@/lib/supabase';
 import { space, useColors } from '@/theme';
+import { confirmDialog } from '@/ui/Dialog';
 import { Sheet } from '@/ui/Sheet';
 import { Button, Card, Divider, Field, IconButton, ListRow, Row, Screen, Text } from '@/ui/primitives';
 
@@ -39,13 +40,10 @@ export default function Categories() {
     }
   }
 
-  function remove(id: string) {
-    const run = () => archive.mutate(id);
-    if (Platform.OS === 'web') return run();
-    Alert.alert(t('common.delete'), undefined, [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.delete'), style: 'destructive', onPress: run },
-    ]);
+  async function remove(id: string, name: string) {
+    if (await confirmDialog(t('categories.deleteConfirm', { name }), t('categories.deleteBody'), t('common.delete'), t('common.cancel'), true)) {
+      archive.mutate(id);
+    }
   }
 
   return (
@@ -66,7 +64,7 @@ export default function Categories() {
               icon={<Text style={{ fontSize: 20 }}>{cat.icon}</Text>}
               iconBg={cat.color + '22'}
               title={cat.name}
-              right={<IconButton name="trash-outline" color={c.danger} onPress={() => remove(cat.id)} />}
+              right={<IconButton name="trash-outline" color={c.danger} onPress={() => remove(cat.id, cat.name)} />}
             />
           </View>
         ))}

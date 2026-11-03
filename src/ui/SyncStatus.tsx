@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useOnline } from '@/hooks/useOutboxSync';
 import { useT } from '@/i18n';
 import { useOutbox } from '@/store/outbox';
@@ -9,7 +10,10 @@ export function SyncStatus({ tripId }: { tripId: string }) {
   const { t } = useT();
   const c = useColors();
   const online = useOnline();
-  const items = useOutbox((s) => s.items.filter((i) => i.tripId === tripId));
+  // Select the stored array itself: a selector that builds a new array on
+  // every call makes zustand re-render forever (blank screen on Home)
+  const all = useOutbox((s) => s.items);
+  const items = useMemo(() => all.filter((i) => i.tripId === tripId), [all, tripId]);
   const failed = items.filter((i) => i.error).length;
   const waiting = items.length - failed;
 

@@ -32,7 +32,8 @@ export default function Home() {
   const c = useColors();
   const data = useTripData();
   const { trip, stats, members, expenses, balances, transfers, memberById, categoryById } = data;
-  const invite = useInviteCode(members.length < 2 ? trip?.id : undefined);
+  // Invite codes only apply to regular trips; in the shared MVP trip everyone joins with Start
+  const invite = useInviteCode(members.length < 2 && !trip?.shared ? trip?.id : undefined);
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
 
   const trend = useMemo(() => {
@@ -134,7 +135,7 @@ export default function Home() {
       </Row>
 
       {/* Invite prompt until the partner joins */}
-      {members.length < 2 && invite.data ? (
+      {members.length < 2 && !trip.shared && invite.data ? (
         <Card style={{ backgroundColor: c.primarySoft }}>
           <Text variant="h2">{t('home.invitePartner')}</Text>
           <Text muted>{t('home.invitePartnerBody', { code: invite.data })}</Text>

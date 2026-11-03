@@ -17,6 +17,7 @@ import {
   formatMoney,
   formatRate,
   invertRate,
+  clampDecimals,
   isValidRate,
   minorToInput,
   parseAmount,
@@ -39,6 +40,7 @@ import { DateField } from './DateField';
 import { Button, Chip, Divider, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
 
 type RateMode = 'stored' | 'auto' | 'manual';
+
 const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'] as const;
 
 export function ExpenseForm({ existing }: { existing?: Expense }) {
@@ -71,6 +73,10 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [busy, setBusy] = useState(false);
   // Identifies a new expense across offline retries, so it is never saved twice
   const [clientId] = useState(() => Crypto.randomUUID());
+  // The version this form was opened on. `existing` keeps updating in real time
+  // when the partner saves, so using its live version would let a stale edit
+  // pass the conflict check and silently overwrite their change (bug #1).
+  const [baseVersion] = useState(existing?.version);
   const addToOutbox = useOutbox((s) => s.add);
   const userId = useUserId();
 
@@ -217,7 +223,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     const build = (receipt: string | null): SaveExpenseInput => ({
       id: existing?.id,
       client_id: existing ? undefined : clientId,
-      version: overrideVersion ?? existing?.version,
+      version: overrideVersion ?? baseVersion,
       trip_id: trip.id,
       kind: existing?.kind ?? 'expense',
       paid_by_member_id: payerId,
@@ -318,7 +324,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           <TextInput
             ref={amountRef}
             value={amountText}
-            onChangeText={(v) => setAmountText(v.replace(',', '.').replace(/[^\d.]/g, ''))}
+            onChangeText={(v) => setAmountText(clampDecimals(v, cur.minor_units))}
             placeholder="0"
             placeholderTextColor={c.textFaint}
             keyboardType={cur.minor_units > 0 ? 'decimal-pad' : 'number-pad'}

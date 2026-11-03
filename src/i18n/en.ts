@@ -179,6 +179,10 @@ const en = {
     shareOf: '{{name}}: {{amount}}',
   },
   payment: { cash: 'Cash', card: 'Card', transfer: 'Transfer', other: 'Other', unknown: 'Not set' },
+  mvp: {
+    tripName: 'Our trip',
+    traveler: 'Traveler {{n}}',
+  },
   sync: {
     offline: 'You’re offline. New expenses are saved on this phone and sent when you’re back online.',
     offlineWaiting_one: 'Offline: 1 expense waiting to sync',
@@ -310,6 +314,11 @@ const en = {
     title: 'Settings',
     trip: 'Trip',
     tripName: 'Name',
+    tripDetails: 'Trip details',
+    tripDates: 'Trip dates',
+    tripCurrency: 'Main currency',
+    datesInvalid: 'The end date is before the start date.',
+    editMyName: 'Edit my name and color',
     members: 'Members',
     invite: 'Invite partner',
     inviteBody: 'Your partner installs the app, signs in, and enters this code.',

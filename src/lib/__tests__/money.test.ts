@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertToHomeMinor, formatDual, formatMoney, formatRate, invertRate, minorToInput, parseAmount, percent, rateFromInput, trimRate } from '../money';
+import { clampDecimals, convertToHomeMinor, formatDual, formatMoney, formatRate, invertRate, minorToInput, parseAmount, percent, rateFromInput, trimRate } from '../money';
 import { orderForPicker, searchCurrencies, BUNDLED_CURRENCIES } from '../currencies';
 
 describe('parseAmount', () => {
@@ -83,6 +83,20 @@ describe('currency picker', () => {
   });
 });
 
+describe('clampDecimals (QA bug #5)', () => {
+  it('drops decimals for currencies without them', () => {
+    expect(clampDecimals('12.5', 0)).toBe('12');
+    expect(clampDecimals('250000', 0)).toBe('250000');
+  });
+  it('limits decimals and keeps one point', () => {
+    expect(clampDecimals('12.345', 2)).toBe('12.34');
+    expect(clampDecimals('1,5', 2)).toBe('1.5');
+    expect(clampDecimals('1.2.3', 2)).toBe('1.23');
+    expect(clampDecimals('12.', 2)).toBe('12.');
+    expect(clampDecimals('abc9', 2)).toBe('9');
+  });
+});
+
 describe('manual rates', () => {
   it('accepts either direction and stores home per unit', () => {
     expect(rateFromInput('0.0927', 'homePerUnit')).toBe('0.0927');
@@ -94,6 +108,8 @@ describe('manual rates', () => {
   it('formats the readable direction', () => {
     expect(formatRate('0.0927473927', 'THB')).toBe('1 ₪ = 10.782 ฿');
     expect(formatRate('3.65', 'EUR')).toBe('1 € = 3.65 ₪');
+    // Large inverse rates are grouped (QA bug #6)
+    expect(formatRate('0.0001219138', 'VND')).toBe('1 ₪ = 8,202.5 ₫');
     expect(trimRate('0.092747392700')).toBe('0.0927473927');
   });
 });

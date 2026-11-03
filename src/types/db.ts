@@ -8,6 +8,8 @@ export type Trip = {
   home_currency: string;
   default_currency: string;
   timezone: string;
+  /** The single trip every device joins in the no-login MVP. */
+  shared?: boolean;
   created_by: string;
   created_at: string;
 };

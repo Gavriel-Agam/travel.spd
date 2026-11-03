@@ -22,6 +22,14 @@ export function parseAmount(input: string, code: string): number | null {
   return minor.toNumber();
 }
 
+/** Typing filter: digits and one decimal point, cut to the currency's decimals (none for VND, JPY...). */
+export function clampDecimals(input: string, decimals: number): string {
+  const clean = input.replace(',', '.').replace(/[^\d.]/g, '');
+  const [whole, ...rest] = clean.split('.');
+  if (rest.length === 0) return whole;
+  return decimals === 0 ? whole : `${whole}.${rest.join('').slice(0, decimals)}`;
+}
+
 /** 125050 -> "1250.5" (plain, for editing). */
 export function minorToInput(minor: number, code: string): string {
   const units = maxDecimals(code);
@@ -67,8 +75,10 @@ export function trimRate(rate: string): string {
  */
 export function formatRate(rate: string, code: string, symbol = getCurrency(code).symbol): string {
   const r = new Decimal(rate);
-  if (r.gte(1)) return `1 ${symbol} = ${r.toDecimalPlaces(4).toFixed()} ₪`;
-  return `1 ₪ = ${new Decimal(1).div(r).toSignificantDigits(5).toFixed()} ${symbol}`;
+  // Display only: grouped digits ("8,202.5"), at most 4 decimals
+  const fmt = (d: Decimal) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(d.toNumber());
+  if (r.gte(1)) return `1 ${symbol} = ${fmt(r.toDecimalPlaces(4))} ₪`;
+  return `1 ₪ = ${fmt(new Decimal(1).div(r).toSignificantDigits(5))} ${symbol}`;
 }
 
 export type RateDirection = 'homePerUnit' | 'unitsPerHome';

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
+import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { supabase } from '@/lib/supabase';
 import { usePrefs } from '@/store/prefs';
 import type { Budget, Category, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
@@ -24,10 +26,14 @@ function unwrap<T>({ data, error }: { data: T | null; error: unknown }): T {
 // ---------------------------------------------------------------- trips
 
 export function useTrips(enabled = true) {
+  const { t, i18n } = useTranslation();
+  // Re-created when the language changes so placeholder names follow it
+  const select = useCallback((list: Trip[]) => list.map((tr) => ({ ...tr, name: displayTripName(tr.name, t) })), [t, i18n.language]);
   return useQuery({
     queryKey: keys.trips,
     enabled,
     queryFn: async () => unwrap(await supabase.from('trips').select('*').order('created_at', { ascending: false })) as Trip[],
+    select,
   });
 }
 
@@ -124,11 +130,17 @@ export function useUpdateTrip(tripId: string) {
 // ---------------------------------------------------------------- members & categories
 
 export function useMembers(tripId: string | undefined) {
+  const { t, i18n } = useTranslation();
+  const select = useCallback(
+    (list: Member[]) => list.map((m) => ({ ...m, display_name: displayMemberName(m.display_name, t) })),
+    [t, i18n.language],
+  );
   return useQuery({
     queryKey: keys.members(tripId ?? ''),
     enabled: !!tripId,
     queryFn: async () =>
       unwrap(await supabase.from('trip_members').select('*').eq('trip_id', tripId!).order('joined_at')) as Member[],
+    select,
   });
 }
 

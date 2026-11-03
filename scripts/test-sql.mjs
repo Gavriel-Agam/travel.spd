@@ -252,4 +252,22 @@ const [o3] = await as(A, `select * from save_expense($1::jsonb, $2)`, [expense({
 assert.equal(o3.description, 'Edited');
 ok('offline retries are idempotent; core function not callable directly');
 
+// Signed-out visitors cannot call any RPC; internal helpers are not exposed
+async function asAnon(sql) {
+  await db.exec(`set role anon; select set_config('request.jwt.claim.sub', '', false);`);
+  try {
+    return (await db.query(sql)).rows;
+  } finally {
+    await db.exec('reset role');
+  }
+}
+await rejects(asAnon(`select create_trip('x', 'x')`), /permission denied/);
+await rejects(asAnon(`select * from save_expense('{}'::jsonb)`), /permission denied/);
+await rejects(asAnon(`select * from ils_rates()`), /permission denied/);
+await rejects(asAnon(`select is_trip_member('${trip}')`), /permission denied/);
+await rejects(as(A, `select check_auto_rate('THB', 1, current_date)`), /permission denied/);
+await rejects(as(A, `select allocate_minor(100, '[]'::jsonb)`), /permission denied/);
+assert.ok((await as(A, `select * from ils_rates()`)).length > 0);
+ok('anon cannot call RPCs; internal helpers are not exposed');
+
 console.log(`\n${passed} SQL checks passed`);

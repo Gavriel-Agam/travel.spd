@@ -84,6 +84,7 @@ const en = {
   },
   onboarding: {
     welcome: 'Welcome',
+    signedInAs: 'Signed in as {{email}}',
     subtitle: 'Start a shared trip or join your partner’s.',
     create: 'Create a trip',
     createHint: 'Set the budget and invite your partner',

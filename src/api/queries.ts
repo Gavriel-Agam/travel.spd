@@ -454,7 +454,9 @@ export function useHomeLayout(signedIn: boolean) {
   const remote = useQuery({
     queryKey: keys.userPrefs,
     enabled: syncing,
-    staleTime: 5 * 60_000,
+    // Tiny row: ask again whenever the app opens or comes back to the front, so a
+    // change made on another device (including a reset) shows up right away
+    staleTime: 0,
     queryFn: async () =>
       unwrap(await supabase.from('user_preferences').select('home_layout').maybeSingle()) as { home_layout: string[] | null } | null,
   });

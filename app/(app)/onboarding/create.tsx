@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { getCalendars } from 'expo-localization';
 import { useState } from 'react';
 import { Pressable, Switch, View } from 'react-native';
@@ -64,7 +65,7 @@ export default function CreateTrip() {
   return (
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
+        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/onboarding')} />
       </Row>
       <Text variant="title">{t('onboarding.create')}</Text>
 

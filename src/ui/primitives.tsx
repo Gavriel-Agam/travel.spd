@@ -126,7 +126,7 @@ export function Card({ children, style, onPress }: { children: ReactNode; style?
   };
   if (!onPress) return <View style={[base, style]}>{children}</View>;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [base, pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] }, style]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [base, pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] }, style]}>
       {children}
     </Pressable>
   );
@@ -179,6 +179,8 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!off, busy: !!loading }}
       disabled={off}
       onPress={() => {
         tap();

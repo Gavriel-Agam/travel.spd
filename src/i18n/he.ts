@@ -86,6 +86,7 @@ const he: Dict = {
   },
   onboarding: {
     welcome: 'ברוכים הבאים',
+    signedInAs: 'מחובר/ת כ־{{email}}',
     subtitle: 'פתחו טיול משותף או הצטרפו לטיול של בן/בת הזוג.',
     create: 'יצירת טיול',
     createHint: 'הגדירו תקציב והזמינו את בן/בת הזוג',

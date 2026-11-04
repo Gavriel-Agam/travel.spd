@@ -22,12 +22,24 @@ function describe(error: unknown) {
   };
 }
 
+const EXPECTED = new Set([
+  'demo_readonly',
+  'invite_invalid',
+  'invite_used',
+  'invalid_credentials',
+  'user_already_exists',
+  'weak_password',
+  'conflict',
+  'over_email_send_rate_limit',
+]);
+
 /** Records an error. `context` says where it happened (screen, query key, action). */
 export function logError(error: unknown, context: string, extra?: Record<string, unknown>) {
   try {
     const code = errorCode(error);
-    // Expected in the read-only demo; nothing could be sent anyway
-    if (code === 'demo_readonly') return;
+    // Expected outcomes the screen already explains (the demo, a wrong code or
+    // password, a partner's concurrent edit): not app errors
+    if (EXPECTED.has(code)) return;
     const { message, details } = describe(error);
     console.error(`[${context}] ${code}: ${message}`, error);
 

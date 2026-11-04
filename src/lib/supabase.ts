@@ -7,7 +7,8 @@ import { usePrefs } from '@/store/prefs';
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-export const isSupabaseConfigured = url.startsWith('https://') && anonKey.length > 20;
+// https everywhere, except the local QA stack on this computer (scripts/qa-local.mjs)
+export const isSupabaseConfigured = /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$))/.test(url) && anonKey.length > 20;
 
 // SecureStore values are limited to ~2KB and a session is larger, so the
 // session is stored in numbered chunks in the device keychain.

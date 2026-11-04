@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useState } from 'react';
 import { useJoinTrip } from '@/api/queries';
 import { useT } from '@/i18n';
@@ -30,7 +31,7 @@ export default function JoinTrip() {
   return (
     <Screen>
       <Row>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
+        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/onboarding')} />
       </Row>
       <Text variant="title">{t('onboarding.join')}</Text>
       <Field label={t('onboarding.yourName')} value={name} onChangeText={setName} placeholder={t('onboarding.yourNamePlaceholder')} maxLength={40} />

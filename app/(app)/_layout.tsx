@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { useActiveTrip, useCurrencyList, useRates, useTripRealtime } from '@/api/queries';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
 import { dayKey } from '@/lib/stats';
@@ -7,6 +7,7 @@ import { useColors } from '@/theme';
 
 export default function AppLayout() {
   const c = useColors();
+  const pathname = usePathname();
   const { trip, isLoading, error, refetch } = useActiveTrip();
   useCurrencyList();
   useTripRealtime(trip?.id);
@@ -24,6 +25,9 @@ export default function AppLayout() {
     );
 
   const hasTrip = !!trip;
+  // Without a trip, start at the choice screen (create or join). Otherwise the
+  // router falls back to whichever onboarding screen it finds first.
+  if (!hasTrip && !pathname.startsWith('/onboarding') && !pathname.startsWith('/join/')) return <Redirect href="/onboarding" />;
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
       <Stack.Protected guard={hasTrip}>

@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { Image, View } from 'react-native';
 import { useDeleteExpense, useReceiptUrl } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
@@ -29,7 +30,7 @@ export default function ExpenseDetails() {
   if (!e)
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
-        <EmptyState emoji="🫥" title={t('errors.not_found')} action={t('common.back')} onAction={() => router.back()} />
+        <EmptyState emoji="🫥" title={t('errors.not_found')} action={t('common.back')} onAction={() => goBack('/expenses')} />
       </Screen>
     );
 
@@ -45,7 +46,7 @@ export default function ExpenseDetails() {
     if (e!.pending) {
       if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
         useOutbox.getState().remove(e!.id);
-        router.back();
+        goBack('/expenses');
       }
       return;
     }
@@ -54,7 +55,7 @@ export default function ExpenseDetails() {
     del.mutate(
       { id: e!.id, version: e!.version },
       {
-        onSuccess: () => router.back(),
+        onSuccess: () => goBack('/expenses'),
         onError: (err) => showDialog(t('errors.title'), t(`errors.${errorCode(err)}`)),
       },
     );
@@ -72,7 +73,7 @@ export default function ExpenseDetails() {
   return (
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
+        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/expenses')} />
         {e.kind === 'expense' && !e.pending ? (
           <IconButton name="create-outline" onPress={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
         ) : null}

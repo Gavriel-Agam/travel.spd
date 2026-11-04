@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
@@ -256,7 +256,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     const done = () => {
       noteCurrencyUsed(trip.id, currency);
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      router.back();
+      goBack('/expenses');
     };
 
     // No signal: keep new expenses on the phone and send them later
@@ -284,7 +284,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       } else if (code === 'conflict' && existing) {
         const keepMine = await confirmDialog(t('form.conflictTitle'), t('errors.conflict'), t('form.conflictKeepMine'), t('form.conflictUseTheirs'));
         if (!keepMine) {
-          router.back();
+          goBack('/expenses');
           return;
         }
         const { data } = await supabase.from('expenses').select('version').eq('id', existing.id).single();
@@ -311,7 +311,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: c.card }}>
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: space.md, paddingVertical: space.sm }}>
-        <IconButton name="close" onPress={() => router.back()} label={t('common.cancel')} />
+        <IconButton name="close" onPress={() => goBack('/expenses')} label={t('common.cancel')} />
         <Text variant="h2">{existing ? t('form.editTitle') : t('form.newTitle')}</Text>
         <View style={{ width: 40 }} />
       </Row>

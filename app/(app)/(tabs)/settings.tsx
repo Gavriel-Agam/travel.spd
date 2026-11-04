@@ -9,16 +9,15 @@ import { useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useExitDemo } from '@/hooks/useExitDemo';
+import { useSignOut } from '@/hooks/useSignOut';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { seedDemo } from '@/lib/demoSeed';
 import i18n from '@/i18n';
-import { useOutbox } from '@/store/outbox';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
-import { confirmDialog, showDialog } from '@/ui/Dialog';
+import { showDialog } from '@/ui/Dialog';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { Sheet } from '@/ui/Sheet';
@@ -42,6 +41,7 @@ export default function Settings() {
   const isAnonymous = useAuth().session?.user.is_anonymous ?? false;
   const demo = useIsDemo();
   const exitDemo = useExitDemo();
+  const signOut = useSignOut();
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
@@ -71,18 +71,6 @@ export default function Settings() {
     } else {
       await Share.share({ message });
     }
-  }
-
-  async function signOut() {
-    const pending = useOutbox.getState().items.length;
-    const body = pending > 0 ? t('settings.signOutPending', { count: pending }) : undefined;
-    if (!(await confirmDialog(t('settings.signOutConfirm'), body, t('settings.signOut'), t('common.cancel'), true))) return;
-    setActiveTrip(null);
-    await supabase.auth.signOut();
-    // Nothing from this account stays on the device
-    useOutbox.setState({ items: [] });
-    usePrefs.setState({ homeOrderDirty: false });
-    queryClient.clear();
   }
 
   return (

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useAddCategory, useResetCategory, useSetCategoryHidden, useUpdateCategory } from '@/api/queries';
@@ -88,7 +88,7 @@ export default function Categories() {
   return (
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
+        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/settings')} />
       </Row>
       <Text variant="title">{t('categories.manage')}</Text>
       <Text variant="caption" muted>

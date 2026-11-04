@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useSaveExpense } from '@/api/queries';
@@ -79,7 +80,7 @@ export default function SettleUp() {
   return (
     <Screen>
       <Row>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
+        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/')} />
       </Row>
       <Text variant="title">{t('settle.title')}</Text>
 

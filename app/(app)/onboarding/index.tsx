@@ -1,20 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { View } from 'react-native';
 import { useActiveTrip } from '@/api/queries';
 import { useT } from '@/i18n';
 import { space, useColors } from '@/theme';
-import { Card, IconButton, Row, Screen, Text } from '@/ui/primitives';
+import { useSignOut } from '@/hooks/useSignOut';
+import { useAuth } from '@/providers/AuthProvider';
+import { Button, Card, IconButton, Row, Screen, Text } from '@/ui/primitives';
 
 export default function Onboarding() {
   const { t } = useT();
   const c = useColors();
   const { trip } = useActiveTrip();
+  const email = useAuth().session?.user.email;
+  const signOut = useSignOut();
   return (
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: space.lg }}>
       {trip ? (
         <View style={{ position: 'absolute', top: space.lg, start: space.lg }}>
-          <IconButton name="close" onPress={() => router.back()} />
+          <IconButton name="close" onPress={() => goBack('/')} />
         </View>
       ) : null}
       <View style={{ gap: space.sm, marginBottom: space.md }}>
@@ -36,6 +41,17 @@ export default function Onboarding() {
         hint={t('onboarding.joinHint')}
         onPress={() => router.push('/onboarding/join')}
       />
+      {/* Before the first trip there is no Settings tab: signing out (e.g. wrong account) happens here */}
+      {!trip ? (
+        <View style={{ alignItems: 'center', marginTop: space.lg, gap: space.xs }}>
+          {email ? (
+            <Text variant="caption" muted center>
+              {t('onboarding.signedInAs', { email })}
+            </Text>
+          ) : null}
+          <Button title={t('settings.signOut')} variant="ghost" icon="log-out-outline" onPress={signOut} />
+        </View>
+      ) : null}
     </Screen>
   );
 }

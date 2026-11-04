@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
@@ -25,7 +24,6 @@ import {
   Avatar,
   Button,
   Card,
-  EmptyState,
   ErrorView,
   Loading,
   ProgressBar,
@@ -311,6 +309,18 @@ export default function Home() {
             {trip.name}
           </Text>
         </View>
+        {/* Subtle invite entry until the partner joins; the code itself lives in Settings */}
+        {members.length < 2 && !trip.shared && invite.data ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.invitePartner')}
+            onPress={() => router.push('/settings')}
+            hitSlop={8}
+            style={{ padding: 6 }}
+          >
+            <Ionicons name="person-add-outline" size={20} color={c.primary} />
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           onPress={() => setArranging(true)}
@@ -327,21 +337,6 @@ export default function Home() {
       <SyncStatus tripId={trip.id} />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
 
-      {/* Invite prompt until the partner joins */}
-      {members.length < 2 && !trip.shared && invite.data ? (
-        <Card style={{ backgroundColor: c.primarySoft }}>
-          <Text variant="h2">{t('home.invitePartner')}</Text>
-          <Text muted>{t('home.invitePartnerBody', { code: invite.data })}</Text>
-          <Button
-            title={invite.data}
-            icon="copy-outline"
-            variant="secondary"
-            onPress={() => Clipboard.setStringAsync(invite.data!)}
-            style={{ backgroundColor: c.card }}
-          />
-        </Card>
-      ) : null}
-
       <DraggableGrid
         items={order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k], handleColor: k === 'hero' ? onHero : undefined }))}
         onReorder={(visible) => setHomeOrder(mergeVisibleOrder(order, visible))}
@@ -355,9 +350,28 @@ export default function Home() {
       />
 
       {!hasData ? (
-        <Card>
-          <EmptyState emoji="🧾" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
-        </Card>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.addFirst')}
+          onPress={() => router.push('/expense/new')}
+          style={({ pressed }) => ({
+            alignItems: 'center',
+            gap: space.md,
+            paddingVertical: space.xl * 1.5,
+            borderRadius: radius.xl,
+            borderWidth: 2,
+            borderStyle: 'dashed',
+            borderColor: c.primary + '66',
+            backgroundColor: pressed ? c.primarySoft : c.card,
+          })}
+        >
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="add" size={40} color={readableOn(c.primary)} />
+          </View>
+          <Text variant="h2" center>
+            {t('home.addFirst')}
+          </Text>
+        </Pressable>
       ) : null}
 
       <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false}>

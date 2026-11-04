@@ -50,7 +50,12 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:sql": "node scripts/test-sql.mjs"
+    "test:sql": "node scripts/test-sql.mjs",
+    "qa:up": "node scripts/qa-local.mjs up",
+    "qa:web": "node scripts/qa-local.mjs web",
+    "qa:seed": "node scripts/qa-local.mjs seed",
+    "qa:reset": "node scripts/qa-local.mjs reset",
+    "qa:down": "node scripts/qa-local.mjs down"
   },
   "private": true
 }

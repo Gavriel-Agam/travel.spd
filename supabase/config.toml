@@ -6,6 +6,8 @@ site_url = "https://gavriel-agam.github.io/travel.spd/"
 additional_redirect_urls = [
   "https://gavriel-agam.github.io/travel.spd/**",
   "http://localhost:8081/**",
+  # Local QA environment (scripts/qa-local.mjs)
+  "http://localhost:8082/**",
   "travelspend://**",
   "exp://**",
 ]

@@ -64,6 +64,24 @@ npm test            # money, currency, split, settlement, stats, budget and offl
 npm run test:sql    # every migration + RLS + RPCs on an in-process Postgres
 ```
 
+## Local QA environment
+
+A full copy of the backend (Postgres, Auth, Storage, Realtime, the `fx-rates`
+function) runs on this computer in Docker, with the same migrations as the live
+project. QA happens there with two test accounts, so the live trip is never
+touched. Needs Docker Desktop running.
+
+```bash
+npm run qa:up      # start the local stack (first time: downloads ~2 GB) and create the QA accounts
+npm run qa:web     # the app on http://localhost:8082, talking to the local stack
+npm run qa:reset   # wipe local data and start again from the migrations
+npm run qa:down    # stop the local stack
+```
+
+The QA accounts are listed in `scripts/qa-local.mjs`. They exist only in the
+local database. The script refuses to run against anything that is not
+`localhost`.
+
 ## How money works
 
 - Amounts are stored as integers in the currency's smallest unit (satang, agorot, ...). There are no floats.

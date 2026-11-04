@@ -17,6 +17,7 @@ export const keys = {
   invite: (t: string) => ['invite', t] as const,
   currencies: ['currencies'] as const,
   rates: (d: string) => ['rates', d] as const,
+  userPrefs: ['user-preferences'] as const,
 };
 
 function unwrap<T>({ data, error }: { data: T | null; error: unknown }): T {
@@ -435,4 +436,53 @@ export function useTripRealtime(tripId: string | undefined) {
       supabase.removeChannel(channel);
     };
   }, [tripId, qc, demo]);
+}
+
+// ---------------------------------------------------------------- personal preferences
+
+/**
+ * Order of the Home cards. Kept on the device for instant display and, for a
+ * signed-in user, also in user_preferences so it follows them to every device.
+ */
+export function useHomeLayout(signedIn: boolean) {
+  const demo = useIsDemo();
+  const local = usePrefs((s) => s.homeOrder);
+  const setLocal = usePrefs((s) => s.setHomeOrder);
+  const qc = useQueryClient();
+  const remote = useQuery({
+    queryKey: keys.userPrefs,
+    enabled: signedIn && !demo,
+    staleTime: 5 * 60_000,
+    queryFn: async () =>
+      unwrap(await supabase.from('user_preferences').select('home_layout').maybeSingle()) as { home_layout: string[] | null } | null,
+  });
+
+  // The saved order from the account wins over this device's copy
+  const remoteLayout = remote.data?.home_layout ?? null;
+  useEffect(() => {
+    if (remoteLayout && remoteLayout.join('|') !== (usePrefs.getState().homeOrder ?? []).join('|')) setLocal(remoteLayout);
+  }, [remoteLayout?.join('|')]);
+
+  const save = useMutation({
+    mutationKey: ['home_layout'],
+    mutationFn: async (layout: string[] | null) =>
+      unwrap(
+        await supabase
+          .from('user_preferences')
+          .upsert({ home_layout: layout, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          .select('home_layout')
+          .single(),
+      ),
+    onSuccess: (row) => qc.setQueryData(keys.userPrefs, row),
+  });
+
+  const setOrder = useCallback(
+    (layout: string[] | null) => {
+      setLocal(layout);
+      if (signedIn && !usePrefs.getState().demo) save.mutate(layout);
+    },
+    [signedIn, save.mutate],
+  );
+
+  return { order: local, setOrder };
 }

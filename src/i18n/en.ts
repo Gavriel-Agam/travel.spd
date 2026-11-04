@@ -129,7 +129,7 @@ const en = {
     seeAll: 'See all',
     arrange: 'Arrange',
     arrangeTitle: 'Arrange Home',
-    arrangeHint: 'Drag a row by its handle, or use the arrows. The order is saved on this phone.',
+    arrangeHint: 'Drag a row by its handle, or use the arrows. The order is saved to your account.',
     arrangeReset: 'Reset to default order',
     dragHandle: 'Drag to reorder',
     moveUp: 'Move up',

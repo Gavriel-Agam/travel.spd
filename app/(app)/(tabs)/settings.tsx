@@ -12,6 +12,9 @@ import { currencyName, getCurrency } from '@/lib/currencies';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useExitDemo } from '@/hooks/useExitDemo';
+import { blockedInDemo } from '@/lib/demoPrompt';
+import { seedDemo } from '@/lib/demoSeed';
+import i18n from '@/i18n';
 import { useOutbox } from '@/store/outbox';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
@@ -54,6 +57,8 @@ export default function Settings() {
   function changeLang(l: Lang) {
     setLang(l);
     initI18n(l);
+    // The sample trip's names are written in the chosen language
+    if (demo) seedDemo(queryClient, i18n.t);
     if (applyDirection(l)) showDialog(t('settings.language'), t('settings.languageRestart'));
   }
 
@@ -141,7 +146,7 @@ export default function Settings() {
             ) : null}
           </Row>
         ))}
-        {!trip.shared ? (
+        {!trip.shared && !demo ? (
           <>
             <Divider />
             <Text variant="h2">{t('settings.invite')}</Text>
@@ -198,8 +203,8 @@ export default function Settings() {
             />
           ))}
           <Divider />
-          <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => router.push('/onboarding/create')} />
-          <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => router.push('/onboarding/join')} />
+          <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/create')} />
+          <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/join')} />
         </Card>
       ) : null}
 
@@ -260,7 +265,7 @@ export default function Settings() {
           {edit === 'me' ? (
             <Row style={{ justifyContent: 'center' }} gap={space.md}>
               {MEMBER_COLORS.map((col) => (
-                <Pressable key={col} onPress={() => me && updateMe.mutate({ memberId: me.id, color: col })}>
+                <Pressable key={col} onPress={() => me && !blockedInDemo(queryClient) && updateMe.mutate({ memberId: me.id, color: col })}>
                   <View
                     style={{
                       width: 34,
@@ -280,6 +285,7 @@ export default function Settings() {
             loading={updateTrip.isPending || updateMe.isPending}
             disabled={!text.trim()}
             onPress={async () => {
+              if (blockedInDemo(queryClient)) return setEdit(null);
               if (edit === 'trip') {
                 const s = hasDates ? isoDate(start) : null;
                 const e = hasDates ? isoDate(end) : null;

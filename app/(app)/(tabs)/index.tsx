@@ -1,14 +1,14 @@
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
-import { Pressable, RefreshControl, View } from 'react-native';
-import { useInviteCode } from '@/api/queries';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
+import { useHomeLayout, useInviteCode } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
-import { resolveHomeOrder, type HomeSection } from '@/lib/homeLayout';
+import { mergeVisibleOrder, resolveHomeOrder, type HomeSection } from '@/lib/homeLayout';
 import { formatMoney, percent } from '@/lib/money';
 import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
 import { readableOn } from '@/lib/contrast';
@@ -17,7 +17,8 @@ import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
 import { SortableList } from '@/ui/SortableList';
 import { SyncStatus } from '@/ui/SyncStatus';
-import { usePrefs } from '@/store/prefs';
+import { useAuth } from '@/providers/AuthProvider';
+import { DraggableGrid } from '@/ui/DraggableGrid';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import {
   Avatar,
@@ -45,10 +46,15 @@ export default function Home() {
   // Invite codes only apply to regular trips; in the shared MVP trip everyone joins with Start
   const invite = useInviteCode(members.length < 2 && !trip?.shared ? trip?.id : undefined);
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
-  const savedOrder = usePrefs((s) => s.homeOrder);
-  const setHomeOrder = usePrefs((s) => s.setHomeOrder);
-  const order = useMemo(() => resolveHomeOrder(savedOrder), [savedOrder]);
+  const { session } = useAuth();
+  const layout = useHomeLayout(!!session && !session.user.is_anonymous);
+  const order = useMemo(() => resolveHomeOrder(layout.order), [layout.order]);
+  const setHomeOrder = layout.setOrder;
   const [arranging, setArranging] = useState(false);
+  // For dragging cards: the page scrolls along and stops scrolling by itself meanwhile
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollY = useRef(0);
+  const [draggingCard, setDraggingCard] = useState(false);
 
   const trend = useMemo(() => {
     if (!trip || !stats) return [];
@@ -254,7 +260,13 @@ export default function Home() {
   };
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
+    <Screen
+      ref={scrollRef}
+      scrollEnabled={!draggingCard}
+      scrollEventThrottle={16}
+      onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+      refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
+    >
       <Row style={{ justifyContent: 'space-between' }} align="flex-end">
         <View style={{ gap: 2, flex: 1 }}>
           <Text variant="caption" muted>
@@ -299,7 +311,14 @@ export default function Home() {
         </Card>
       ) : null}
 
-      {order.map((key) => (sections[key] ? <Fragment key={key}>{sections[key]}</Fragment> : null))}
+      <DraggableGrid
+        items={order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k], handleColor: k === 'hero' ? onHero : undefined }))}
+        onReorder={(visible) => setHomeOrder(mergeVisibleOrder(order, visible))}
+        scrollRef={scrollRef}
+        scrollY={scrollY}
+        onDragging={setDraggingCard}
+        handleLabel={t('home.dragHandle')}
+      />
 
       {!hasData ? (
         <Card>

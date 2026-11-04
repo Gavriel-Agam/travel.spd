@@ -371,4 +371,14 @@ assert.equal((await as(A, 'select count(*)::int n from expenses where trip_id = 
 assert.equal((await as(B, 'select * from trips where id = $1', [trip])).length, 1);
 ok('trip isolation: a partner sees only the trips they were invited to');
 
+// User preferences: each user reads and writes only their own row
+await as(A, `insert into user_preferences (home_layout) values ('{recent,hero}')`);
+await as(A, `insert into user_preferences (home_layout) values ('{today}') on conflict (user_id) do update set home_layout = excluded.home_layout, updated_at = now()`);
+assert.deepEqual((await as(A, 'select home_layout from user_preferences'))[0].home_layout, ['today']);
+assert.equal((await as(B, 'select * from user_preferences')).length, 0);
+await rejects(as(B, `insert into user_preferences (user_id, home_layout) values ($1, '{x}')`, [A]), /row-level security/);
+await as(B, `update user_preferences set home_layout = '{hacked}' where user_id = $1`, [A]);
+assert.deepEqual((await as(A, 'select home_layout from user_preferences'))[0].home_layout, ['today']);
+ok('user preferences: private to each user, upsert keeps one row');
+
 console.log(`\n${passed} SQL checks passed`);

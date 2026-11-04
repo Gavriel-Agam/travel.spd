@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ComponentProps, ReactNode, Ref } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
   type PressableProps,
+  type ScrollViewInstance,
   type ScrollViewProps,
   type StyleProp,
   type TextInputProps,
@@ -76,7 +77,13 @@ export function Screen({
   edges = ['top'],
   contentStyle,
   ...rest
-}: { children: ReactNode; scroll?: boolean; edges?: Edge[]; contentStyle?: StyleProp<ViewStyle> } & ScrollViewProps) {
+}: {
+  children: ReactNode;
+  scroll?: boolean;
+  edges?: Edge[];
+  contentStyle?: StyleProp<ViewStyle>;
+  ref?: Ref<ScrollViewInstance>;
+} & ScrollViewProps) {
   const c = useColors();
   return (
     <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: c.bg }}>

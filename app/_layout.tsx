@@ -11,7 +11,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { applyDirection, deviceLang, initI18n } from '@/i18n';
 import { installGlobalErrorLogging, logError } from '@/lib/log';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { promptSignUp } from '@/lib/demoPrompt';
+import { errorCode, isSupabaseConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import { seedDemo } from '@/lib/demoSeed';
@@ -22,13 +23,20 @@ import { useColors } from '@/theme';
 
 const WEEK = 7 * 24 * 3600_000;
 
-const queryClient = new QueryClient({
+const queryClient: QueryClient = new QueryClient({
   // Kept for a week so the last-loaded trip still shows when the app opens offline
   defaultOptions: { queries: { staleTime: 30_000, retry: 2, gcTime: WEEK } },
   // Every failed load or save is logged (console + public.client_errors)
   queryCache: new QueryCache({ onError: (e, query) => logError(e, `query:${JSON.stringify(query.queryKey)}`) }),
   mutationCache: new MutationCache({
-    onError: (e, _vars, _ctx, mutation) => logError(e, `mutation:${mutation.options.mutationKey ? JSON.stringify(mutation.options.mutationKey) : 'unnamed'}`),
+    onError: (e, _vars, _ctx, mutation) => {
+      // A save attempted in the guest demo: invite the guest to sign up instead
+      if (errorCode(e) === 'demo_readonly') {
+        promptSignUp(queryClient);
+        return;
+      }
+      logError(e, `mutation:${mutation.options.mutationKey ? JSON.stringify(mutation.options.mutationKey) : 'unnamed'}`);
+    },
   }),
 });
 

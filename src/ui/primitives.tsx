@@ -19,6 +19,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { flatten, readableOn } from '@/lib/contrast';
 import { errorCode } from '@/lib/supabase';
 import { useT } from '@/i18n';
 import { radius, space, useColors } from '@/theme';
@@ -255,12 +256,15 @@ export function Chip({ label, selected, onPress, icon, color }: {
         paddingHorizontal: 14,
         height: 36,
         borderRadius: radius.pill,
-        backgroundColor: selected ? accent : c.cardAlt,
+        // A tint of the colour with an outline: some category colours can't carry readable text
+        backgroundColor: selected ? flatten(accent + '2E', c.card) : c.cardAlt,
+        borderWidth: 1.5,
+        borderColor: selected ? accent : 'transparent',
         opacity: pressed ? 0.8 : 1,
       })}
     >
       {icon ? <RNText style={{ fontSize: 15 }}>{icon}</RNText> : null}
-      <Text variant="label" color={selected ? '#fff' : c.text}>
+      <Text variant="label" color={c.text} style={selected ? { fontWeight: '700' } : undefined}>
         {label}
       </Text>
     </Pressable>
@@ -461,6 +465,8 @@ export function ErrorView({ error, onRetry }: { error: unknown; onRetry?: () => 
 }
 
 export function Banner({ text, color, icon = 'alert-circle' }: { text: string; color: string; icon?: IconName }) {
+  const c = useColors();
+  // The colour marks the icon; the words stay in the main text colour so they read on any tint
   return (
     <Row
       style={{
@@ -471,7 +477,7 @@ export function Banner({ text, color, icon = 'alert-circle' }: { text: string; c
       }}
     >
       <Ionicons name={icon} size={18} color={color} />
-      <Text variant="label" color={color} style={{ flex: 1 }}>
+      <Text variant="label" color={c.text} style={{ flex: 1 }}>
         {text}
       </Text>
     </Row>
@@ -494,7 +500,7 @@ export function Avatar({ name, color, size = 32 }: { name: string; color: string
         justifyContent: 'center',
       }}
     >
-      <Text variant="label" color="#fff" style={{ fontSize: size * 0.42 }}>
+      <Text variant="label" color={readableOn(color)} style={{ fontSize: size * 0.42 }}>
         {name.trim().charAt(0).toUpperCase() || '?'}
       </Text>
     </View>

@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { onlineManager } from '@tanstack/react-query';
+import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +28,7 @@ import {
 import { rateSourceLabel } from '@/lib/rateLabels';
 import { previewShares, toSplitEntries, validateSplit, type SplitConfig, type SplitType } from '@/lib/split';
 import { dayKey } from '@/lib/stats';
+import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useUserId } from '@/providers/AuthProvider';
 import { useOutbox } from '@/store/outbox';
@@ -41,13 +42,19 @@ import { Button, Chip, Divider, Field, IconButton, Row, Segmented, Text, tap } f
 
 type RateMode = 'stored' | 'auto' | 'manual';
 
-const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'] as const;
+// Quick picks right under the category; "other" stays only for older expenses that use it
+const PAYMENT_METHODS = [
+  { key: 'card', icon: '💳' },
+  { key: 'cash', icon: '💵' },
+  { key: 'transfer', icon: '🏦' },
+] as const;
 
 export function ExpenseForm({ existing }: { existing?: Expense }) {
   const { t, lang } = useT();
   const c = useColors();
   const { trip, members, categories, me, memberById } = useTripData();
   const save = useSaveExpense(trip?.id ?? '');
+  const queryClient = useQueryClient();
   const lastCurrency = usePrefs((s) => (trip ? s.lastCurrency[trip.id] : undefined));
   const noteCurrencyUsed = usePrefs((s) => s.noteCurrencyUsed);
   const cachedRates = usePrefs((s) => s.rates);
@@ -63,7 +70,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(existing?.payment_method ?? null);
   const [receiptPath, setReceiptPath] = useState<string | null>(existing?.receipt_path ?? null);
   const [localReceipt, setLocalReceipt] = useState<{ uri: string; mime: string } | null>(null);
-  const [showMore, setShowMore] = useState(!!(existing?.notes || existing?.receipt_path || existing?.payment_method));
+  const [showMore, setShowMore] = useState(!!(existing?.notes || existing?.receipt_path));
   const [pickCurrency, setPickCurrency] = useState(false);
   const [rateMode, setRateMode] = useState<RateMode>(existing ? (existing.fx_is_manual ? 'manual' : 'stored') : 'auto');
   const [manualRate, setManualRate] = useState(existing?.fx_is_manual ? trimRate(existing.fx_rate) : '');
@@ -210,7 +217,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // ---------------------------------------------------------------- save
   async function submit(overrideVersion?: number) {
     if (!trip) return;
-    if (usePrefs.getState().demo) return setError(t('errors.demo_readonly'));
+    if (blockedInDemo(queryClient)) return;
     if (amountMinor == null) {
       setError(t('form.amountRequired'));
       amountRef.current?.focus();
@@ -413,6 +420,25 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </View>
         </View>
 
+        {/* Payment method */}
+        <View style={{ gap: space.sm }}>
+          <Text variant="label" muted>
+            {t('form.paymentMethod')}
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+            {PAYMENT_METHODS.map((m) => (
+              <Chip
+                key={m.key}
+                icon={m.icon}
+                label={t(`payment.${m.key}`)}
+                selected={paymentMethod === m.key}
+                onPress={() => setPaymentMethod(paymentMethod === m.key ? null : m.key)}
+              />
+            ))}
+            {paymentMethod === 'other' ? <Chip label={t('payment.other')} selected onPress={() => setPaymentMethod(null)} /> : null}
+          </View>
+        </View>
+
         <Field label={t('form.description')} value={description} onChangeText={setDescription} placeholder={t('form.descriptionPlaceholder')} maxLength={120} />
 
         {/* Who paid */}
@@ -532,16 +558,6 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         {showMore ? (
           <View style={{ gap: space.lg }}>
             <Field label={t('form.notes')} value={notes} onChangeText={setNotes} placeholder={t('form.notesPlaceholder')} multiline maxLength={1000} style={{ minHeight: 80, textAlignVertical: 'top' }} />
-            <View style={{ gap: space.sm }}>
-              <Text variant="label" muted>
-                {t('form.paymentMethod')}
-              </Text>
-              <Row style={{ flexWrap: 'wrap' }}>
-                {PAYMENT_METHODS.map((m) => (
-                  <Chip key={m} label={t(`payment.${m}`)} selected={paymentMethod === m} onPress={() => setPaymentMethod(paymentMethod === m ? null : m)} />
-                ))}
-              </Row>
-            </View>
             <View style={{ gap: space.sm }}>
               <Text variant="label" muted>
                 {t('form.receipt')}

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { Platform, Pressable, View } from 'react-native';
@@ -7,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 import { space, useColors } from '@/theme';
 import { useExitDemo } from '@/hooks/useExitDemo';
+import { readableOn } from '@/lib/contrast';
+import { blockedInDemo } from '@/lib/demoPrompt';
 import { useIsDemo } from '@/store/prefs';
 import { Text, type IconName } from '@/ui/primitives';
 
@@ -24,6 +27,8 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
   const insets = useSafeAreaInsets();
   const demo = useIsDemo();
   const exitDemo = useExitDemo();
+  const qc = useQueryClient();
+  const onWarning = readableOn(c.warning);
   return (
     <View>
       {/* Floating add button, always one tap away */}
@@ -32,6 +37,7 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
         accessibilityLabel="Add expense"
         onPress={() => {
           if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          if (blockedInDemo(qc)) return;
           router.push('/expense/new');
         }}
         style={({ pressed }) => ({
@@ -52,16 +58,16 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
           transform: [{ scale: pressed ? 0.94 : 1 }],
         })}
       >
-        <Ionicons name="add" size={34} color="#fff" />
+        <Ionicons name="add" size={34} color={c.primaryText} />
       </Pressable>
       {demo ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: c.warning, paddingHorizontal: space.lg, paddingVertical: 8 }}>
-          <Ionicons name="eye-outline" size={16} color="#111" />
-          <Text variant="caption" color="#111" style={{ flex: 1, fontWeight: '700' }} numberOfLines={2}>
+          <Ionicons name="eye-outline" size={16} color={onWarning} />
+          <Text variant="caption" color={onWarning} style={{ flex: 1, fontWeight: '700' }} numberOfLines={2}>
             {t('demo.banner')}
           </Text>
-          <Pressable accessibilityRole="button" onPress={exitDemo} hitSlop={8} style={{ backgroundColor: '#111', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
-            <Text variant="caption" color="#fff" style={{ fontWeight: '700' }}>
+          <Pressable accessibilityRole="button" onPress={exitDemo} hitSlop={8} style={{ backgroundColor: onWarning, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Text variant="caption" color={c.warning} style={{ fontWeight: '700' }}>
               {t('demo.exit')}
             </Text>
           </Pressable>

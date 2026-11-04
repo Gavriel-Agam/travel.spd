@@ -11,6 +11,7 @@ import { HOME_CURRENCY } from '@/lib/currencies';
 import { resolveHomeOrder, type HomeSection } from '@/lib/homeLayout';
 import { formatMoney, percent } from '@/lib/money';
 import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
+import { readableOn } from '@/lib/contrast';
 import { alertColor, radius, space, useColors } from '@/theme';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
@@ -37,6 +38,8 @@ const SECTION_ICONS: Record<HomeSection, string> = { hero: '💰', today: '📅'
 export default function Home() {
   const { t, lang } = useT();
   const c = useColors();
+  // Text on the total card follows the card colour (white on dark, ink on light)
+  const onHero = readableOn(c.heroFrom);
   const data = useTripData();
   const { trip, stats, members, expenses, balances, transfers, memberById, categoryById } = data;
   // Invite codes only apply to regular trips; in the shared MVP trip everyone joins with Start
@@ -74,32 +77,35 @@ export default function Home() {
   const sections: Record<HomeSection, ReactNode> = {
     hero: (
       <View style={{ backgroundColor: c.heroFrom, borderRadius: radius.xl, padding: space.xl, gap: space.md, overflow: 'hidden' }}>
-        <View
-          style={{ position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: c.heroTo, opacity: 0.55, top: -90, end: -80 }}
-        />
-        <Text variant="label" color="rgba(255,255,255,0.8)">
-          {t('home.spent')}
-        </Text>
-        <Text variant="hero" color="#fff">
-          {ils(stats.total)}
-        </Text>
-        {stats.budget ? (
-          <>
-            <ProgressBar value={stats.pctUsed} color="#fff" track="rgba(255,255,255,0.25)" height={10} />
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Text variant="label" color="rgba(255,255,255,0.85)">
-                {stats.pctUsed}% · {t('home.of', { amount: ils(stats.budget) })}
-              </Text>
-              <Text variant="label" color="#fff">
-                {stats.remaining! >= 0 ? t('home.remaining', { amount: ils(stats.remaining!) }) : t('home.over', { amount: ils(-stats.remaining!) })}
-              </Text>
-            </Row>
-          </>
-        ) : (
-          <Text variant="label" color="rgba(255,255,255,0.8)">
-            {t('home.noBudget')}
+        {/* Decoration only: its own layer under the text, never on top of it */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, zIndex: 0 }}>
+          <View style={{ position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: c.heroTo, opacity: 0.55, top: -90, end: -80 }} />
+        </View>
+        <View style={{ gap: space.md, zIndex: 1 }}>
+          <Text variant="label" color={onHero}>
+            {t('home.spent')}
           </Text>
-        )}
+          <Text variant="hero" color={onHero}>
+            {ils(stats.total)}
+          </Text>
+          {stats.budget ? (
+            <>
+              <ProgressBar value={stats.pctUsed} color={onHero} track={onHero + '40'} height={10} />
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Text variant="label" color={onHero}>
+                  {stats.pctUsed}% · {t('home.of', { amount: ils(stats.budget) })}
+                </Text>
+                <Text variant="label" color={onHero} style={{ fontWeight: '700' }}>
+                  {stats.remaining! >= 0 ? t('home.remaining', { amount: ils(stats.remaining!) }) : t('home.over', { amount: ils(-stats.remaining!) })}
+                </Text>
+              </Row>
+            </>
+          ) : (
+            <Text variant="label" color={onHero}>
+              {t('home.noBudget')}
+            </Text>
+          )}
+        </View>
       </View>
     ),
     today: (

@@ -32,6 +32,8 @@ type Row = {
 
 const ROWS: Row[] = [
   { day: -20, hour: 20, desc: '✈️ TLV ↔ BKK', amount: 4500, currency: 'ILS', cat: 'flights', payer: NOA, pay: 'card' },
+  { day: -14, hour: 11, desc: 'Travel insurance', amount: 320, currency: 'ILS', cat: 'health', payer: DAN, pay: 'transfer' },
+  { day: -1, hour: 21, desc: 'eSIM 15 GB', amount: 19, currency: 'USD', cat: 'other', payer: NOA, pay: 'card' },
   { day: 0, hour: 15, desc: 'Hotel Sukhumvit · 3 nights', amount: 4200, currency: 'THB', cat: 'accommodation', payer: DAN, pay: 'card' },
   { day: 0, hour: 13, desc: 'Airport taxi', amount: 450, currency: 'THB', cat: 'transportation', payer: NOA, pay: 'cash' },
   { day: 0, hour: 19, desc: 'Pad thai', amount: 180, currency: 'THB', cat: 'street_food', payer: DAN, pay: 'cash' },
@@ -43,6 +45,7 @@ const ROWS: Row[] = [
   { day: 2, hour: 23, desc: 'Rooftop bar', amount: 1100, currency: 'THB', cat: 'nightlife', payer: NOA, pay: 'card' },
   { day: 3, hour: 9, desc: '✈️ BKK → HAN', amount: 140, currency: 'USD', cat: 'flights', payer: DAN, pay: 'card' },
   { day: 3, hour: 13, desc: 'Phở', amount: 120000, currency: 'VND', cat: 'street_food', payer: NOA, pay: 'cash' },
+  { day: 3, hour: 15, desc: 'Old Quarter hotel · 3 nights', amount: 186, currency: 'EUR', cat: 'accommodation', payer: DAN, pay: 'card' },
   { day: 4, hour: 8, desc: 'Ha Long Bay cruise', amount: 2400000, currency: 'VND', cat: 'activities', payer: DAN, pay: 'card', split: 'treat' },
   { day: 4, hour: 18, desc: 'Grab rides', amount: 185000, currency: 'VND', cat: 'transportation', payer: NOA, pay: 'card' },
   { day: 5, hour: 9, desc: 'Egg coffee', amount: 90000, currency: 'VND', cat: 'restaurants', payer: DAN, pay: 'cash', split: 'amount', values: { [NOA]: 40000, [DAN]: 50000 } },

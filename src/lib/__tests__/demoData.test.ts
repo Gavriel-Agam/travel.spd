@@ -12,7 +12,7 @@ describe('demo trip', () => {
 
   it('is a trip in progress with several currencies and every split type', () => {
     expect(d.trip.start_date! <= d.today && d.today <= d.trip.end_date!).toBe(true);
-    expect(new Set(d.expenses.map((e) => e.currency))).toEqual(new Set(['ILS', 'THB', 'USD', 'VND']));
+    expect(new Set(d.expenses.map((e) => e.currency))).toEqual(new Set(['ILS', 'THB', 'USD', 'VND', 'EUR']));
     expect(new Set(d.expenses.filter((e) => e.kind === 'expense').map((e) => e.split_type))).toEqual(
       new Set(['equal', 'percent', 'personal', 'treat', 'amount']),
     );

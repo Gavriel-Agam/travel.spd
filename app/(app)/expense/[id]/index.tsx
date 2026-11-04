@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image, View } from 'react-native';
 import { useDeleteExpense, useReceiptUrl } from '@/api/queries';
@@ -8,6 +9,7 @@ import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, invertRate, trimRate } from '@/lib/money';
 import { rateSourceName } from '@/lib/rateLabels';
+import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
@@ -19,6 +21,7 @@ export default function ExpenseDetails() {
   const c = useColors();
   const { trip, isLoading, expenses, memberById, categoryById, members } = useTripData();
   const del = useDeleteExpense(trip?.id ?? '');
+  const qc = useQueryClient();
   const e = expenses.find((x) => x.id === id);
   const receipt = useReceiptUrl(e?.receipt_path);
 
@@ -38,6 +41,7 @@ export default function ExpenseDetails() {
   const isHome = e.currency === HOME_CURRENCY;
 
   async function remove() {
+    if (blockedInDemo(qc)) return;
     if (e!.pending) {
       if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
         useOutbox.getState().remove(e!.id);
@@ -70,7 +74,7 @@ export default function ExpenseDetails() {
       <Row style={{ justifyContent: 'space-between' }}>
         <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => router.back()} />
         {e.kind === 'expense' && !e.pending ? (
-          <IconButton name="create-outline" onPress={() => router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
+          <IconButton name="create-outline" onPress={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
         ) : null}
       </Row>
 

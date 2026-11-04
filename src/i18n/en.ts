@@ -223,6 +223,10 @@ const en = {
     partner2: 'Dan',
     banner: 'Demo trip: read-only, nothing is saved',
     exit: 'Exit demo',
+    promptTitle: 'Ready to track your own trip?',
+    promptBody: 'The demo is read-only. Create a free account to add expenses, set budgets and share a trip with your partner.',
+    promptEmail: 'Sign up with email',
+    promptStay: 'Keep exploring',
   },
   mvp: {
     tripName: 'Our trip',

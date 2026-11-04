@@ -347,4 +347,28 @@ await rejects(as(REAL, 'select finish_account_transfer($1)', [token]), /transfer
 await rejects(as(REAL, 'select * from account_transfers'), /permission denied/);
 ok('account transfer: a one-time token moves an anonymous phone\'s trips to the real account');
 
+// Trip isolation: a partner invited to one trip sees nothing of the owner's other trips
+const [{ create_trip: ski }] = await as(A, `select create_trip('Ski', 'Partner A', null, null, 'GEL')`);
+const [{ id: skiMember }] = await as(A, 'select id from trip_members where trip_id = $1', [ski]);
+const skiExpense = (extra = {}) => JSON.stringify({ trip_id: ski, paid_by_member_id: skiMember, amount_minor: 9000, currency: 'GEL', fx_rate: '1.35', fx_is_manual: true, split_type: 'equal', splits: [{ member_id: skiMember }], ...extra });
+await as(A, `select * from save_expense($1::jsonb)`, [skiExpense()]);
+await as(A, `insert into budgets (trip_id, scope, amount_ils_minor) values ($1, 'total', 500000)`, [ski]);
+await as(A, `select create_invite($1)`, [ski]);
+for (const outsider of [B, C]) {
+  for (const table of ['trips', 'trip_members', 'expenses', 'budgets', 'trip_invites', 'category_overrides', 'expense_categories']) {
+    const col = table === 'trips' ? 'id' : 'trip_id';
+    assert.equal((await as(outsider, `select * from ${table} where ${col} = $1`, [ski])).length, 0, `${table} leaked`);
+  }
+  assert.equal((await as(outsider, 'select s.* from expense_splits s join expenses e on e.id = s.expense_id where e.trip_id = $1', [ski])).length, 0);
+  await rejects(as(outsider, `select create_invite($1)`, [ski]), /forbidden/);
+  await rejects(as(outsider, `select * from save_expense($1::jsonb)`, [skiExpense({ amount_minor: 1 })]), /forbidden/);
+  await as(outsider, `update trips set name = 'hacked' where id = $1`, [ski]).catch(() => {});
+  await as(outsider, `delete from expenses where trip_id = $1`, [ski]).catch(() => {});
+}
+assert.equal((await as(A, 'select name from trips where id = $1', [ski]))[0].name, 'Ski');
+assert.equal((await as(A, 'select count(*)::int n from expenses where trip_id = $1', [ski]))[0].n, 1);
+// ...while B still sees the trip it was invited to
+assert.equal((await as(B, 'select * from trips where id = $1', [trip])).length, 1);
+ok('trip isolation: a partner sees only the trips they were invited to');
+
 console.log(`\n${passed} SQL checks passed`);

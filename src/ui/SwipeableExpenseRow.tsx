@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { readableOn } from '@/lib/contrast';
 import { radius, space, useColors } from '@/theme';
 import type { Category, Expense, Member } from '@/types/db';
 import { ExpenseRow } from './ExpenseRow';
@@ -57,7 +58,7 @@ export function SwipeableExpenseRow({
                 }}
                 style={{ width: 72, height: '100%', backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Ionicons name="create-outline" size={22} color="#fff" />
+                <Ionicons name="create-outline" size={22} color={c.primaryText} />
               </Pressable>
             ) : null}
             <Pressable
@@ -68,7 +69,7 @@ export function SwipeableExpenseRow({
               }}
               style={{ width: 72, height: '100%', backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Ionicons name="trash-outline" size={22} color="#fff" />
+              <Ionicons name="trash-outline" size={22} color={readableOn(c.danger)} />
             </Pressable>
           </Row>
         )}

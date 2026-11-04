@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, SectionList, TextInput, View } from 'react-native';
@@ -11,6 +12,7 @@ import { useT } from '@/i18n';
 import { categoryLabel } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney } from '@/lib/money';
+import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode } from '@/lib/supabase';
 import { dayKey } from '@/lib/stats';
 import { radius, space, useColors } from '@/theme';
@@ -26,6 +28,7 @@ export default function Expenses() {
   const data = useTripData();
   const { trip, expenses, categories, members, memberById, categoryById } = data;
   const del = useDeleteExpense(trip?.id ?? '');
+  const qc = useQueryClient();
 
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -80,6 +83,7 @@ export default function Expenses() {
         : new Date(d + 'T12:00:00Z').toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
   async function confirmDelete(e: Expense) {
+    if (blockedInDemo(qc)) return;
     if (e.pending) {
       if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
         useOutbox.getState().remove(e.id);
@@ -120,8 +124,8 @@ export default function Expenses() {
               gap: 4,
             }}
           >
-            <Ionicons name="options-outline" size={20} color={activeFilters ? '#fff' : c.text} />
-            {activeFilters ? <Text variant="label" color="#fff">{activeFilters}</Text> : null}
+            <Ionicons name="options-outline" size={20} color={activeFilters ? c.primaryText : c.text} />
+            {activeFilters ? <Text variant="label" color={c.primaryText}>{activeFilters}</Text> : null}
           </Pressable>
         </Row>
 
@@ -208,7 +212,7 @@ export default function Expenses() {
               payer={memberById.get(item.paid_by_member_id)}
               recipient={memberById.get(item.expense_splits[0]?.member_id)}
               onOpen={() => router.push({ pathname: '/expense/[id]', params: { id: item.id } })}
-              onEdit={() => router.push({ pathname: '/expense/[id]/edit', params: { id: item.id } })}
+              onEdit={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: item.id } })}
               onDelete={() => confirmDelete(item)}
             />
           )}

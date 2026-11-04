@@ -1,5 +1,7 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
-import { useActiveTrip, useCurrencyList, useRates, useTripRealtime } from '@/api/queries';
+import { useEffect } from 'react';
+import { useActiveTrip, useCurrencyList, useRates, useTripCoverUrl, useTripRealtime } from '@/api/queries';
+import { useTripLook } from '@/store/tripLook';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
 import { dayKey } from '@/lib/stats';
 import { ErrorView, Loading, Screen } from '@/ui/primitives';
@@ -14,6 +16,12 @@ export default function AppLayout() {
   useOutboxSync();
   // Fetch today's rates on launch so conversion keeps working if the connection drops later
   useRates(dayKey(new Date(), trip?.timezone ?? 'UTC'));
+
+  // The trip's accent colour and cover photo, for every screen of the trip
+  const cover = useTripCoverUrl(trip?.cover_path);
+  const setLook = useTripLook((s) => s.setLook);
+  useEffect(() => setLook({ theme: trip?.theme_color ?? null, coverUrl: cover.data ?? null }), [trip?.theme_color, cover.data]);
+  useEffect(() => () => setLook({ theme: null, coverUrl: null }), []);
 
   // Without a trip the stack shows onboarding: create one, or join with a code
   if (isLoading) return <Loading />;

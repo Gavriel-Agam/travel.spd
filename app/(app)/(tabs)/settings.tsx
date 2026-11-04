@@ -4,8 +4,12 @@ import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Platform, Pressable, Share, Switch, View } from 'react-native';
-import { useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { Image, Platform, Pressable, Share, Switch, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { removeTripCover, uploadTripCover, useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { errorCode } from '@/lib/supabase';
+import { TRIP_THEMES, type TripTheme } from '@/palette';
+import { useTripLook } from '@/store/tripLook';
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
@@ -49,10 +53,42 @@ export default function Settings() {
   const [start, setStart] = useState(new Date());
   const [end, setEnd] = useState(new Date());
   const [currency, setCurrency] = useState('THB');
+  const [themeColor, setThemeColor] = useState<TripTheme>('blue');
+  const [coverBusy, setCoverBusy] = useState(false);
+  const coverUrl = useTripLook((s) => s.coverUrl);
   const [pickCurrency, setPickCurrency] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   if (!trip) return null;
+
+  async function pickCover() {
+    if (!trip || blockedInDemo(queryClient)) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (res.canceled || !res.assets[0]) return;
+    setCoverBusy(true);
+    setFormError(null);
+    try {
+      await uploadTripCover(trip.id, res.assets[0].uri, trip.cover_path);
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setCoverBusy(false);
+    }
+  }
+
+  async function dropCover() {
+    if (!trip?.cover_path || blockedInDemo(queryClient)) return;
+    setCoverBusy(true);
+    try {
+      await removeTripCover(trip.id, trip.cover_path);
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setCoverBusy(false);
+    }
+  }
 
   function changeLang(l: Lang) {
     setLang(l);
@@ -100,6 +136,7 @@ export default function Settings() {
             setStart(trip.start_date ? new Date(trip.start_date + 'T12:00:00') : new Date());
             setEnd(trip.end_date ? new Date(trip.end_date + 'T12:00:00') : new Date(Date.now() + 14 * 86_400_000));
             setCurrency(trip.default_currency);
+            setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
             setFormError(null);
             setEdit('trip');
           }}
@@ -248,6 +285,55 @@ export default function Settings() {
                   {currencyName(getCurrency(currency), lang)} · {currency}
                 </Text>
               </Pressable>
+              {/* Accent colour for this trip (both partners see it) */}
+              <View style={{ gap: space.sm }}>
+                <Text variant="label" muted>
+                  {t('settings.tripColor')}
+                </Text>
+                <Row style={{ flexWrap: 'wrap' }} gap={space.sm}>
+                  {(Object.keys(TRIP_THEMES) as TripTheme[]).map((key) => (
+                    <Pressable
+                      key={key}
+                      accessibilityRole="radio"
+                      accessibilityLabel={t(`themes.${key}`)}
+                      accessibilityState={{ selected: themeColor === key }}
+                      onPress={() => setThemeColor(key)}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: TRIP_THEMES[key].light.primary,
+                        borderWidth: 3,
+                        borderColor: themeColor === key ? c.text : 'transparent',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {themeColor === key ? <Ionicons name="checkmark" size={18} color="#FFFFFF" /> : null}
+                    </Pressable>
+                  ))}
+                </Row>
+              </View>
+              {/* Trip photo: saved right away (not with Save), shown on Home and behind every screen */}
+              <View style={{ gap: space.sm }}>
+                <Text variant="label" muted>
+                  {t('settings.tripPhoto')}
+                </Text>
+                <Row gap={space.sm}>
+                  <Button
+                    title={trip.cover_path ? t('settings.changePhoto') : t('settings.addPhoto')}
+                    icon="image-outline"
+                    variant="secondary"
+                    loading={coverBusy}
+                    style={{ flex: 1 }}
+                    onPress={pickCover}
+                  />
+                  {trip.cover_path ? (
+                    <Button title={t('settings.removePhoto')} icon="trash-outline" variant="danger" disabled={coverBusy} onPress={dropCover} />
+                  ) : null}
+                </Row>
+                {coverUrl ? <Image source={{ uri: coverUrl }} resizeMode="cover" style={{ width: '100%', height: 100, borderRadius: radius.md }} /> : null}
+              </View>
               {formError ? <Text color={c.danger}>{formError}</Text> : null}
             </>
           ) : null}
@@ -279,7 +365,13 @@ export default function Settings() {
                 const s = hasDates ? isoDate(start) : null;
                 const e = hasDates ? isoDate(end) : null;
                 if (s && e && e < s) return setFormError(t('settings.datesInvalid'));
-                await updateTrip.mutateAsync({ name: text.trim(), start_date: s, end_date: e, default_currency: currency });
+                await updateTrip.mutateAsync({
+                  name: text.trim(),
+                  start_date: s,
+                  end_date: e,
+                  default_currency: currency,
+                  theme_color: themeColor === 'blue' ? null : themeColor,
+                });
               }
               else if (me) await updateMe.mutateAsync({ memberId: me.id, display_name: text.trim() });
               setEdit(null);

@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import type { ComponentProps, ReactNode, Ref } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +24,7 @@ import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { flatten, readableOn } from '@/lib/contrast';
 import { errorCode } from '@/lib/supabase';
 import { useT } from '@/i18n';
+import { useTripLook } from '@/store/tripLook';
 import { radius, space, useColors } from '@/theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -71,6 +73,24 @@ export function Text({
 
 // ---------------------------------------------------------------- layout
 
+/**
+ * The trip's cover photo as a faint backdrop behind a screen (only while a trip
+ * with a photo is open). Low opacity so text on the page keeps its contrast.
+ */
+export function TripBackdrop() {
+  const uri = useTripLook((s) => s.coverUrl);
+  if (!uri) return null;
+  return (
+    <Image
+      source={{ uri }}
+      resizeMode="cover"
+      accessibilityIgnoresInvertColors
+      style={[StyleSheet.absoluteFill, { opacity: 0.07 }]}
+      pointerEvents="none"
+    />
+  );
+}
+
 export function Screen({
   children,
   scroll = true,
@@ -87,6 +107,7 @@ export function Screen({
   const c = useColors();
   return (
     <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: c.bg }}>
+      <TripBackdrop />
       {scroll ? (
         <ScrollView
           contentContainerStyle={[{ padding: space.lg, paddingBottom: 120, gap: space.lg }, contentStyle]}

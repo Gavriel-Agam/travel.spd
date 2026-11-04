@@ -48,7 +48,7 @@ export function CurrencyPicker({
   };
 
   return (
-    <Sheet visible={visible} onClose={close} title={t('currency.title')} height="85%">
+    <Sheet visible={visible} onClose={close} title={t('currency.title')} height="85%" scroll={false}>
       <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
         <View
           style={{

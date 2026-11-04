@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import builtIn from '@/data/categories.json';
-import { MEMBER_COLORS, themes } from '@/palette';
+import { MEMBER_COLORS, TRIP_THEMES, themes, withTripTheme, type TripTheme } from '@/palette';
 import { contrastRatio, flatten, readableOn } from '../contrast';
 
 const AA_TEXT = 4.5;
 const AA_GRAPHIC = 3;
 
-describe.each(Object.entries(themes))('%s theme meets WCAG 2.1 AA', (_name, c) => {
+// Every trip accent in both modes (the default blue included)
+const variants = (Object.keys(TRIP_THEMES) as TripTheme[]).flatMap((accent) =>
+  (['light', 'dark'] as const).map((mode) => [`${accent} / ${mode}`, withTripTheme(themes[mode], mode, accent)] as const),
+);
+
+describe.each([...Object.entries(themes), ...variants])('%s theme meets WCAG 2.1 AA', (_name, c) => {
   const surfaces = { bg: c.bg, card: c.card, cardAlt: c.cardAlt };
   const textColors = {
     text: c.text,
@@ -80,3 +85,12 @@ describe('contrast helpers', () => {
     expect(readableOn('#11142D')).toBe('#FFFFFF');
   });
 });
+
+describe('withTripTheme', () => {
+  it('falls back to the default colours for no or unknown theme', () => {
+    expect(withTripTheme(themes.light, 'light', null)).toBe(themes.light);
+    expect(withTripTheme(themes.light, 'light', 'neon')).toBe(themes.light);
+    expect(withTripTheme(themes.dark, 'dark', 'green').primary).toBe(TRIP_THEMES.green.dark.primary);
+  });
+});
+

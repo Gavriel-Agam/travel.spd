@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius, space, useColors } from '@/theme';
 import { Text } from './primitives';
@@ -11,12 +11,15 @@ export function Sheet({
   title,
   children,
   height,
+  scroll = true,
 }: {
   visible: boolean;
   onClose: () => void;
   title?: string;
   children: ReactNode;
   height?: number | `${number}%`;
+  /** Scroll content taller than the sheet. Off for sheets that hold their own list or drag gestures. */
+  scroll?: boolean;
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -42,7 +45,13 @@ export function Sheet({
               {title}
             </Text>
           ) : null}
-          {children}
+          {scroll ? (
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
+          ) : (
+            children
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>

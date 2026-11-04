@@ -17,7 +17,7 @@ await db.exec(`
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create schema storage;
-  create table storage.buckets (id text primary key, name text, public boolean);
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
   create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
   alter table storage.objects enable row level security;
   create function storage.foldername(name text) returns text[] language sql immutable as
@@ -396,5 +396,17 @@ assert.equal(j2.paid_by_member_id, mB);
 const [j3] = await as(B, `select * from save_expense($1::jsonb, $2)`, [joint({ id: j1.id }), j2.version]);
 assert.equal(j3.paid_by_member_id, null);
 ok('joint money: expenses without a payer; settlements and treats still need one');
+
+// Trip look: colour from the palette list, cover photo in the trip's own folder, members only
+await as(A, `update trips set theme_color = 'green' where id = $1`, [trip]);
+await rejects(as(A, `update trips set theme_color = 'neon' where id = $1`, [trip]), /check constraint/);
+await rejects(as(A, `update trips set cover_path = $2 where id = $1`, [trip, `${ski}/cover.jpg`]), /check constraint/);
+await as(A, `update trips set cover_path = $2 where id = $1`, [trip, `${trip}/cover-1.jpg`]);
+assert.equal((await as(B, 'select theme_color, cover_path from trips where id = $1', [trip]))[0].theme_color, 'green');
+await as(B, `insert into storage.objects (bucket_id, name) values ('trip-covers', $1)`, [`${trip}/cover-2.jpg`]);
+await rejects(as(C, `insert into storage.objects (bucket_id, name) values ('trip-covers', $1)`, [`${trip}/x.jpg`]), /row-level security/);
+assert.equal((await as(C, `select * from storage.objects where bucket_id = 'trip-covers'`)).length, 0);
+assert.equal((await as(A, `select * from storage.objects where bucket_id = 'trip-covers'`)).length, 1);
+ok('trip look: palette colours only, covers stay in the trip folder and with its members');
 
 console.log(`\n${passed} SQL checks passed`);

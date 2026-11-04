@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
+import { Image, Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
 import { useHomeLayout, useInviteCode } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -18,6 +18,7 @@ import { Sheet } from '@/ui/Sheet';
 import { SortableList } from '@/ui/SortableList';
 import { SyncStatus } from '@/ui/SyncStatus';
 import { useAuth } from '@/providers/AuthProvider';
+import { useTripLook } from '@/store/tripLook';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import {
@@ -59,6 +60,7 @@ export default function Home() {
     scroll.current.max = Math.max(0, scroll.current.contentH - scroll.current.viewH);
   };
   const [draggingCard, setDraggingCard] = useState(false);
+  const coverUrl = useTripLook((s) => s.coverUrl);
 
   const trend = useMemo(() => {
     if (!trip || !stats) return [];
@@ -287,6 +289,15 @@ export default function Home() {
       onLayout={(e) => measure({ viewH: e.nativeEvent.layout.height })}
       refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
     >
+      {/* The trip photo (Settings › Trip details) */}
+      {coverUrl ? (
+        <Image
+          source={{ uri: coverUrl }}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+          style={{ width: '100%', height: 140, borderRadius: radius.xl, backgroundColor: c.cardAlt }}
+        />
+      ) : null}
       <Row style={{ justifyContent: 'space-between' }} align="flex-end">
         <View style={{ gap: 2, flex: 1 }}>
           <Text variant="caption" muted>
@@ -349,7 +360,7 @@ export default function Home() {
         </Card>
       ) : null}
 
-      <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')}>
+      <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false}>
         <View style={{ padding: space.lg, gap: space.md }}>
           <Text variant="caption" muted center>
             {t('home.arrangeHint')}

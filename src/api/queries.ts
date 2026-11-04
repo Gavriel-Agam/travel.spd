@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
 import { mergeCategories } from '@/lib/categories';
 import { layoutSyncAction, sameOrder } from '@/lib/homeLayout';
+import { shrinkForUpload } from '@/lib/image';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { supabase } from '@/lib/supabase';
 import { useIsDemo, usePrefs } from '@/store/prefs';
@@ -113,7 +114,7 @@ export function useInviteCode(tripId: string | undefined) {
 export function useUpdateTrip(tripId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'default_currency'>>) =>
+    mutationFn: async (patch: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'default_currency' | 'theme_color' | 'cover_path'>>) =>
       unwrap(await supabase.from('trips').update(patch).eq('id', tripId).select().single()),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.trips }),
   });
@@ -312,6 +313,32 @@ export async function uploadReceipt(tripId: string, uri: string, mime = 'image/j
   const body = await (await fetch(uri)).arrayBuffer();
   unwrap(await supabase.storage.from('receipts').upload(path, body, { contentType: mime }));
   return path;
+}
+
+/** Uploads a new cover photo for the trip and removes the previous one. Returns the new path. */
+export async function uploadTripCover(tripId: string, uri: string, previous?: string | null) {
+  const { body, mime } = await shrinkForUpload(uri);
+  // A new name each time, so phones never show a cached old photo
+  const path = `${tripId}/cover-${Date.now()}.jpg`;
+  unwrap(await supabase.storage.from('trip-covers').upload(path, body, { contentType: mime }));
+  unwrap(await supabase.from('trips').update({ cover_path: path }).eq('id', tripId).select().single());
+  if (previous) await supabase.storage.from('trip-covers').remove([previous]);
+  return path;
+}
+
+export async function removeTripCover(tripId: string, previous: string) {
+  unwrap(await supabase.from('trips').update({ cover_path: null }).eq('id', tripId).select().single());
+  await supabase.storage.from('trip-covers').remove([previous]);
+}
+
+export function useTripCoverUrl(path: string | null | undefined) {
+  const demo = useIsDemo();
+  return useQuery({
+    queryKey: ['trip-cover', path],
+    enabled: !!path && !demo,
+    staleTime: 50 * 60_000,
+    queryFn: async () => unwrap(await supabase.storage.from('trip-covers').createSignedUrl(path!, 3600)).signedUrl,
+  });
 }
 
 export function useReceiptUrl(path: string | null | undefined) {

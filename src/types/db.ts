@@ -12,6 +12,10 @@ export type Trip = {
   shared?: boolean;
   created_by: string;
   created_at: string;
+  /** Accent colour (palette TRIP_THEMES); null = the default blue. */
+  theme_color?: string | null;
+  /** Cover photo in the trip-covers bucket: <trip_id>/<file>. */
+  cover_path?: string | null;
 };
 
 export type Member = {

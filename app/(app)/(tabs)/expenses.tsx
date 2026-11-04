@@ -19,7 +19,7 @@ import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
-import { Chip, EmptyState, ErrorView, Loading, Row, Text } from '@/ui/primitives';
+import { Chip, EmptyState, ErrorView, Loading, Row, Text, TripBackdrop } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
 
 export default function Expenses() {
@@ -98,6 +98,7 @@ export default function Expenses() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
+      <TripBackdrop />
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
         <Text variant="title">{t('expenses.title')}</Text>
         <SyncStatus tripId={trip.id} />

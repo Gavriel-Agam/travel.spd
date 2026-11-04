@@ -16,8 +16,8 @@ export const light = {
   danger: '#CC2B1F',
   dangerSoft: '#FEECEB',
   track: '#EAECF2',
-  heroFrom: '#2E5BFF',
-  heroTo: '#6A3DF5',
+  heroFrom: '#1E40AF',
+  heroTo: '#1D4ED8',
   overlay: 'rgba(17,20,45,0.45)',
 };
 
@@ -38,12 +38,15 @@ export const dark: typeof light = {
   danger: '#F97066',
   dangerSoft: '#3A1D1D',
   track: '#2A2E45',
-  heroFrom: '#2747C9',
-  heroTo: '#5530C9',
+  heroFrom: '#1E40AF',
+  heroTo: '#1D4ED8',
   overlay: 'rgba(0,0,0,0.6)',
 };
 
 export type Colors = typeof light;
+
+// Peak opacity of the white glow on the total card (theme.test.ts checks text contrast with it)
+export const HERO_GLOW_OPACITY = 0.1;
 
 export const themes = { light, dark };
 

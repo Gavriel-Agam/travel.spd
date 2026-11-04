@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
+import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { HERO_GLOW_OPACITY } from '@/palette';
 import { useHomeLayout, useInviteCode } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -87,11 +89,34 @@ export default function Home() {
   const hasData = expenses.length > 0;
   const sections: Record<HomeSection, ReactNode> = {
     hero: (
-      <View style={{ backgroundColor: c.heroFrom, borderRadius: radius.xl, padding: space.xl, gap: space.md, overflow: 'hidden' }}>
-        {/* Decoration only: its own layer under the text, never on top of it */}
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, zIndex: 0 }}>
-          <View style={{ position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: c.heroTo, opacity: 0.55, top: -90, end: -80 }} />
-        </View>
+      // Outer layer carries the shadow; the inner one clips the gradient to the rounded corners
+      <View style={{ borderRadius: radius.xl, boxShadow: `0 10px 28px ${c.heroFrom}59` }}>
+      <View
+        style={{
+          backgroundColor: c.heroFrom,
+          borderRadius: radius.xl,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+          padding: space.xl,
+          gap: space.md,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Decoration only: gradient + soft inner glow, under the text, never on top of it */}
+        <Svg pointerEvents="none" width="100%" height="100%" style={{ position: 'absolute', top: 0, start: 0, zIndex: 0 }}>
+          <Defs>
+            <LinearGradient id="heroFill" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={c.heroFrom} />
+              <Stop offset="1" stopColor={c.heroTo} />
+            </LinearGradient>
+            <RadialGradient id="heroGlow" cx="0.8" cy="0.15" r="0.75">
+              <Stop offset="0" stopColor="#FFFFFF" stopOpacity={HERO_GLOW_OPACITY} />
+              <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#heroFill)" />
+          <Rect width="100%" height="100%" fill="url(#heroGlow)" />
+        </Svg>
         <View style={{ gap: space.md, zIndex: 1 }}>
           <Text variant="label" color={onHero}>
             {t('home.spent')}
@@ -117,6 +142,7 @@ export default function Home() {
             </Text>
           )}
         </View>
+      </View>
       </View>
     ),
     today: (

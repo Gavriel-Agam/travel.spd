@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import builtIn from '@/data/categories.json';
-import { MEMBER_COLORS, TRIP_THEMES, themes, withTripTheme, type TripTheme } from '@/palette';
+import { HERO_GLOW_OPACITY, MEMBER_COLORS, TRIP_THEMES, themes, withTripTheme, type TripTheme } from '@/palette';
 import { contrastRatio, flatten, readableOn } from '../contrast';
 
 const AA_TEXT = 4.5;
@@ -41,6 +41,10 @@ describe.each([...Object.entries(themes), ...variants])('%s theme meets WCAG 2.1
     const on = readableOn(c.heroFrom);
     expect(contrastRatio(on, c.heroFrom)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(on, c.heroTo)).toBeGreaterThanOrEqual(AA_TEXT);
+    // ...and where the inner glow is brightest
+    const glow = '#FFFFFF' + Math.round(HERO_GLOW_OPACITY * 255).toString(16).padStart(2, '0');
+    expect(contrastRatio(on, flatten(glow, c.heroFrom))).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(on, flatten(glow, c.heroTo))).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
   it('banners (tinted background, coloured icon)', () => {

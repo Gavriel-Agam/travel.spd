@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
 import { mergeCategories } from '@/lib/categories';
+import { layoutSyncAction, sameOrder } from '@/lib/homeLayout';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { supabase } from '@/lib/supabase';
 import { useIsDemo, usePrefs } from '@/store/prefs';
@@ -449,22 +450,19 @@ export function useHomeLayout(signedIn: boolean) {
   const local = usePrefs((s) => s.homeOrder);
   const setLocal = usePrefs((s) => s.setHomeOrder);
   const qc = useQueryClient();
+  const syncing = signedIn && !demo;
   const remote = useQuery({
     queryKey: keys.userPrefs,
-    enabled: signedIn && !demo,
+    enabled: syncing,
     staleTime: 5 * 60_000,
     queryFn: async () =>
       unwrap(await supabase.from('user_preferences').select('home_layout').maybeSingle()) as { home_layout: string[] | null } | null,
   });
 
-  // The saved order from the account wins over this device's copy
-  const remoteLayout = remote.data?.home_layout ?? null;
-  useEffect(() => {
-    if (remoteLayout && remoteLayout.join('|') !== (usePrefs.getState().homeOrder ?? []).join('|')) setLocal(remoteLayout);
-  }, [remoteLayout?.join('|')]);
-
   const save = useMutation({
     mutationKey: ['home_layout'],
+    // One save at a time, in the order they were made
+    scope: { id: 'home_layout' },
     mutationFn: async (layout: string[] | null) =>
       unwrap(
         await supabase
@@ -473,15 +471,39 @@ export function useHomeLayout(signedIn: boolean) {
           .select('home_layout')
           .single(),
       ),
-    onSuccess: (row) => qc.setQueryData(keys.userPrefs, row),
+    onSuccess: (row, layout) => {
+      qc.setQueryData(keys.userPrefs, row);
+      // Only the save of the latest order clears the pending flag
+      const now = usePrefs.getState().homeOrder;
+      if (sameOrder(layout, now) && (layout === null) === (now === null)) usePrefs.setState({ homeOrderDirty: false });
+    },
   });
+  const saveRef = useRef(save.mutate);
+  saveRef.current = save.mutate;
 
+  // Each time the account's copy arrives (also from the cache at start-up):
+  // re-send an unsent change, adopt the account's order, or upload the first one
+  useEffect(() => {
+    if (!syncing || !remote.isSuccess) return;
+    const st = usePrefs.getState();
+    const next = layoutSyncAction(st.homeOrder, st.homeOrderDirty, remote.data);
+    if (next.action === 'upload') saveRef.current(next.layout ?? null);
+    else if (next.action === 'apply') setLocal(next.layout ?? null, false);
+  }, [syncing, remote.isSuccess, remote.dataUpdatedAt]);
+
+  // Arrows and drags can come in quick succession: save the final order once
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
   const setOrder = useCallback(
     (layout: string[] | null) => {
-      setLocal(layout);
-      if (signedIn && !usePrefs.getState().demo) save.mutate(layout);
+      setLocal(layout, syncing);
+      if (!syncing) return;
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => saveRef.current(usePrefs.getState().homeOrder), 700);
     },
-    [signedIn, save.mutate],
+    [syncing, setLocal],
   );
 
   return { order: local, setOrder };

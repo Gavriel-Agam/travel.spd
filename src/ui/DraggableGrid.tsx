@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { PanResponder, Platform, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
-import { autoScrollSpeed, columnCount, dropTarget, moveItem, splitColumns, type Rect } from '@/lib/homeLayout';
+import { PanResponder, Platform, View, useWindowDimensions, type ScrollViewInstance, type ViewInstance } from 'react-native';
+import { autoScrollArmed, autoScrollSpeed, columnCount, dropTarget, moveItem, nextScroll, splitColumns, type Rect } from '@/lib/homeLayout';
 import { radius, space, useColors } from '@/theme';
 import { tap } from './primitives';
 
@@ -19,17 +19,24 @@ export function DraggableGrid({
   items,
   onReorder,
   scrollRef,
-  scrollY,
+  scroll,
   onDragging,
   handleLabel,
+  handleHint,
+  moveEarlierLabel,
+  moveLaterLabel,
 }: {
   items: GridItem[];
   onReorder: (keys: string[]) => void;
   scrollRef: RefObject<ScrollViewInstance | null>;
-  /** Current scroll offset of the page, kept up to date by the screen. */
-  scrollY: RefObject<number>;
+  /** The page's scroll offset and how far it can scroll, kept up to date by the screen. */
+  scroll: RefObject<{ y: number; max: number }>;
   onDragging: (dragging: boolean) => void;
   handleLabel: string;
+  /** For screen readers, which can't drag: how else to move the card. */
+  handleHint: string;
+  moveEarlierLabel: string;
+  moveLaterLabel: string;
 }) {
   const c = useColors();
   const { width, height } = useWindowDimensions();
@@ -37,51 +44,82 @@ export function DraggableGrid({
   const keys = items.map((i) => i.key);
   const columns = splitColumns(items, cols);
 
-  // Card positions inside the grid (column offset + position in the column)
-  const colPos = useRef<Record<number, { x: number; y: number }>>({});
-  const inCol = useRef<Record<string, Rect & { col: number }>>({});
+  // Card positions on screen, measured when a drag starts. (onLayout is not
+  // enough: in the browser it only fires when a card's size changes, so after a
+  // reorder the old positions would stay.)
+  const views = useRef(new Map<string, ViewInstance | null>());
+  const rects = useRef<Record<string, Rect>>({});
+  const measuredAt = useRef(0);
+  const measureAll = () => {
+    rects.current = {};
+    measuredAt.current = scroll.current.y;
+    for (const [key, v] of views.current) {
+      // In the browser the view is a DOM node and can be measured right away, so even
+      // a quick flick has positions; the native measure answers a moment later
+      const el = v as unknown as { getBoundingClientRect?: () => DOMRect } | null;
+      if (el?.getBoundingClientRect) {
+        const b = el.getBoundingClientRect();
+        rects.current[key] = { x: b.x, y: b.y, width: b.width, height: b.height };
+      } else v?.measureInWindow((x, y, w, h) => (rects.current[key] = { x, y, width: w, height: h }));
+    }
+  };
+  // Positions as they are now: the page may have scrolled since they were measured
   const rectOf = (key: string): Rect | undefined => {
-    const r = inCol.current[key];
-    const p = r && colPos.current[r.col];
-    return r && p ? { x: p.x + r.x, y: p.y + r.y, width: r.width, height: r.height } : undefined;
+    const r = rects.current[key];
+    return r ? { ...r, y: r.y - (scroll.current.y - measuredAt.current) } : undefined;
   };
 
   const [drag, setDrag] = useState<Drag | null>(null);
   const live = useRef({ keys, drag, onReorder, onDragging, height });
   live.current = { keys, drag, onReorder, onDragging, height };
-  const gesture = useRef({ startScroll: 0, dx: 0, dy: 0, pageY: 0, raf: 0 });
+  const gesture = useRef({ key: '', from: -1, startScroll: 0, dx: 0, dy: 0, pageX: 0, pageY: 0, armed: false, raf: 0, last: 0 });
 
-  const update = (key: string, from: number) => {
+  // Where the dragged card is now, computed from the gesture itself (never from
+  // state that may not have rendered yet, e.g. on a quick flick)
+  const current = (): Drag => {
     const g = gesture.current;
-    const dy = g.dy + (scrollY.current - g.startScroll);
-    const r = rectOf(key);
-    // The card lands where the finger is (the handle is at the top centre of the card)
-    const target = r ? dropTarget(live.current.keys.map(rectOf), r.x + r.width / 2 + g.dx, r.y + 8 + dy) : from;
-    setDrag({ key, from, dx: g.dx, dy, target });
+    const dy = g.dy + (scroll.current.y - g.startScroll);
+    // The card lands where the finger is
+    const hit = dropTarget(live.current.keys.map(rectOf), g.pageX, g.pageY);
+    return { key: g.key, from: g.from, dx: g.dx, dy, target: hit < 0 ? g.from : hit };
   };
+  const update = () => setDrag(current());
 
-  // Scroll the page while the card is held near the top or bottom edge
-  const tick = (key: string, from: number) => {
+  // Scroll the page while the card is held near the top or bottom edge. The speed
+  // is per 60 Hz frame, scaled by the real frame time so slow devices keep pace.
+  const tick = (now: number) => {
     const g = gesture.current;
-    const speed = autoScrollSpeed(g.pageY, 70, live.current.height - 110);
-    if (speed !== 0) {
-      const y = Math.max(0, scrollY.current + speed);
+    const frames = g.last ? Math.min(6, (now - g.last) / (1000 / 60)) : 1;
+    g.last = now;
+    const speed = g.armed ? autoScrollSpeed(g.pageY, 70, live.current.height - 110) * frames : 0;
+    const y = nextScroll(scroll.current.y, speed, scroll.current.max);
+    if (y !== scroll.current.y) {
       scrollRef.current?.scrollTo({ y, animated: false });
-      scrollY.current = y;
-      update(key, from);
+      scroll.current.y = y;
+      update();
     }
-    g.raf = requestAnimationFrame(() => tick(key, from));
+    g.raf = requestAnimationFrame(tick);
   };
 
   const end = (commit: boolean) => {
-    const d = live.current.drag;
     cancelAnimationFrame(gesture.current.raf);
+    const d = current();
     setDrag(null);
     live.current.onDragging(false);
-    if (commit && d && d.target >= 0 && d.target !== d.from) {
+    if (commit && d.target >= 0 && d.target !== d.from) {
       tap();
       live.current.onReorder(moveItem(live.current.keys, d.from, d.target));
     }
+  };
+
+  // Screen readers can't drag: the handle offers "move earlier / later" instead
+  const step = (key: string, delta: number) => {
+    const ks = live.current.keys;
+    const from = ks.indexOf(key);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ks.length) return;
+    tap();
+    live.current.onReorder(moveItem(ks, from, to));
   };
 
   const responders = useMemo(() => {
@@ -92,14 +130,16 @@ export function DraggableGrid({
         onPanResponderGrant: (_e, g) => {
           tap();
           const from = live.current.keys.indexOf(key);
-          Object.assign(gesture.current, { startScroll: scrollY.current, dx: 0, dy: 0, pageY: g.y0 });
+          Object.assign(gesture.current, { key, from, startScroll: scroll.current.y, dx: 0, dy: 0, pageX: g.x0, pageY: g.y0, armed: false, last: 0 });
+          measureAll();
           live.current.onDragging(true);
-          update(key, from);
-          gesture.current.raf = requestAnimationFrame(() => tick(key, from));
+          update();
+          gesture.current.raf = requestAnimationFrame(tick);
         },
         onPanResponderMove: (_e, g) => {
-          Object.assign(gesture.current, { dx: g.dx, dy: g.dy, pageY: g.moveY });
-          update(key, live.current.keys.indexOf(key));
+          const armed = gesture.current.armed || autoScrollArmed(g.dx, g.dy);
+          Object.assign(gesture.current, { dx: g.dx, dy: g.dy, pageX: g.moveX, pageY: g.moveY, armed });
+          update();
         },
         onPanResponderRelease: () => end(true),
         onPanResponderTerminate: () => end(false),
@@ -124,7 +164,6 @@ export function DraggableGrid({
       {columns.map((colItems, col) => (
         <View
           key={col}
-          onLayout={(e) => (colPos.current[col] = { x: e.nativeEvent.layout.x, y: e.nativeEvent.layout.y })}
           style={{ flex: 1, gap: space.lg, zIndex: drag && colItems.some((i) => i.key === drag.key) ? 10 : 0 }}
         >
           {colItems.map((item) => {
@@ -132,7 +171,12 @@ export function DraggableGrid({
             return (
               <View
                 key={item.key}
-                onLayout={(e) => (inCol.current[item.key] = { ...e.nativeEvent.layout, col })}
+                ref={(v) => {
+                  views.current.set(item.key, v);
+                  return () => {
+                    views.current.delete(item.key);
+                  };
+                }}
                 style={[
                   { position: 'relative' },
                   dragging
@@ -172,8 +216,14 @@ export function DraggableGrid({
                 <View pointerEvents="box-none" style={{ position: 'absolute', top: -8, left: 0, right: 0, alignItems: 'center' }}>
                   <View
                     {...responders.get(item.key)?.panHandlers}
-                    accessibilityRole="adjustable"
+                    accessibilityRole="button"
                     accessibilityLabel={handleLabel}
+                    accessibilityHint={handleHint}
+                    accessibilityActions={[
+                      { name: 'moveEarlier', label: moveEarlierLabel },
+                      { name: 'moveLater', label: moveLaterLabel },
+                    ]}
+                    onAccessibilityAction={(e) => step(item.key, e.nativeEvent.actionName === 'moveEarlier' ? -1 : 1)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     style={[
                       { width: 64, height: 32, alignItems: 'center', justifyContent: 'center' },

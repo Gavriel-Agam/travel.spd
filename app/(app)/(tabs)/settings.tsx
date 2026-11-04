@@ -81,6 +81,7 @@ export default function Settings() {
     await supabase.auth.signOut();
     // Nothing from this account stays on the device
     useOutbox.setState({ items: [] });
+    usePrefs.setState({ homeOrderDirty: false });
     queryClient.clear();
   }
 

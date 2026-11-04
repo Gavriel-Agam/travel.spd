@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Platform, Pressable, View } from 'react-native';
 import { useT } from '@/i18n';
 import { readableOn } from '@/lib/contrast';
@@ -9,8 +9,10 @@ import type { Category, Expense, Member } from '@/types/db';
 import { ExpenseRow } from './ExpenseRow';
 import { Row } from './primitives';
 
-// Only one row is open at a time
-let closeOpenRow: (() => void) | null = null;
+// Only one row is open at a time. Each row registers a stable handle (not a
+// per-render closure), so it can always be found again and removed on unmount.
+type RowHandle = { close: () => void };
+let openRow: RowHandle | null = null;
 
 /**
  * One row of a day group in the expense list. Swipe towards the start to reveal
@@ -40,7 +42,8 @@ export function SwipeableExpenseRow({
   onDelete: () => void;
 }) {
   const c = useColors();
-  const rtl = useT().lang === 'he';
+  const { t, lang } = useT();
+  const rtl = lang === 'he';
   const canEdit = expense.kind === 'expense' && !expense.pending;
   const width = ACTION_WIDTH * (canEdit ? 2 : 1);
   const x = useRef(new Animated.Value(0)).current;
@@ -49,18 +52,36 @@ export function SwipeableExpenseRow({
   const live = useRef({ rtl, width });
   live.current = { rtl, width };
 
+  const self = useRef<RowHandle>({ close: () => {} }).current;
+  const mounted = useRef(true);
+
   const animateTo = (open: boolean) => {
     const to = open ? (live.current.rtl ? 1 : -1) * live.current.width : 0;
     state.current.base = to;
     if (open) {
-      if (closeOpenRow && closeOpenRow !== close) closeOpenRow();
-      closeOpenRow = close;
-    } else if (closeOpenRow === close) closeOpenRow = null;
+      if (openRow && openRow !== self) openRow.close();
+      openRow = self;
+    } else if (openRow === self) openRow = null;
     Animated.spring(x, { toValue: to, useNativeDriver: Platform.OS !== 'web', bounciness: 0, speed: 20 }).start(({ finished }) => {
-      if (finished && !open) setRevealed(false);
+      if (finished && !open && mounted.current) setRevealed(false);
     });
   };
   const close = () => animateTo(false);
+  self.close = close;
+
+  useEffect(
+    () => () => {
+      mounted.current = false;
+      if (openRow === self) openRow = null;
+    },
+    [],
+  );
+
+  // The buttons change (a pending expense syncs and gains Edit) or the language
+  // flips while the row is open: slide to the new open position
+  useEffect(() => {
+    if (state.current.base !== 0) animateTo(true);
+  }, [width, rtl]);
 
   const pan = useMemo(
     () =>
@@ -98,32 +119,39 @@ export function SwipeableExpenseRow({
   return (
     <View style={{ marginBottom: last ? space.md : 0 }}>
       <View style={[corners, { overflow: 'hidden', backgroundColor: c.card }]}>
-        {revealed ? (
-          <Row gap={0} style={{ position: 'absolute', top: 0, bottom: 0, ...(rtl ? { left: 0 } : { right: 0 }) }}>
-            {canEdit ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit"
-                onPress={act(onEdit)}
-                style={{ width: ACTION_WIDTH, height: '100%', backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Ionicons name="create-outline" size={22} color={c.primaryText} />
-              </Pressable>
-            ) : null}
+        {/* Always mounted so screen readers can reach them; only visible while the row is open */}
+        <Row gap={0} style={{ position: 'absolute', top: 0, bottom: 0, opacity: revealed ? 1 : 0, ...(rtl ? { left: 0 } : { right: 0 }) }}>
+          {canEdit ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Delete"
-              onPress={act(onDelete)}
-              style={{ width: ACTION_WIDTH, height: '100%', backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center' }}
+              accessibilityLabel={t('common.edit')}
+              onPress={act(onEdit)}
+              style={{ width: ACTION_WIDTH, height: '100%', backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Ionicons name="trash-outline" size={22} color={readableOn(c.danger)} />
+              <Ionicons name="create-outline" size={22} color={c.primaryText} />
             </Pressable>
-          </Row>
-        ) : null}
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.delete')}
+            onPress={act(onDelete)}
+            style={{ width: ACTION_WIDTH, height: '100%', backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="trash-outline" size={22} color={readableOn(c.danger)} />
+          </Pressable>
+        </Row>
         <Animated.View
           {...pan.panHandlers}
-          // Lets the browser keep vertical scrolling while sideways moves come to us
-          style={[corners, { backgroundColor: c.card, paddingHorizontal: space.md, transform: [{ translateX: x }] }, Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as object) : null]}
+          // Native screen readers: edit / delete without swiping
+          accessibilityActions={[...(canEdit ? [{ name: 'edit', label: t('common.edit') }] : []), { name: 'delete', label: t('common.delete') }]}
+          onAccessibilityAction={(e) => (e.nativeEvent.actionName === 'edit' ? onEdit : onDelete)()}
+          // Lets the browser keep vertical scrolling while sideways moves come to us,
+          // and a mouse swipe moves the row instead of selecting its text
+          style={[
+            corners,
+            { backgroundColor: c.card, paddingHorizontal: space.md, transform: [{ translateX: x }] },
+            Platform.OS === 'web' ? ({ touchAction: 'pan-y', userSelect: 'none' } as object) : null,
+          ]}
         >
           <ExpenseRow
             expense={expense}

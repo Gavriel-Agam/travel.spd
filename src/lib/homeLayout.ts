@@ -77,3 +77,29 @@ export function mergeVisibleOrder<T>(full: T[], visibleNewOrder: T[]): T[] {
   const next = visibleNewOrder[Symbol.iterator]();
   return full.map((k) => (visible.has(k) ? (next.next().value as T) : k));
 }
+
+/** The next scroll offset while auto-scrolling, kept inside the page. */
+export function nextScroll(y: number, speed: number, max: number) {
+  return Math.max(0, Math.min(Math.max(0, max), y + speed));
+}
+
+/** Auto-scroll only starts once the finger has really moved, not on the grab itself. */
+export function autoScrollArmed(dx: number, dy: number) {
+  return Math.abs(dx) + Math.abs(dy) > 24;
+}
+
+export const sameOrder = (a: string[] | null | undefined, b: string[] | null | undefined) => (a ?? []).join('|') === (b ?? []).join('|');
+
+/**
+ * What to do when the account's saved order arrives:
+ * - a change on this device that never reached the server is sent again;
+ * - no saved row yet: this device's order (if any) becomes the account's;
+ * - otherwise the account wins, including a reset (null = default order).
+ */
+export function layoutSyncAction(local: string[] | null, dirty: boolean, remote: { home_layout: string[] | null } | null) {
+  if (dirty) return { action: 'upload' as const, layout: local };
+  if (!remote) return local ? { action: 'upload' as const, layout: local } : { action: 'none' as const };
+  if (sameOrder(remote.home_layout, local) && (remote.home_layout === null) === (local === null)) return { action: 'none' as const };
+  return { action: 'apply' as const, layout: remote.home_layout };
+}
+

@@ -16,10 +16,12 @@ type PrefsState = {
   rates: Record<string, RatesSnapshot>;
   /** Order of the Home cards on this device (see lib/homeLayout). */
   homeOrder: string[] | null;
+  /** The order changed on this device and has not reached the account yet (sent again on the next sync). */
+  homeOrderDirty: boolean;
   /** Guest demo: a read-only sample trip on this device; nothing is sent to the server. */
   demo: boolean;
   setDemo: (demo: boolean) => void;
-  setHomeOrder: (order: string[] | null) => void;
+  setHomeOrder: (order: string[] | null, dirty?: boolean) => void;
   setLang: (lang: Lang) => void;
   setActiveTrip: (id: string | null) => void;
   noteCurrencyUsed: (tripId: string, code: string) => void;
@@ -36,9 +38,10 @@ export const usePrefs = create<PrefsState>()(
       currencyUsage: {},
       rates: {},
       homeOrder: null,
+      homeOrderDirty: false,
       demo: false,
       setDemo: (demo) => set({ demo }),
-      setHomeOrder: (homeOrder) => set({ homeOrder }),
+      setHomeOrder: (homeOrder, dirty = false) => set({ homeOrder, homeOrderDirty: dirty }),
       setLang: (lang) => set({ lang }),
       setActiveTrip: (activeTripId) => set({ activeTripId }),
       noteCurrencyUsed: (tripId, code) =>

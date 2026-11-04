@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { autoScrollSpeed, columnCount, dropTarget, HOME_SECTIONS, mergeVisibleOrder, moveItem, resolveHomeOrder, splitColumns } from '../homeLayout';
+import {
+  autoScrollArmed,
+  autoScrollSpeed,
+  columnCount,
+  dropTarget,
+  HOME_SECTIONS,
+  layoutSyncAction,
+  mergeVisibleOrder,
+  moveItem,
+  nextScroll,
+  resolveHomeOrder,
+  splitColumns,
+} from '../homeLayout';
 
 describe('moveItem', () => {
   it('moves down and up', () => {
@@ -74,6 +86,39 @@ describe('mergeVisibleOrder', () => {
     // b is hidden; the user swapped a and c
     expect(mergeVisibleOrder(['a', 'b', 'c', 'd'], ['c', 'a', 'd'])).toEqual(['c', 'b', 'a', 'd']);
     expect(mergeVisibleOrder(['a', 'b'], ['b', 'a'])).toEqual(['b', 'a']);
+  });
+});
+
+describe('auto-scroll limits', () => {
+  it('never scrolls past the top or the end of the page', () => {
+    expect(nextScroll(990, 14, 1000)).toBe(1000);
+    expect(nextScroll(1000, 14, 1000)).toBe(1000);
+    expect(nextScroll(5, -14, 1000)).toBe(0);
+    expect(nextScroll(0, 14, -50)).toBe(0); // page shorter than the screen
+  });
+  it('waits for real movement before scrolling', () => {
+    expect(autoScrollArmed(0, 0)).toBe(false);
+    expect(autoScrollArmed(3, 10)).toBe(false);
+    expect(autoScrollArmed(0, 40)).toBe(true);
+  });
+});
+
+describe('layoutSyncAction', () => {
+  const row = (home_layout: string[] | null) => ({ home_layout });
+  it('re-sends a change that never reached the server instead of reverting it', () => {
+    expect(layoutSyncAction(['b', 'a'], true, row(['a', 'b']))).toEqual({ action: 'upload', layout: ['b', 'a'] });
+  });
+  it('applies the account order, including a reset to the default', () => {
+    expect(layoutSyncAction(['a', 'b'], false, row(['b', 'a']))).toEqual({ action: 'apply', layout: ['b', 'a'] });
+    expect(layoutSyncAction(['a', 'b'], false, row(null))).toEqual({ action: 'apply', layout: null });
+  });
+  it("uploads this device's order when the account has none yet", () => {
+    expect(layoutSyncAction(['b', 'a'], false, null)).toEqual({ action: 'upload', layout: ['b', 'a'] });
+    expect(layoutSyncAction(null, false, null)).toEqual({ action: 'none' });
+  });
+  it('does nothing when both already match', () => {
+    expect(layoutSyncAction(['a'], false, row(['a']))).toEqual({ action: 'none' });
+    expect(layoutSyncAction(null, false, row(null))).toEqual({ action: 'none' });
   });
 });
 

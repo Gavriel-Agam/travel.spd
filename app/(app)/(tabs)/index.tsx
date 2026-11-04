@@ -53,7 +53,11 @@ export default function Home() {
   const [arranging, setArranging] = useState(false);
   // For dragging cards: the page scrolls along and stops scrolling by itself meanwhile
   const scrollRef = useRef<ScrollViewInstance>(null);
-  const scrollY = useRef(0);
+  const scroll = useRef({ y: 0, max: 0, contentH: 0, viewH: 0 });
+  const measure = (patch: Partial<typeof scroll.current>) => {
+    Object.assign(scroll.current, patch);
+    scroll.current.max = Math.max(0, scroll.current.contentH - scroll.current.viewH);
+  };
   const [draggingCard, setDraggingCard] = useState(false);
 
   const trend = useMemo(() => {
@@ -264,7 +268,9 @@ export default function Home() {
       ref={scrollRef}
       scrollEnabled={!draggingCard}
       scrollEventThrottle={16}
-      onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+      onScroll={(e) => (scroll.current.y = e.nativeEvent.contentOffset.y)}
+      onContentSizeChange={(_w, h) => measure({ contentH: h })}
+      onLayout={(e) => measure({ viewH: e.nativeEvent.layout.height })}
       refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
     >
       <Row style={{ justifyContent: 'space-between' }} align="flex-end">
@@ -315,9 +321,12 @@ export default function Home() {
         items={order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k], handleColor: k === 'hero' ? onHero : undefined }))}
         onReorder={(visible) => setHomeOrder(mergeVisibleOrder(order, visible))}
         scrollRef={scrollRef}
-        scrollY={scrollY}
+        scroll={scroll}
         onDragging={setDraggingCard}
         handleLabel={t('home.dragHandle')}
+        handleHint={t('home.dragHandleHint')}
+        moveEarlierLabel={t('home.moveEarlier')}
+        moveLaterLabel={t('home.moveLater')}
       />
 
       {!hasData ? (

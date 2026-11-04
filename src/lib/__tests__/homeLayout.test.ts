@@ -3,6 +3,7 @@ import {
   autoScrollArmed,
   autoScrollSpeed,
   columnCount,
+  dropPlacement,
   dropTarget,
   HOME_SECTIONS,
   layoutSyncAction,
@@ -122,3 +123,18 @@ describe('layoutSyncAction', () => {
   });
 });
 
+
+describe('dropPlacement', () => {
+  // order a b c d, lifting b (index 1)
+  it('upper half of a card drops before it, lower half after it', () => {
+    expect(dropPlacement(1, 3, true)).toEqual({ to: 2, side: 'before' }); // a c b d
+    expect(dropPlacement(1, 3, false)).toEqual({ to: 3, side: 'after' }); // a c d b
+    expect(dropPlacement(1, 0, true)).toEqual({ to: 0, side: 'before' }); // b a c d
+  });
+  it('no change (and no line) next to its own spot or over itself', () => {
+    expect(dropPlacement(1, 0, false)).toBeNull(); // after a = where b already is
+    expect(dropPlacement(1, 2, true)).toBeNull(); // before c = where b already is
+    expect(dropPlacement(1, 1, true)).toBeNull();
+    expect(dropPlacement(1, -1, true)).toBeNull();
+  });
+});

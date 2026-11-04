@@ -53,7 +53,7 @@ Last updated: 2026-11-04
 
 **Partner join:** partner A shares invite code from Settings → partner B signs in → onboarding/join → enters code → shared trip, live sync.
 
-**Reorder Home:** long-press a card → drag → drop; order saved to the account.
+**Reorder Home:** hold any card ~0.5 s (no handle) → it lifts (scale 1.05 + shadow), a faint grid appears, an accent line shows the drop spot (upper/lower half of the card under the finger = before/after it) → release; order saved to the account. Short taps and scrolls never lift a card. Screen readers: Arrange sheet.
 
 **Demo → real account:** demo prompts sign-up; demo data stays local.
 
@@ -80,6 +80,8 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 
 | Date | Decision |
 |---|---|
+| 2026-11-04 | Home cards reorder by long-press anywhere on the card; drag handles removed. |
+| 2026-11-04 | Total card: Royal Sapphire gradient (default blue), inner glow, white/10 border. |
 | 2026-11-04 | Home focuses on expenses: partner-invite card removed (invite icon + Settings instead); empty state is a single add-expense CTA. |
 | 2026-11-04 | "Paid by" defaults to joint money. |
 | 2026-11-04 | Trip colour + cover photo per trip. |

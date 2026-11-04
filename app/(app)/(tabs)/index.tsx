@@ -96,7 +96,7 @@ export default function Home() {
           backgroundColor: c.heroFrom,
           borderRadius: radius.xl,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.12)',
+          borderColor: 'rgba(255,255,255,0.1)',
           padding: space.xl,
           gap: space.md,
           overflow: 'hidden',
@@ -364,15 +364,11 @@ export default function Home() {
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
 
       <DraggableGrid
-        items={order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k], handleColor: k === 'hero' ? onHero : undefined }))}
+        items={order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k], radius: k === 'hero' ? radius.xl : radius.lg }))}
         onReorder={(visible) => setHomeOrder(mergeVisibleOrder(order, visible))}
         scrollRef={scrollRef}
         scroll={scroll}
         onDragging={setDraggingCard}
-        handleLabel={t('home.dragHandle')}
-        handleHint={t('home.dragHandleHint')}
-        moveEarlierLabel={t('home.moveEarlier')}
-        moveLaterLabel={t('home.moveLater')}
       />
 
       {!hasData ? (

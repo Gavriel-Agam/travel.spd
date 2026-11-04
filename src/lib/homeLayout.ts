@@ -39,6 +39,23 @@ export function splitColumns<T>(items: T[], columns: number): T[][] {
  * Which card a dragged card is over: the one containing the point, otherwise
  * the closest one. Returns its index in `rects`, or -1 when there are none.
  */
+/** Hold this long on a card to pick it up; moving further than the slop first cancels it (a scroll). */
+export const LONG_PRESS_MS = 500;
+export const LONG_PRESS_SLOP = 8;
+
+/**
+ * Where a lifted card lands, from the card under the finger (`hit`) and which half
+ * of it the finger is on: the upper half drops it before that card, the lower half
+ * after it, so the drop line is always on the edge nearest the finger.
+ * `to` is the card's new index (for moveItem); null when the order would not change.
+ */
+export function dropPlacement(from: number, hit: number, upperHalf: boolean): { to: number; side: 'before' | 'after' } | null {
+  if (from < 0 || hit < 0 || hit === from) return null;
+  const side = upperHalf ? 'before' : 'after';
+  const to = side === 'before' ? (hit > from ? hit - 1 : hit) : hit > from ? hit : hit + 1;
+  return to === from ? null : { to, side };
+}
+
 export function dropTarget(rects: (Rect | undefined)[], px: number, py: number) {
   let best = -1;
   let bestDist = Infinity;

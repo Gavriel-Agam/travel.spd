@@ -3,7 +3,8 @@
 
 export type LedgerExpense = {
   kind: 'expense' | 'settlement';
-  paid_by_member_id: string;
+  /** null: paid from joint money (counts as consumption, never as a debt). */
+  paid_by_member_id: string | null;
   amount_ils_minor: number;
   splits: { member_id: string; share_ils_minor: number }[];
 };
@@ -27,12 +28,16 @@ export function computeBalances(memberIds: string[], expenses: LedgerExpense[]):
     return map.get(id)!;
   };
   for (const e of expenses) {
-    const payer = get(e.paid_by_member_id);
-    payer.net += e.amount_ils_minor;
-    if (e.kind === 'expense') payer.paid += e.amount_ils_minor;
+    // Joint money: everyone consumed their share, nobody advanced it, nobody owes it
+    const joint = e.paid_by_member_id === null;
+    if (!joint) {
+      const payer = get(e.paid_by_member_id!);
+      payer.net += e.amount_ils_minor;
+      if (e.kind === 'expense') payer.paid += e.amount_ils_minor;
+    }
     for (const s of e.splits) {
       const m = get(s.member_id);
-      m.net -= s.share_ils_minor;
+      if (!joint) m.net -= s.share_ils_minor;
       if (e.kind === 'expense') m.share += s.share_ils_minor;
     }
   }

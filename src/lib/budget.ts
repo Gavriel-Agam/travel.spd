@@ -26,7 +26,7 @@ type Spend = {
   occurred_at: string;
   category_id: string | null;
   payment_method?: string | null;
-  paid_by_member_id?: string;
+  paid_by_member_id?: string | null;
   splits?: { member_id: string; share_ils_minor: number }[];
 };
 

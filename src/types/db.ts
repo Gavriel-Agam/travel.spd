@@ -64,7 +64,8 @@ export type Expense = {
   kind: 'expense' | 'settlement';
   created_by: string;
   updated_by: string;
-  paid_by_member_id: string;
+  /** null: paid from joint money (see migration 0012). */
+  paid_by_member_id: string | null;
   amount_minor: number;
   currency: string;
   fx_rate: string;

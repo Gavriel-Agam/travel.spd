@@ -5,9 +5,13 @@ import { HOME_CURRENCY } from '@/lib/currencies';
 import { useT } from '@/i18n';
 import { space, useColors } from '@/theme';
 import type { Category, Expense, Member } from '@/types/db';
-import { Dot, Row, Text } from './primitives';
+import { Row, Text } from './primitives';
 
-/** One expense: category, description, payer, and the amount in both currencies. */
+/**
+ * One expense: category, description and the amount in both currencies. Under
+ * the description only a payer badge (when one person paid) or a sync status;
+ * joint-money rows stay clean.
+ */
 export function ExpenseRow({
   expense,
   category,
@@ -29,10 +33,6 @@ export function ExpenseRow({
     expense.kind === 'settlement'
       ? t('settle.rowTitle', { name: recipient?.display_name ?? '' })
       : expense.description || categoryLabel(category, t);
-  const time = new Date(expense.occurred_at).toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
   return (
     <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <Row gap={space.md} style={{ paddingVertical: 10 }}>
@@ -52,17 +52,25 @@ export function ExpenseRow({
           <Text style={{ fontWeight: '600' }} numberOfLines={1}>
             {title}
           </Text>
-          <Row gap={6}>
-            {payer ? <Dot color={payer.color} size={8} /> : null}
-            <Text variant="caption" muted numberOfLines={1} style={{ flexShrink: 1 }}>
-              {payer?.display_name ?? ''} · {time}
-            </Text>
-            {expense.pending ? (
-              <Text variant="caption" color={expense.pending === 'failed' ? c.danger : c.warning} numberOfLines={1}>
-                · {expense.pending === 'failed' ? t('sync.rowFailed') : t('sync.rowWaiting')}
-              </Text>
-            ) : null}
-          </Row>
+          {payer || expense.pending ? (
+            <Row gap={6}>
+              {payer ? (
+                <View
+                  accessibilityLabel={`${t('details.paidBy')}: ${payer.display_name}`}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: payer.color + '1F', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, flexShrink: 1 }}
+                >
+                  <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
+                    👤 {payer.display_name}
+                  </Text>
+                </View>
+              ) : null}
+              {expense.pending ? (
+                <Text variant="caption" color={expense.pending === 'failed' ? c.danger : c.warning} numberOfLines={1}>
+                  {expense.pending === 'failed' ? t('sync.rowFailed') : t('sync.rowWaiting')}
+                </Text>
+              ) : null}
+            </Row>
+          ) : null}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 3 }}>
           <Text variant="mono">{formatMoney(expense.amount_ils_minor, HOME_CURRENCY, { lang })}</Text>

@@ -43,6 +43,9 @@ import { Button, Chip, Divider, Field, IconButton, Row, Segmented, Text, tap } f
 type RateMode = 'stored' | 'auto' | 'manual';
 
 // Quick picks right under the category; "other" stays only for older expenses that use it
+// The "Paid by" option for joint money (a shared wallet or joint card)
+const JOINT = '__joint';
+
 const PAYMENT_METHODS = [
   { key: 'card', icon: '💳' },
   { key: 'cash', icon: '💵' },
@@ -64,7 +67,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [amountText, setAmountText] = useState(existing ? minorToInput(existing.amount_minor, existing.currency) : '');
   const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
   const [description, setDescription] = useState(existing?.description ?? '');
-  const [payerId, setPayerId] = useState(existing?.paid_by_member_id ?? me?.id ?? members[0]?.id ?? '');
+  // null = joint money (the default): no payer, so it never creates a debt
+  const [payerId, setPayerId] = useState<string | null>(existing ? existing.paid_by_member_id : null);
   const [occurredAt, setOccurredAt] = useState(existing ? new Date(existing.occurred_at) : new Date());
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [paymentMethod, setPaymentMethod] = useState<string | null>(existing?.payment_method ?? null);
@@ -159,7 +163,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       case 'treat':
         return { type: 'treat' };
       case 'personal':
-        return { type: 'personal', memberId: personalId ?? payerId };
+        return { type: 'personal', memberId: personalId ?? payerId ?? members[0]?.id ?? '' };
       case 'percent':
         return { type: 'percent', percents: Object.fromEntries(Object.entries(percents).map(([k, v]) => [k, Number(v) || 0])) };
       case 'amount':
@@ -169,16 +173,19 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         };
     }
   }, [splitType, equalIds, personalId, payerId, percents, amounts, currency]);
+  // Joint money is shared equally by everyone on the trip (it only feeds the
+  // per-person share; nobody owes anything for it)
+  const effectiveSplit: SplitConfig = payerId === null ? { type: 'equal', memberIds: members.map((m) => m.id) } : splitConfig;
 
-  const splitCheck = validateSplit(splitConfig, amountMinor ?? 0);
+  const splitCheck = validateSplit(effectiveSplit, amountMinor ?? 0);
   const shares = useMemo(() => {
     if (homeMinor == null || !splitCheck.ok) return null;
     try {
-      return previewShares(splitConfig, payerId, homeMinor);
+      return previewShares(effectiveSplit, payerId, homeMinor);
     } catch {
       return null;
     }
-  }, [homeMinor, splitCheck.ok, splitConfig, payerId]);
+  }, [homeMinor, splitCheck.ok, effectiveSplit, payerId]);
 
   /** With two people, typing one side fills in the other. */
   function setComplement(kind: 'percent' | 'amount', id: string, value: string) {
@@ -250,7 +257,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       receipt_path: receipt,
       payment_method: paymentMethod,
       split_type: splitType,
-      splits: toSplitEntries(splitConfig, payerId),
+      splits: toSplitEntries(effectiveSplit, payerId),
     });
 
     const done = () => {
@@ -447,12 +454,25 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
             <Text variant="label" muted>
               {t('form.paidBy')}
             </Text>
-            <Segmented options={members.map((m) => ({ value: m.id, label: m.display_name }))} value={payerId} onChange={setPayerId} />
+            <Segmented
+              options={[{ value: JOINT, label: t('form.joint') }, ...members.map((m) => ({ value: m.id, label: m.display_name }))]}
+              value={payerId ?? JOINT}
+              onChange={(v) => {
+                setPayerId(v === JOINT ? null : v);
+                // A treat belongs to whoever paid; it has no meaning for joint money
+                if (v === JOINT && splitType === 'treat') setSplitType('equal');
+              }}
+            />
+            {payerId === null ? (
+              <Text variant="caption" muted>
+                {t('form.jointHint')}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
-        {/* Split */}
-        {members.length > 1 ? (
+        {/* Split: only when one person paid (joint money is shared by everyone) */}
+        {members.length > 1 && payerId !== null ? (
           <View style={{ gap: space.sm }}>
             <Text variant="label" muted>
               {t('form.split')}

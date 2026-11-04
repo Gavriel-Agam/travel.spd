@@ -46,7 +46,7 @@ describe('demo trip', () => {
     const members = new Set(d.members.map((m) => m.id));
     for (const e of d.expenses) {
       if (e.category_id) expect(cats.has(e.category_id)).toBe(true);
-      expect(members.has(e.paid_by_member_id)).toBe(true);
+      if (e.paid_by_member_id) expect(members.has(e.paid_by_member_id)).toBe(true);
     }
   });
 });

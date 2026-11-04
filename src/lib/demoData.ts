@@ -23,7 +23,7 @@ type Row = {
   amount: number; // in the currency's main unit
   currency: keyof typeof RATES;
   cat: string;
-  payer: string;
+  payer: string | null; // null: joint money
   pay: 'cash' | 'card' | 'transfer';
   split?: SplitType;
   values?: Record<string, number>; // percent or amount splits
@@ -34,18 +34,18 @@ const ROWS: Row[] = [
   { day: -20, hour: 20, desc: '✈️ TLV ↔ BKK', amount: 4500, currency: 'ILS', cat: 'flights', payer: NOA, pay: 'card' },
   { day: -14, hour: 11, desc: 'Travel insurance', amount: 320, currency: 'ILS', cat: 'health', payer: DAN, pay: 'transfer' },
   { day: -1, hour: 21, desc: 'eSIM 15 GB', amount: 19, currency: 'USD', cat: 'other', payer: NOA, pay: 'card' },
-  { day: 0, hour: 15, desc: 'Hotel Sukhumvit · 3 nights', amount: 4200, currency: 'THB', cat: 'accommodation', payer: DAN, pay: 'card' },
+  { day: 0, hour: 15, desc: 'Hotel Sukhumvit · 3 nights', amount: 4200, currency: 'THB', cat: 'accommodation', payer: null, pay: 'card' },
   { day: 0, hour: 13, desc: 'Airport taxi', amount: 450, currency: 'THB', cat: 'transportation', payer: NOA, pay: 'cash' },
   { day: 0, hour: 19, desc: 'Pad thai', amount: 180, currency: 'THB', cat: 'street_food', payer: DAN, pay: 'cash' },
   { day: 1, hour: 10, desc: 'Grand Palace', amount: 1000, currency: 'THB', cat: 'activities', payer: NOA, pay: 'card' },
   { day: 1, hour: 20, desc: 'Riverside dinner', amount: 1650, currency: 'THB', cat: 'restaurants', payer: DAN, pay: 'card', split: 'percent', values: { [NOA]: 60, [DAN]: 40 } },
-  { day: 1, hour: 22, desc: '7-Eleven', amount: 245, currency: 'THB', cat: 'groceries', payer: NOA, pay: 'cash' },
+  { day: 1, hour: 22, desc: '7-Eleven', amount: 245, currency: 'THB', cat: 'groceries', payer: null, pay: 'cash' },
   { day: 2, hour: 16, desc: 'Thai massage', amount: 800, currency: 'THB', cat: 'health', payer: NOA, pay: 'cash', split: 'personal', personal: DAN },
   { day: 2, hour: 19, desc: 'Night market', amount: 1320, currency: 'THB', cat: 'shopping', payer: DAN, pay: 'cash', split: 'personal', personal: DAN },
   { day: 2, hour: 23, desc: 'Rooftop bar', amount: 1100, currency: 'THB', cat: 'nightlife', payer: NOA, pay: 'card' },
   { day: 3, hour: 9, desc: '✈️ BKK → HAN', amount: 140, currency: 'USD', cat: 'flights', payer: DAN, pay: 'card' },
   { day: 3, hour: 13, desc: 'Phở', amount: 120000, currency: 'VND', cat: 'street_food', payer: NOA, pay: 'cash' },
-  { day: 3, hour: 15, desc: 'Old Quarter hotel · 3 nights', amount: 186, currency: 'EUR', cat: 'accommodation', payer: DAN, pay: 'card' },
+  { day: 3, hour: 15, desc: 'Old Quarter hotel · 3 nights', amount: 186, currency: 'EUR', cat: 'accommodation', payer: null, pay: 'card' },
   { day: 4, hour: 8, desc: 'Ha Long Bay cruise', amount: 2400000, currency: 'VND', cat: 'activities', payer: DAN, pay: 'card', split: 'treat' },
   { day: 4, hour: 18, desc: 'Grab rides', amount: 185000, currency: 'VND', cat: 'transportation', payer: NOA, pay: 'card' },
   { day: 5, hour: 9, desc: 'Egg coffee', amount: 90000, currency: 'VND', cat: 'restaurants', payer: DAN, pay: 'cash', split: 'amount', values: { [NOA]: 40000, [DAN]: 50000 } },
@@ -101,7 +101,7 @@ export function buildDemo(t: TFunction, now = new Date()) {
       type === 'equal'
         ? [{ member_id: NOA }, { member_id: DAN }]
         : type === 'treat'
-          ? [{ member_id: r.payer }]
+          ? [{ member_id: r.payer! }] // treats always have a payer
           : type === 'personal'
             ? [{ member_id: r.personal! }]
             : Object.entries(r.values!).map(([member_id, v]) => ({
@@ -115,8 +115,8 @@ export function buildDemo(t: TFunction, now = new Date()) {
       id,
       trip_id: DEMO_TRIP_ID,
       kind: 'expense',
-      created_by: r.payer === NOA ? 'demo-user-1' : 'demo-user-2',
-      updated_by: r.payer === NOA ? 'demo-user-1' : 'demo-user-2',
+      created_by: r.payer === DAN ? 'demo-user-2' : 'demo-user-1',
+      updated_by: r.payer === DAN ? 'demo-user-2' : 'demo-user-1',
       paid_by_member_id: r.payer,
       amount_minor: amountMinor,
       currency: r.currency,

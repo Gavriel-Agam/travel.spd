@@ -35,7 +35,7 @@ export default function ExpenseDetails() {
     );
 
   const cat = e.category_id ? categoryById.get(e.category_id) : undefined;
-  const payer = memberById.get(e.paid_by_member_id);
+  const payer = memberById.get(e.paid_by_member_id ?? '');
   const creator = members.find((m) => m.user_id === e.created_by);
   const editor = members.find((m) => m.user_id === e.updated_by);
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
@@ -120,7 +120,7 @@ export default function ExpenseDetails() {
         <Divider />
         <Line label={t('details.when')} value={new Date(e.occurred_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })} />
         <Divider />
-        <Line label={t('details.paidBy')} value={payer?.display_name ?? '?'} />
+        <Line label={t('details.paidBy')} value={e.paid_by_member_id === null ? t('details.jointMoney') : payer?.display_name ?? '?'} />
         <Divider />
         <Line label={t('details.enteredBy')} value={creator?.display_name ?? '?'} />
         {e.payment_method ? (

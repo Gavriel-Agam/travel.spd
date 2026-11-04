@@ -259,7 +259,7 @@ export type SaveExpenseInput = {
   version?: number;
   trip_id: string;
   kind?: 'expense' | 'settlement';
-  paid_by_member_id: string;
+  paid_by_member_id: string | null;
   amount_minor: number;
   currency: string;
   fx_rate: string;

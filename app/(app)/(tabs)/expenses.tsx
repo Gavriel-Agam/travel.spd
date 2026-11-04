@@ -47,7 +47,8 @@ export default function Expenses() {
     const toKey = to ? dayKey(to, tz) : null;
     const filtered = expenses.filter((e) => {
       if (categoryId && e.category_id !== categoryId) return false;
-      if (payerId && e.paid_by_member_id !== payerId) return false;
+      // '__joint' filters for joint-money expenses (no payer)
+      if (payerId && (payerId === '__joint' ? e.paid_by_member_id !== null : e.paid_by_member_id !== payerId)) return false;
       const d = dayKey(e.occurred_at, tz);
       if (fromKey && d < fromKey) return false;
       if (toKey && d > toKey) return false;
@@ -136,6 +137,7 @@ export default function Expenses() {
               {members.map((m) => (
                 <Chip key={m.id} label={m.display_name} selected={payerId === m.id} color={m.color} onPress={() => setPayerId(payerId === m.id ? null : m.id)} />
               ))}
+              <Chip label={t('form.joint')} icon="🤝" selected={payerId === '__joint'} onPress={() => setPayerId(payerId === '__joint' ? null : '__joint')} />
             </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
               <Chip label={t('common.all')} selected={!categoryId} onPress={() => setCategoryId(null)} />
@@ -209,7 +211,7 @@ export default function Expenses() {
               first={index === 0}
               last={index === section.data.length - 1}
               category={item.category_id ? categoryById.get(item.category_id) : undefined}
-              payer={memberById.get(item.paid_by_member_id)}
+              payer={memberById.get(item.paid_by_member_id ?? '')}
               recipient={memberById.get(item.expense_splits[0]?.member_id)}
               onOpen={() => router.push({ pathname: '/expense/[id]', params: { id: item.id } })}
               onEdit={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: item.id } })}

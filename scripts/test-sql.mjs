@@ -381,4 +381,20 @@ await as(B, `update user_preferences set home_layout = '{hacked}' where user_id 
 assert.deepEqual((await as(A, 'select home_layout from user_preferences'))[0].home_layout, ['today']);
 ok('user preferences: private to each user, upsert keeps one row');
 
+// Joint money: no payer. Counts in the split, refuses settlements and treats without a payer
+const joint = (extra = {}) => JSON.stringify({ trip_id: trip, paid_by_member_id: null, amount_minor: 10001, currency: 'ILS', fx_rate: '1', split_type: 'equal', splits: [{ member_id: mA }, { member_id: mB }], ...extra });
+const [j1] = await as(A, `select * from save_expense($1::jsonb)`, [joint()]);
+assert.equal(j1.paid_by_member_id, null);
+const jShares = await as(A, 'select member_id, share_ils_minor::int s from expense_splits where expense_id = $1 order by member_id', [j1.id]);
+assert.equal(jShares.reduce((x, r) => x + r.s, 0), 10001);
+assert.deepEqual(jShares.map((r) => r.s).sort(), [5000, 5001]);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [joint({ kind: 'settlement', split_type: 'personal', splits: [{ member_id: mB }] })]), /invalid_payer|expenses_settlement_has_payer/);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [joint({ split_type: 'treat', splits: [{ member_id: mA }] })]), /treat belongs to payer/);
+// An existing expense can move to joint money and back
+const [j2] = await as(B, `select * from save_expense($1::jsonb, $2)`, [joint({ id: j1.id, paid_by_member_id: mB }), j1.version]);
+assert.equal(j2.paid_by_member_id, mB);
+const [j3] = await as(B, `select * from save_expense($1::jsonb, $2)`, [joint({ id: j1.id }), j2.version]);
+assert.equal(j3.paid_by_member_id, null);
+ok('joint money: expenses without a payer; settlements and treats still need one');
+
 console.log(`\n${passed} SQL checks passed`);

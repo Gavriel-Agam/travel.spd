@@ -16,8 +16,8 @@ export type SplitConfig =
 
 export type Share = { memberId: string; share: number };
 
-/** Payer first, then member id: the order leftover units are handed out in. */
-function allocationOrder(ids: string[], payerId: string) {
+/** Payer first (if any), then member id: the order leftover units are handed out in. */
+function allocationOrder(ids: string[], payerId: string | null) {
   return [...ids].sort((a, b) => {
     if (a === payerId) return -1;
     if (b === payerId) return 1;
@@ -26,7 +26,7 @@ function allocationOrder(ids: string[], payerId: string) {
 }
 
 /** Integer shares proportional to weights, summing exactly to `total`. */
-export function allocate(total: number, weights: Record<string, Decimal.Value>, payerId: string): Share[] {
+export function allocate(total: number, weights: Record<string, Decimal.Value>, payerId: string | null): Share[] {
   const ids = allocationOrder(Object.keys(weights), payerId);
   const sum = ids.reduce((t, id) => t.plus(weights[id]), new Decimal(0));
   if (ids.length === 0 || sum.lte(0)) throw new Error('invalid_split: weights must be positive');
@@ -63,11 +63,12 @@ export function validateSplit(config: SplitConfig, amountMinor: number): SplitVa
 }
 
 /** Payload entries for the RPC. */
-export function toSplitEntries(config: SplitConfig, payerId: string): SplitEntry[] {
+export function toSplitEntries(config: SplitConfig, payerId: string | null): SplitEntry[] {
   switch (config.type) {
     case 'equal':
       return config.memberIds.map((member_id) => ({ member_id }));
     case 'treat':
+      if (!payerId) throw new Error('invalid_split: treat needs a payer');
       return [{ member_id: payerId }];
     case 'personal':
       return [{ member_id: config.memberId }];
@@ -79,7 +80,7 @@ export function toSplitEntries(config: SplitConfig, payerId: string): SplitEntry
 }
 
 /** Shares from the RPC payload form (split_type + entries), as save_expense computes them. */
-export function sharesFromEntries(splitType: SplitType, entries: SplitEntry[], payerId: string, homeTotalMinor: number): Share[] {
+export function sharesFromEntries(splitType: SplitType, entries: SplitEntry[], payerId: string | null, homeTotalMinor: number): Share[] {
   const weights: Record<string, Decimal.Value> = {};
   for (const e of entries) {
     weights[e.member_id] = splitType === 'percent' || splitType === 'amount' ? (e.value ?? 0) : 1;
@@ -88,13 +89,14 @@ export function sharesFromEntries(splitType: SplitType, entries: SplitEntry[], p
 }
 
 /** Home-currency shares the server will compute for this configuration. */
-export function previewShares(config: SplitConfig, payerId: string, homeTotalMinor: number): Share[] {
+export function previewShares(config: SplitConfig, payerId: string | null, homeTotalMinor: number): Share[] {
   const weights: Record<string, Decimal.Value> = {};
   switch (config.type) {
     case 'equal':
       config.memberIds.forEach((id) => (weights[id] = 1));
       break;
     case 'treat':
+      if (!payerId) throw new Error('invalid_split: treat needs a payer');
       weights[payerId] = 1;
       break;
     case 'personal':

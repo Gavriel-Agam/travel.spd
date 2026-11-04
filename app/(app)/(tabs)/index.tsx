@@ -79,6 +79,7 @@ export default function Home() {
   const today = dayKey(new Date(), trip.timezone);
   const dayN = trip.start_date && trip.start_date <= today ? daysInclusive(trip.start_date, today) : null;
   const maxTrend = Math.max(1, ...trend.map((d) => d.total));
+  const jointPaid = expenses.reduce((t, e) => (e.kind === 'expense' && e.paid_by_member_id === null ? t + e.amount_ils_minor : t), 0);
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const notStarted = !!trip.start_date && today < trip.start_date;
 
@@ -172,6 +173,19 @@ export default function Home() {
               </View>
             );
           })}
+          {/* Paid from joint money: part of the total, never a debt */}
+          {jointPaid > 0 ? (
+            <View style={{ gap: 6 }}>
+              <Row gap={space.md}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.cardAlt, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text>🤝</Text>
+                </View>
+                <Text style={{ flex: 1, fontWeight: '600' }}>{t('details.jointMoney')}</Text>
+                <Text variant="mono">{ils(jointPaid)}</Text>
+              </Row>
+              <ProgressBar value={percent(jointPaid, stats.total)} color={c.textMuted} height={6} />
+            </View>
+          ) : null}
           <View style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }}>
             {transfers.length === 0 ? (
               <Text variant="label" center>
@@ -254,7 +268,7 @@ export default function Home() {
             key={e.id}
             expense={e}
             category={e.category_id ? categoryById.get(e.category_id) : undefined}
-            payer={memberById.get(e.paid_by_member_id)}
+            payer={memberById.get(e.paid_by_member_id ?? '')}
           recipient={memberById.get(e.expense_splits[0]?.member_id)}
             onPress={() => router.push({ pathname: '/expense/[id]', params: { id: e.id } })}
           />

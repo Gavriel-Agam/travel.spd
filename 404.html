@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>TravelSpend Couple</title>
+
+    <!-- Home-screen app (iPhone: Safari > Share > Add to Home Screen) -->
+    <link rel="manifest" href="/travel.spd/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/travel.spd/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="TravelSpend" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#F4F5F9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E1020" media="(prefers-color-scheme: dark)" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        background: #f4f5f9;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #0e1020;
+        }
+      }
+      body {
+        overflow: hidden;
+        /* No rubber-band scrolling of the whole page or long-press text selection on buttons */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  <link rel="icon" href="/travel.spd/favicon.ico"/></head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script>
+      // Offline support: cache the app so it opens without signal
+      if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/travel.spd/sw.js', { scope: '/travel.spd/' }).then(function () {
+            return navigator.serviceWorker.ready;
+          }).then(function (reg) {
+            var urls = [location.pathname];
+            document.querySelectorAll('script[src], link[rel="stylesheet"][href], link[rel="preload"][href]').forEach(function (el) {
+              urls.push(el.getAttribute('src') || el.getAttribute('href'));
+            });
+            if (reg.active) reg.active.postMessage({ type: 'CACHE_URLS', urls: urls });
+          }).catch(function () {});
+        });
+      }
+    </script>
+  <script src="/travel.spd/_expo/static/js/web/__expo-metro-runtime-8c088df87a31e4e6accd81c554ec290d.js" defer></script><script src="/travel.spd/_expo/static/js/web/__common-97f8bedaba7fe1fe842c78105906dd97.js" defer></script><script src="/travel.spd/_expo/static/js/web/entry-d68065993914221df5dbcf0ce9b76fca.js" defer></script>
+</body>
+</html>

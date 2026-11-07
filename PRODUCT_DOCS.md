@@ -39,6 +39,7 @@ Last updated: 2026-11-08
 | Categories | Editable per trip (0009 overrides). |
 | Sync | Supabase Realtime between partners; offline outbox with idempotency (0005); sync status banner. |
 | Reliability | Every client error logged to `public.client_errors`; expired sessions recover automatically. |
+| Feedback | Floating panel ("the app is in beta…") with text + Send; X shrinks it into a bell (top left of Home header in Hebrew), bell reopens it. Opens by itself once per app start once a trip exists (new users: right after creating their first trip). Saved to `app_feedback` (0015, write-only); ntfy.sh push/email to the developer via Vault secrets. |
 
 ### Screens
 `sign-in`, `setup`, `reset-password`, `onboarding` (create / join), tabs: **Home**, **Expenses**, **Budget**, **Stats**, **Settings**; plus `expense/new`, `expense/[id]`, `expense/[id]/edit`, `categories`, `settle`.
@@ -57,7 +58,7 @@ Test users' email addresses are kept only in the console, never in this public r
 
 ## 3. Core UX flows
 
-**First run:** open link → sign in (email / Google) or "Continue as guest" → onboarding: create trip or join with code → Home.
+**First run:** open link → sign in: big white "Continue with Google"; text link "More sign-in options" reveals email + password and the demo → onboarding: create trip or join with code → Home.
 
 **Create trip:** trip name → your name → Dates toggle (off by default; on = start/end pickers fade in) → main currency → optional budgets → Create. A trip without dates has no start or end.
 
@@ -95,6 +96,8 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-08 | Sign-in is Google-first; email/password and demo behind "More sign-in options". |
+| 2026-11-08 | In-app feedback (panel + bell), stored write-only, developer notified via ntfy.sh. |
 | 2026-11-08 | Renamed to **SmartTrip** (was TravelSpend Couple). Display name only: repo, URL, `travelspend://` scheme and storage keys unchanged. Google consent screen app name to be changed by hand. |
 | 2026-11-07 | Positioning: personal-first tracker, sharing optional. Auth/onboarding copy rewritten (EN + HE). |
 | 2026-11-07 | New trip: name first, dates optional and off by default. |

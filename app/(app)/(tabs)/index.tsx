@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { HERO_GLOW_OPACITY } from '@/palette';
@@ -20,6 +20,9 @@ import { SortableList } from '@/ui/SortableList';
 import { SyncStatus } from '@/ui/SyncStatus';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTripLook } from '@/store/tripLook';
+import { useFeedback } from '@/store/feedback';
+import { useIsDemo } from '@/store/prefs';
+import { FeedbackBanner, FeedbackBell } from '@/ui/Feedback';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
@@ -63,6 +66,18 @@ export default function Home() {
   const [draggingCard, setDraggingCard] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const actions = useExpenseActions(trip?.id ?? '');
+  // Feedback: signed-in users only (not the demo); opens by itself once per app start
+  const demo = useIsDemo();
+  const canFeedback = !!session && !session.user.is_anonymous && !demo;
+  const feedbackShown = useFeedback((s) => s.shownThisSession);
+  useEffect(() => {
+    if (!canFeedback || !trip || feedbackShown) return;
+    const id = setTimeout(() => {
+      useFeedback.getState().markShown();
+      useFeedback.getState().setOpen(true);
+    }, 1200);
+    return () => clearTimeout(id);
+  }, [canFeedback, trip?.id, feedbackShown]);
 
   const trend = useMemo(() => {
     if (!trip || !stats) return [];
@@ -314,6 +329,7 @@ export default function Home() {
   };
 
   return (
+    <View style={{ flex: 1 }}>
     <Screen
       ref={scrollRef}
       scrollEnabled={!draggingCard}
@@ -368,6 +384,8 @@ export default function Home() {
             {t('home.arrange')}
           </Text>
         </Pressable>
+        {/* Last in the row: top left in Hebrew */}
+        {canFeedback ? <FeedbackBell /> : null}
       </Row>
 
       <SyncStatus tripId={trip.id} />
@@ -420,5 +438,7 @@ export default function Home() {
         </View>
       </Sheet>
     </Screen>
+    {canFeedback ? <FeedbackBanner tripId={trip.id} /> : null}
+    </View>
   );
 }

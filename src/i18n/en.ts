@@ -46,6 +46,14 @@ const en = {
     reference: 'Details: {{detail}}',
     unknown: 'Unexpected error. Please try again.',
   },
+  feedback: {
+    prompt: 'The app is in beta. We’d love feedback on anything you miss.',
+    placeholder: 'What’s missing? What could be better?',
+    send: 'Send',
+    thanks: 'Thank you! We got your feedback.',
+    close: 'Close',
+    bell: 'Feedback',
+  },
   setup: {
     title: 'Almost there',
     body: 'The app isn’t connected to a backend yet. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to the .env file and restart.',
@@ -70,6 +78,7 @@ const en = {
     keepTrip: 'Sign in or create an account to keep your trip. Your trip and expenses move to your account.',
     demo: 'Continue as guest (demo)',
     demoHint: 'A sample trip with expenses in several currencies. Nothing is saved.',
+    moreOptions: 'More sign-in options',
     newPasswordTitle: 'Choose a new password',
     newPassword: 'New password',
     email: 'Email',

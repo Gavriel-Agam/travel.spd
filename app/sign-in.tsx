@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Platform, Pressable, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useT } from '@/i18n';
 import { fetchAuthProviders, sendPasswordReset, signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth';
 import { seedDemo } from '@/lib/demoSeed';
@@ -10,13 +11,14 @@ import { useAuth } from '@/providers/AuthProvider';
 import { usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import { AuthForm, submitAuthForm } from '@/ui/AuthForm';
-import { Banner, Button, Divider, Field, Row, Screen, Segmented, Text } from '@/ui/primitives';
+import { Banner, Button, Divider, Field, Loading, Row, Screen, Segmented, Text } from '@/ui/primitives';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Mode = 'signin' | 'signup';
 
 /**
- * Sign in: Google (web), email + password (no codes), or a read-only demo.
+ * Sign in: Google first. Email + password and the read-only demo sit behind
+ * "More sign-in options" (shown open when Google sign-in is not available).
  * A phone still on the old no-login identity keeps its trip when it signs in.
  */
 export default function SignIn() {
@@ -34,6 +36,10 @@ export default function SignIn() {
   const [notice, setNotice] = useState<string | null>(null);
   const upgrading = !!session?.user.is_anonymous;
   const googleOn = Platform.OS === 'web' && providers.data?.google;
+  const [more, setMore] = useState(false);
+  // Until we know whether Google is on, show neither layout (no flash of the email form)
+  const checking = Platform.OS === 'web' && providers.isLoading;
+  const showMore = !googleOn || more;
 
   const fail = (e: unknown) => setError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
 
@@ -131,6 +137,22 @@ export default function SignIn() {
               {busy === 'google' ? t('common.loading') : t('auth.google')}
             </Text>
           </Pressable>
+          {!more ? (
+            // A quiet text link, not a button: email + password and the demo are secondary
+            <Pressable accessibilityRole="button" onPress={() => setMore(true)} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: space.xs }}>
+              <Text variant="label" muted style={{ textDecorationLine: 'underline' }}>
+                {t('auth.moreOptions')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
+
+      {checking ? <Loading /> : null}
+
+      {!checking && showMore ? (
+        <Animated.View entering={googleOn ? FadeIn.duration(220) : undefined} style={{ gap: space.xl }}>
+          {googleOn ? (
           <Row gap={space.md}>
             <View style={{ flex: 1 }}>
               <Divider />
@@ -142,8 +164,7 @@ export default function SignIn() {
               <Divider />
             </View>
           </Row>
-        </>
-      ) : null}
+          ) : null}
 
       <View style={{ gap: space.md }}>
         <Segmented<Mode>
@@ -207,6 +228,8 @@ export default function SignIn() {
             {t('auth.demoHint')}
           </Text>
         </View>
+      ) : null}
+        </Animated.View>
       ) : null}
     </Screen>
   );

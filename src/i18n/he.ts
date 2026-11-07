@@ -48,6 +48,14 @@ const he: Dict = {
     reference: 'פרטים: {{detail}}',
     unknown: 'שגיאה לא צפויה. נסו שוב.',
   },
+  feedback: {
+    prompt: 'האפליקציה בהרצה, נשמח לפידבק על דברים שחסרים לכם',
+    placeholder: 'מה חסר לכם? מה אפשר לשפר?',
+    send: 'שליחה',
+    thanks: 'תודה! קיבלנו את הפידבק.',
+    close: 'סגירה',
+    bell: 'פידבק',
+  },
   setup: {
     title: 'כמעט שם',
     body: 'האפליקציה עדיין לא מחוברת לשרת. הוסיפו את EXPO_PUBLIC_SUPABASE_URL ואת EXPO_PUBLIC_SUPABASE_ANON_KEY לקובץ .env והפעילו מחדש.',
@@ -72,6 +80,7 @@ const he: Dict = {
     keepTrip: 'היכנסו או צרו חשבון כדי לשמור על הטיול. הטיול וההוצאות שלכם יעברו לחשבון.',
     demo: 'המשך כאורח (הדגמה)',
     demoHint: 'טיול לדוגמה עם הוצאות בכמה מטבעות. שום דבר לא נשמר.',
+    moreOptions: 'אפשרויות התחברות נוספות',
     newPasswordTitle: 'בחירת סיסמה חדשה',
     newPassword: 'סיסמה חדשה',
     email: 'אימייל',

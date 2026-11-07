@@ -156,6 +156,18 @@ export function useUpdateMyMember(tripId: string) {
   });
 }
 
+/** In-app feedback: write-only for the app; the sender is set by the server. */
+export function useSendFeedback() {
+  return useMutation({
+    mutationFn: async (p: { tripId?: string | null; message: string; lang: string; appVersion?: string | null }) =>
+      unwrap(
+        await supabase
+          .from('app_feedback')
+          .insert({ trip_id: p.tripId ?? null, message: p.message.trim(), lang: p.lang, app_version: p.appVersion ?? null }),
+      ),
+  });
+}
+
 /** Trip creator only (checked by the server): the partner loses access; their history stays. */
 export function useRemoveMember(tripId: string) {
   const qc = useQueryClient();

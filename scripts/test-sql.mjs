@@ -432,4 +432,17 @@ assert.equal(bRows[0].removed_at, null);
 assert.equal((await as(B, 'select * from trips where id = $1', [trip])).length, 1);
 ok('removed partner rejoins with a new code as the same member');
 
+// Feedback (0015): signed-in users can send, nobody can read it back or forge the sender
+await as(A, `insert into app_feedback (trip_id, message, lang, app_version) values ($1, 'Missing: dark map', 'he', '1.0.0')`, [trip]);
+await as(C, `insert into app_feedback (message) values ('From a user without trips')`);
+await rejects(as(C, `insert into app_feedback (trip_id, message) values ($1, 'x')`, [trip]), /row-level security/);
+await rejects(as(A, `insert into app_feedback (user_id, message) values ($1, 'x')`, [B]), /permission denied/);
+await rejects(as(A, `insert into app_feedback (message) values ('   ')`), /check constraint/);
+await rejects(as(A, 'select * from app_feedback'), /permission denied/);
+const fb = (await db.query('select user_id, message from app_feedback order by id')).rows;
+assert.equal(fb.length, 2);
+assert.equal(fb[0].user_id, A);
+assert.equal(fb[1].user_id, C);
+ok('feedback: write-only, sender is always the caller, own trips only, notify trigger never blocks');
+
 console.log(`\n${passed} SQL checks passed`);

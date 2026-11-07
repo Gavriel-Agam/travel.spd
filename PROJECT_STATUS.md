@@ -7,12 +7,13 @@ Last updated: 2026-11-07
 ## Current state
 - Live at https://gavriel-agam.github.io/travel.spd/ (deploys on push to `main`).
 - Shipped through Stage 4 (trip colour + photo). Migrations 0001-0014.
-- Last deploy: `1996972` (partner removal + accent glow), live 2026-11-07 16:05 UTC; both Actions runs green. Migration 0014 applied to the live DB and verified.
+- Last deploy: `b21122f` (swipe edit/delete on Home, RTL-safe dates toggle, new default Home order, privacy page: partner removal), live 2026-11-07 16:48 UTC; both Actions runs green.
 - Verified: backend, Supabase DB + RLS, Google OAuth.
 
 ## Recent fixes
 | Date | Fix | Files |
 |---|---|---|
+| 2026-11-07 | Privacy page accuracy: deleting an expense only marks it deleted (`deleted_at`); it stays stored with its receipt photo. Page (EN + HE) now says so, and that account deletion by email includes deleted expenses and photos. | `public/privacy.html` |
 | 2026-11-07 | Swipe actions everywhere: Home › Recent now uses the same swipe row as the Expenses tab (Edit opens the pre-filled form, Delete confirms, removes at once, totals/balances update, syncs). Logic shared in `useExpenseActions`. | `src/hooks/useExpenseActions.ts`, `src/ui/SwipeableExpenseRow.tsx`, `app/(app)/(tabs)/index.tsx`, `app/(app)/(tabs)/expenses.tsx` |
 | 2026-11-07 | Bug: dates switch (New trip + Trip details) broke in Hebrew: React Native Web's `Switch` draws its knob outside the track in RTL. Replaced with an RTL-safe `Toggle` primitive (flex start/end knob, `role=switch` + `aria-checked`). | `src/ui/primitives.tsx`, `app/(app)/onboarding/create.tsx`, `app/(app)/(tabs)/settings.tsx` |
 | 2026-11-07 | Default Home order: total, today, recent, categories, 7 days, who paid. Applies to users without a saved order and to "Reset to default order". | `src/lib/homeLayout.ts` (+test) |

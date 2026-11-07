@@ -20,6 +20,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Reminder only (never blocks the deploy): data-related changes should
+      # update the Privacy Policy / Terms pages. See CLAUDE.md.
+      - name: Legal pages check
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then exit 0; fi
+          git fetch -q --depth=1 origin "$BEFORE" || exit 0
+          changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          sensitive=$(echo "$changed" | grep -E '^(supabase/migrations/|supabase/functions/|package\.json$|src/lib/auth\.ts$|src/providers/AuthProvider\.tsx$|app/sign-in\.tsx$)' || true)
+          legal=$(echo "$changed" | grep -E '^public/(privacy|terms)\.html$' || true)
+          if [ -n "$sensitive" ] && [ -z "$legal" ]; then
+            echo "::warning title=Check privacy/terms pages::Data-related files changed without updating public/privacy.html or public/terms.html: $(echo $sensitive | tr '\n' ' ')"
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

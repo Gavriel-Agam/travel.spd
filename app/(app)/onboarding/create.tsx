@@ -3,6 +3,7 @@ import { goBack } from '@/lib/nav';
 import { getCalendars } from 'expo-localization';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useCreateTrip } from '@/api/queries';
 import { useT } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
@@ -24,7 +25,8 @@ export default function CreateTrip() {
 
   const [memberName, setMemberName] = useState('');
   const [name, setName] = useState('');
-  const [withDates, setWithDates] = useState(true);
+  // Dates are optional: off by default, the trip then has no start or end
+  const [withDates, setWithDates] = useState(false);
   const [start, setStart] = useState(new Date());
   const [end, setEnd] = useState(new Date(Date.now() + 14 * 86_400_000));
   const [currency, setCurrency] = useState('THB');
@@ -69,16 +71,24 @@ export default function CreateTrip() {
       </Row>
       <Text variant="title">{t('onboarding.create')}</Text>
 
-      <Field label={t('onboarding.yourName')} value={memberName} onChangeText={setMemberName} placeholder={t('onboarding.yourNamePlaceholder')} maxLength={40} />
       <Field label={t('onboarding.tripName')} value={name} onChangeText={setName} placeholder={t('onboarding.tripNamePlaceholder')} maxLength={80} />
+      <Field label={t('onboarding.yourName')} value={memberName} onChangeText={setMemberName} placeholder={t('onboarding.yourNamePlaceholder')} maxLength={40} />
 
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Text variant="h2">{t('onboarding.dates')}</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text variant="h2">{t('onboarding.dates')}</Text>
+            {!withDates ? (
+              <Text variant="caption" muted>
+                {t('onboarding.datesHint')}
+              </Text>
+            ) : null}
+          </View>
           <Toggle value={withDates} onValueChange={setWithDates} label={t('onboarding.dates')} />
         </Row>
+        {/* Fade in only: an exit animation on web keeps a ghost copy of the fields until it ends */}
         {withDates ? (
-          <>
+          <Animated.View entering={FadeIn.duration(200)} style={{ gap: space.md }}>
             <Row style={{ justifyContent: 'space-between' }}>
               <Text muted>{t('onboarding.startDate')}</Text>
               <DateField value={start} onChange={setStart} />
@@ -88,7 +98,7 @@ export default function CreateTrip() {
               <Text muted>{t('onboarding.endDate')}</Text>
               <DateField value={end} onChange={setEnd} minimumDate={start} />
             </Row>
-          </>
+          </Animated.View>
         ) : null}
       </Card>
 

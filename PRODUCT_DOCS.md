@@ -9,9 +9,9 @@ Last updated: 2026-11-07
 
 ## 1. Product
 
-**What:** a shared travel expense PWA for couples. Log expenses in any currency, see the ILS value, sync live between partners, track budgets, settle up.
+**What:** a personal travel expense tracker (PWA) with optional sharing. Log expenses in any currency, see the ILS value, track budgets. Invite a partner any time to sync live and settle up.
 
-**Who:** two partners travelling together (one trip, two members).
+**Who:** first, one traveller tracking their own trip. Sharing (a partner joins with a code) is a powerful extra, not a requirement.
 
 **Principles**
 - Free to run: no paid services (rules out Apple sign-in).
@@ -59,6 +59,8 @@ Test users' email addresses are kept only in the console, never in this public r
 
 **First run:** open link → sign in (email / Google) or "Continue as guest" → onboarding: create trip or join with code → Home.
 
+**Create trip:** trip name → your name → Dates toggle (off by default; on = start/end pickers fade in) → main currency → optional budgets → Create. A trip without dates has no start or end.
+
 **Add expense:** Home or Expenses → New → amount + currency → (rate auto or manual) → category → paid by (default joint) → split → save. Offline: saved as "waiting to sync".
 
 **Partner join:** partner A shares invite code from Settings → partner B signs in → onboarding/join → enters code → shared trip, live sync.
@@ -93,6 +95,8 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-07 | Positioning: personal-first tracker, sharing optional. Auth/onboarding copy rewritten (EN + HE); product name unchanged for now. |
+| 2026-11-07 | New trip: name first, dates optional and off by default. |
 | 2026-11-07 | Default Home order: total, today, recent, categories, 7 days, who paid (users with a saved order keep theirs). |
 | 2026-11-07 | Swipe edit/delete on every expense list, incl. Home › Recent. |
 | 2026-11-07 | Partner removal is soft (`removed_at`), creator only; never deletes expense history. |

@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Image, Platform, Pressable, Share, Switch, View } from 'react-native';
+import { Image, Platform, Pressable, Share, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { removeTripCover, uploadTripCover, useInviteCode, useRemoveMember, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
@@ -25,7 +25,7 @@ import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { Sheet } from '@/ui/Sheet';
-import { Avatar, Button, Card, Divider, Field, ListRow, Row, Screen, Segmented, Text } from '@/ui/primitives';
+import { Avatar, Button, Card, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
 
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -290,7 +290,7 @@ export default function Settings() {
                 <Text variant="label" muted>
                   {t('settings.tripDates')}
                 </Text>
-                <Switch value={hasDates} onValueChange={setHasDates} />
+                <Toggle value={hasDates} onValueChange={setHasDates} label={t('settings.tripDates')} />
               </Row>
               {hasDates ? (
                 <>

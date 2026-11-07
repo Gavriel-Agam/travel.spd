@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { getCalendars } from 'expo-localization';
 import { useState } from 'react';
-import { Pressable, Switch, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useCreateTrip } from '@/api/queries';
 import { useT } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
@@ -11,7 +11,7 @@ import { errorCode } from '@/lib/supabase';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
-import { Button, Card, Divider, Field, IconButton, Row, Screen, Text } from '@/ui/primitives';
+import { Button, Card, Divider, Field, IconButton, Row, Screen, Text, Toggle } from '@/ui/primitives';
 
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -75,7 +75,7 @@ export default function CreateTrip() {
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
           <Text variant="h2">{t('onboarding.dates')}</Text>
-          <Switch value={withDates} onValueChange={setWithDates} />
+          <Toggle value={withDates} onValueChange={setWithDates} label={t('onboarding.dates')} />
         </Row>
         {withDates ? (
           <>

@@ -36,7 +36,7 @@ describe('resolveHomeOrder', () => {
     expect(resolveHomeOrder(saved)).toEqual(saved);
   });
   it('drops unknown or repeated keys and appends cards added later', () => {
-    expect(resolveHomeOrder(['recent', 'old-card', 'recent', 'hero'])).toEqual(['recent', 'hero', 'today', 'couple', 'trend', 'categories']);
+    expect(resolveHomeOrder(['recent', 'old-card', 'recent', 'hero'])).toEqual(['recent', 'hero', 'today', 'categories', 'trend', 'couple']);
   });
 });
 
@@ -136,5 +136,11 @@ describe('dropPlacement', () => {
     expect(dropPlacement(1, 2, true)).toBeNull(); // before c = where b already is
     expect(dropPlacement(1, 1, true)).toBeNull();
     expect(dropPlacement(1, -1, true)).toBeNull();
+  });
+});
+
+describe('default Home order', () => {
+  it('totals, today, recent, categories, 7 days, who paid', () => {
+    expect(resolveHomeOrder(null)).toEqual(['hero', 'today', 'recent', 'categories', 'trend', 'couple']);
   });
 });

@@ -30,12 +30,12 @@ Last updated: 2026-11-07
 |---|---|
 | Accounts | Email + password, Google OAuth, guest demo (read-only local mock trip). Anonymous-identity phones migrate via account transfer (migration 0010). |
 | Trips | Private trips; partner joins by invite code (Settings / `join/[code]`). Trip colour + cover photo (0013). Creator can remove a partner (soft, 0014): access gone, history + balances kept, can rejoin as same member. |
-| Expenses | Add / edit / view / swipe-to-delete. Any currency, auto rate (ECB, then market dataset) or manual rate either direction. Payment-method chips. Receipt photos. |
+| Expenses | Add / edit / view. Swipe any expense row (Expenses tab and Home › Recent, one shared row) → Edit / Delete. Any currency, auto rate (ECB, then market dataset) or manual rate either direction. Payment-method chips. Receipt photos. |
 | Paid by | Defaults to joint money (`paid_by_member_id = null`, 0012); or a specific partner. |
 | Splits & settle-up | Server-side splits that sum exactly; Settle screen. |
 | Budget | Scopes: total, daily, per category, per member. Alert levels in the Budget tab. |
 | Stats | Trend, category and payment pie charts, pace / projection. |
-| Home | Cards: hero, today, couple, trend, categories, recent. Drag to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
+| Home | Cards (default order): hero (total + budget), today + daily avg, recent, categories, 7 days, who paid. Long-press to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
 | Categories | Editable per trip (0009 overrides). |
 | Sync | Supabase Realtime between partners; offline outbox with idempotency (0005); sync status banner. |
 | Reliability | Every client error logged to `public.client_errors`; expired sessions recover automatically. |
@@ -93,6 +93,8 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-07 | Default Home order: total, today, recent, categories, 7 days, who paid (users with a saved order keep theirs). |
+| 2026-11-07 | Swipe edit/delete on every expense list, incl. Home › Recent. |
 | 2026-11-07 | Partner removal is soft (`removed_at`), creator only; never deletes expense history. |
 | 2026-11-07 | Total card border/halo uses the trip accent (same as the + button). |
 | 2026-11-04 | Home cards reorder by long-press anywhere on the card; drag handles removed. |

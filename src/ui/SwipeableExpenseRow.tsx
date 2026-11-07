@@ -15,7 +15,7 @@ type RowHandle = { close: () => void };
 let openRow: RowHandle | null = null;
 
 /**
- * One row of a day group in the expense list. Swipe towards the start to reveal
+ * One expense row (Expenses list, Home › Recent). Swipe towards the start to reveal
  * edit (blue) and delete (red): left in English, right in Hebrew. A swipe never
  * counts as a tap, and the buttons are only drawn while the row is open, so
  * nothing peeks out at the edges.
@@ -30,6 +30,7 @@ export function SwipeableExpenseRow({
   onOpen,
   onEdit,
   onDelete,
+  inset = true,
 }: {
   expense: Expense;
   first: boolean;
@@ -40,6 +41,8 @@ export function SwipeableExpenseRow({
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** Own side padding (the Expenses list); false inside a card that has its own (Home › Recent). */
+  inset?: boolean;
 }) {
   const c = useColors();
   const { t, lang } = useT();
@@ -149,7 +152,7 @@ export function SwipeableExpenseRow({
           // and a mouse swipe moves the row instead of selecting its text
           style={[
             corners,
-            { backgroundColor: c.card, paddingHorizontal: space.md, transform: [{ translateX: x }] },
+            { backgroundColor: c.card, paddingHorizontal: inset ? space.md : 0, transform: [{ translateX: x }] },
             Platform.OS === 'web' ? ({ touchAction: 'pan-y', userSelect: 'none' } as object) : null,
           ]}
         >

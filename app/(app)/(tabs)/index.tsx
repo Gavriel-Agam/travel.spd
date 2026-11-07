@@ -21,7 +21,8 @@ import { SyncStatus } from '@/ui/SyncStatus';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTripLook } from '@/store/tripLook';
 import { DraggableGrid } from '@/ui/DraggableGrid';
-import { ExpenseRow } from '@/ui/ExpenseRow';
+import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
+import { useExpenseActions } from '@/hooks/useExpenseActions';
 import {
   Avatar,
   Button,
@@ -61,6 +62,7 @@ export default function Home() {
   };
   const [draggingCard, setDraggingCard] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
+  const actions = useExpenseActions(trip?.id ?? '');
 
   const trend = useMemo(() => {
     if (!trip || !stats) return [];
@@ -291,14 +293,20 @@ export default function Home() {
     recent: hasData ? (
       <Card style={{ gap: 0 }}>
         <SectionHeader title={t('home.recent')} action={t('home.seeAll')} onAction={() => router.push('/expenses')} />
+        {/* Same swipe row as the Expenses tab: swipe for edit / delete */}
         {expenses.slice(0, 5).map((e) => (
-          <ExpenseRow
+          <SwipeableExpenseRow
             key={e.id}
             expense={e}
+            first={false}
+            last={false}
+            inset={false}
             category={e.category_id ? categoryById.get(e.category_id) : undefined}
             payer={memberById.get(e.paid_by_member_id ?? '')}
-          recipient={memberById.get(e.expense_splits[0]?.member_id)}
-            onPress={() => router.push({ pathname: '/expense/[id]', params: { id: e.id } })}
+            recipient={memberById.get(e.expense_splits[0]?.member_id)}
+            onOpen={() => actions.open(e)}
+            onEdit={() => actions.edit(e)}
+            onDelete={() => actions.remove(e)}
           />
         ))}
       </Card>

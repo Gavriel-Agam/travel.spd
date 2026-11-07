@@ -1,23 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, SectionList, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useDeleteExpense } from '@/api/queries';
+import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useTripData } from '@/hooks/useTripData';
-import { useOutbox } from '@/store/outbox';
 import { SyncStatus } from '@/ui/SyncStatus';
 import { useT } from '@/i18n';
 import { categoryLabel } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney } from '@/lib/money';
-import { blockedInDemo } from '@/lib/demoPrompt';
-import { errorCode } from '@/lib/supabase';
 import { dayKey } from '@/lib/stats';
 import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
-import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
 import { Chip, EmptyState, ErrorView, Loading, Row, Text, TripBackdrop } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
@@ -27,8 +21,7 @@ export default function Expenses() {
   const c = useColors();
   const data = useTripData();
   const { trip, expenses, categories, members, memberById, categoryById } = data;
-  const del = useDeleteExpense(trip?.id ?? '');
-  const qc = useQueryClient();
+  const actions = useExpenseActions(trip?.id ?? '');
 
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -82,19 +75,6 @@ export default function Expenses() {
       : d === yesterday
         ? t('common.yesterday')
         : new Date(d + 'T12:00:00Z').toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-
-  async function confirmDelete(e: Expense) {
-    if (blockedInDemo(qc)) return;
-    if (e.pending) {
-      if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
-        useOutbox.getState().remove(e.id);
-      }
-      return;
-    }
-    const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
-    if (!ok) return;
-    del.mutate({ id: e.id, version: e.version }, { onError: (err) => showDialog(t('errors.title'), t(`errors.${errorCode(err)}`)) });
-  }
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
@@ -214,9 +194,9 @@ export default function Expenses() {
               category={item.category_id ? categoryById.get(item.category_id) : undefined}
               payer={memberById.get(item.paid_by_member_id ?? '')}
               recipient={memberById.get(item.expense_splits[0]?.member_id)}
-              onOpen={() => router.push({ pathname: '/expense/[id]', params: { id: item.id } })}
-              onEdit={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: item.id } })}
-              onDelete={() => confirmDelete(item)}
+              onOpen={() => actions.open(item)}
+              onEdit={() => actions.edit(item)}
+              onDelete={() => actions.remove(item)}
             />
           )}
         />

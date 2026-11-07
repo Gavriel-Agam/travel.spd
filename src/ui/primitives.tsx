@@ -301,6 +301,47 @@ export function Chip({ label, selected, onPress, icon, color }: {
   );
 }
 
+/**
+ * On/off switch. Replaces React Native's Switch, whose web version draws the
+ * knob outside the track in right-to-left layouts (Hebrew). The knob sits at
+ * the start when off and the end when on, so it mirrors with the language.
+ */
+export function Toggle({ value, onValueChange, label, disabled }: {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  /** Screen reader name, when no visible text labels the toggle. */
+  label?: string;
+  disabled?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      role="switch"
+      aria-checked={value}
+      aria-disabled={disabled}
+      aria-label={label}
+      disabled={disabled}
+      hitSlop={10}
+      onPress={() => {
+        tap();
+        onValueChange(!value);
+      }}
+      style={{
+        width: 46,
+        height: 28,
+        borderRadius: 14,
+        padding: 3,
+        justifyContent: 'center',
+        alignItems: value ? 'flex-end' : 'flex-start',
+        backgroundColor: value ? c.primary : c.track,
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+    </Pressable>
+  );
+}
+
 export function Segmented<T extends string>({ options, value, onChange }: {
   options: { value: T; label: string }[];
   value: T;

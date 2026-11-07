@@ -1,6 +1,7 @@
 // Order of the cards on the Home screen, chosen per user (synced to their account).
 
-export const HOME_SECTIONS = ['hero', 'today', 'couple', 'trend', 'categories', 'recent'] as const;
+// Default order (also "Reset to default order"): totals, today, recent, categories, 7 days, who paid
+export const HOME_SECTIONS = ['hero', 'today', 'recent', 'categories', 'trend', 'couple'] as const;
 export type HomeSection = (typeof HOME_SECTIONS)[number];
 
 /**

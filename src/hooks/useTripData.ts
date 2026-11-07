@@ -26,6 +26,7 @@ export function useTripData() {
   );
 
   const derived = useMemo(() => {
+    // Every member ever in the trip (removed ones stay for history and balances)
     const memberList = members.data ?? [];
     const totalBudget = budgets.data?.find((b) => b.scope === 'total')?.amount_ils_minor ?? null;
     const dailyBudget = budgets.data?.find((b) => b.scope === 'daily')?.amount_ils_minor ?? null;
@@ -40,10 +41,11 @@ export function useTripData() {
           dailyBudget,
         })
       : null;
+    // A removed partner still counts while they paid or owe something
     const balances = computeBalances(
       memberList.map((m) => m.id),
       list.map((e) => ({ ...e, splits: e.expense_splits })),
-    );
+    ).filter((b) => !memberList.find((m) => m.id === b.memberId)?.removed_at || b.paid !== 0 || b.share !== 0 || b.net !== 0);
     const statuses = trip
       ? budgetStatuses(
           budgets.data ?? [],
@@ -67,7 +69,8 @@ export function useTripData() {
   const queries = [members, categories, expenses, budgets];
   return {
     trip,
-    members: members.data ?? [],
+    // Current partners only (pickers, counts, Settings); memberById also has removed ones
+    members: (members.data ?? []).filter((m) => !m.removed_at),
     // Pickers, filters and budgets: only categories still in use; categoryById has all
     categories: (categories.data ?? []).filter(isSelectable),
     allCategories: categories.data ?? [],

@@ -6,14 +6,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Platform, Pressable, Share, Switch, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { removeTripCover, uploadTripCover, useInviteCode, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { removeTripCover, uploadTripCover, useInviteCode, useRemoveMember, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
 import { TRIP_THEMES, type TripTheme } from '@/palette';
 import { useTripLook } from '@/store/tripLook';
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth, useUserId } from '@/providers/AuthProvider';
 import { useExitDemo } from '@/hooks/useExitDemo';
 import { useSignOut } from '@/hooks/useSignOut';
 import { blockedInDemo } from '@/lib/demoPrompt';
@@ -21,7 +21,7 @@ import { seedDemo } from '@/lib/demoSeed';
 import i18n from '@/i18n';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
-import { showDialog } from '@/ui/Dialog';
+import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { Sheet } from '@/ui/Sheet';
@@ -39,6 +39,8 @@ export default function Settings() {
   const invite = useInviteCode(trip && !trip.shared ? trip.id : undefined);
   const updateTrip = useUpdateTrip(trip?.id ?? '');
   const updateMe = useUpdateMyMember(trip?.id ?? '');
+  const removeMember = useRemoveMember(trip?.id ?? '');
+  const userId = useUserId();
   const setLang = usePrefs((s) => s.setLang);
   const setActiveTrip = usePrefs((s) => s.setActiveTrip);
   const queryClient = useQueryClient();
@@ -46,6 +48,7 @@ export default function Settings() {
   const demo = useIsDemo();
   const exitDemo = useExitDemo();
   const signOut = useSignOut();
+  const isCreator = !!trip && !trip.shared && !demo && trip.created_by === userId;
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
@@ -96,6 +99,23 @@ export default function Settings() {
     // The sample trip's names are written in the chosen language
     if (demo) seedDemo(queryClient, i18n.t);
     if (applyDirection(l)) showDialog(t('settings.language'), t('settings.languageRestart'));
+  }
+
+  async function removePartner(memberId: string, name: string) {
+    if (blockedInDemo(queryClient)) return;
+    const yes = await confirmDialog(
+      t('settings.removeMemberTitle', { name }),
+      t('settings.removeMemberBody', { name }),
+      t('settings.removeMemberConfirm'),
+      t('common.cancel'),
+      true,
+    );
+    if (!yes) return;
+    try {
+      await removeMember.mutateAsync(memberId);
+    } catch (e) {
+      showDialog(t('errors.title'), t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    }
   }
 
   async function shareInvite() {
@@ -168,6 +188,17 @@ export default function Settings() {
                 hitSlop={8}
               >
                 <Ionicons name="create-outline" size={20} color={c.primary} />
+              </Pressable>
+            ) : isCreator && m.user_id !== trip.created_by ? (
+              // Trip creator only: remove a partner (the server checks this too)
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.removeMember', { name: m.display_name })}
+                onPress={() => removePartner(m.id, m.display_name)}
+                disabled={removeMember.isPending}
+                hitSlop={8}
+              >
+                <Ionicons name="person-remove-outline" size={20} color={c.danger} />
               </Pressable>
             ) : null}
           </Row>

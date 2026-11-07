@@ -26,6 +26,8 @@ export type Member = {
   color: string;
   role: 'owner' | 'member';
   joined_at: string;
+  /** Set when the trip creator removed this partner (0014); the row stays for history. */
+  removed_at?: string | null;
 };
 
 export type Category = {

@@ -90,13 +90,14 @@ export default function Home() {
   const sections: Record<HomeSection, ReactNode> = {
     hero: (
       // Outer layer carries the shadow; the inner one clips the gradient to the rounded corners
-      <View style={{ borderRadius: radius.xl, boxShadow: `0 10px 28px ${c.heroFrom}59` }}>
+      // Accent glow matches the floating + button (trip accent): 40% border, soft 15% halo
+      <View style={{ borderRadius: radius.xl, boxShadow: `0 0 15px ${c.primary}26, 0 10px 28px ${c.heroFrom}59` }}>
       <View
         style={{
           backgroundColor: c.heroFrom,
           borderRadius: radius.xl,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.1)',
+          borderColor: c.primary + '66',
           padding: space.xl,
           gap: space.md,
           overflow: 'hidden',
@@ -178,8 +179,9 @@ export default function Home() {
         </Card>
       </Row>
     ),
+    // Also shown after a partner was removed while money is still open between you
     couple:
-      members.length > 1 ? (
+      balances.length > 1 ? (
         <Card>
           <SectionHeader title={t('home.couple')} />
           {balances.map((b) => {

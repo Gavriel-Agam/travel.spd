@@ -67,6 +67,7 @@ export function errorCode(e: unknown): string {
     'forbidden',
     'invite_invalid',
     'invite_used',
+    'cannot_remove_owner',
     'invalid_split',
     'invalid_amount',
     'invalid_rate',

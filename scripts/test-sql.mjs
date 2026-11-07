@@ -409,4 +409,27 @@ assert.equal((await as(C, `select * from storage.objects where bucket_id = 'trip
 assert.equal((await as(A, `select * from storage.objects where bucket_id = 'trip-covers'`)).length, 1);
 ok('trip look: palette colours only, covers stay in the trip folder and with its members');
 
+// Removing a partner (0014): creator only, soft, history kept, can rejoin as the same member
+await rejects(as(B, `select remove_trip_member($1)`, [mA]), /forbidden/);
+await rejects(as(C, `select remove_trip_member($1)`, [mB]), /forbidden/);
+await rejects(as(A, `select remove_trip_member($1)`, [mA]), /cannot_remove_owner/);
+const bSplitsBefore = (await as(A, 'select count(*)::int n from expense_splits where member_id = $1', [mB]))[0].n;
+await as(A, `select remove_trip_member($1)`, [mB]);
+assert.equal((await as(B, 'select * from trips where id = $1', [trip])).length, 0);
+assert.equal((await as(B, 'select * from expenses where trip_id = $1', [trip])).length, 0);
+await rejects(as(B, `select * from save_expense($1::jsonb)`, [expense({})]), /forbidden/);
+const [removedB] = await as(A, 'select removed_at from trip_members where id = $1', [mB]);
+assert.ok(removedB.removed_at);
+assert.equal((await as(A, 'select count(*)::int n from expense_splits where member_id = $1', [mB]))[0].n, bSplitsBefore);
+ok('remove member: creator only, never the creator, removed partner locked out, history kept');
+
+const [{ create_invite: reCode }] = await as(A, `select create_invite($1)`, [trip]);
+await as(B, `select join_trip($1, 'Partner B again')`, [reCode]);
+const bRows = await as(A, 'select id, removed_at from trip_members where trip_id = $1 and user_id = $2', [trip, B]);
+assert.equal(bRows.length, 1);
+assert.equal(bRows[0].id, mB);
+assert.equal(bRows[0].removed_at, null);
+assert.equal((await as(B, 'select * from trips where id = $1', [trip])).length, 1);
+ok('removed partner rejoins with a new code as the same member');
+
 console.log(`\n${passed} SQL checks passed`);

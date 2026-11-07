@@ -96,7 +96,9 @@ export function useJoinTrip() {
       unwrap(await supabase.rpc('join_trip', { p_code: p.code, p_member_name: p.memberName, p_color: p.color })) as string,
     onSuccess: async (tripId) => {
       setActive(tripId);
-      await qc.invalidateQueries({ queryKey: keys.trips });
+      // Everything, not just the trip list: a partner who was removed and is joining
+      // again may still hold the empty results cached while they were locked out
+      await qc.invalidateQueries();
     },
   });
 }
@@ -150,6 +152,15 @@ export function useUpdateMyMember(tripId: string) {
           .select()
           .single(),
       ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.members(tripId) }),
+  });
+}
+
+/** Trip creator only (checked by the server): the partner loses access; their history stays. */
+export function useRemoveMember(tripId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (memberId: string) => unwrap(await supabase.rpc('remove_trip_member', { p_member_id: memberId })),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.members(tripId) }),
   });
 }

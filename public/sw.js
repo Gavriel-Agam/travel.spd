@@ -45,8 +45,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(BASE, copy));
+          // Static legal pages are not the app shell: never cache them as BASE
+          if (!/\/(privacy|terms)\.html$/.test(url.pathname)) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(BASE, copy));
+          }
           return res;
         })
         .catch(() => caches.match(BASE)),

@@ -403,7 +403,7 @@ const he: Dict = {
     members: 'משתתפים',
     invite: 'הזמנת בן/בת הזוג',
     inviteBody: 'בן/בת הזוג מתקינים את האפליקציה, מתחברים ומזינים את הקוד.',
-    inviteShare: 'הצטרפו לטיול שלנו ב־TravelSpend Couple. קוד: {{code}}',
+    inviteShare: 'הצטרפו לטיול שלי ב־SmartTrip. קוד: {{code}}',
     myName: 'השם שלי',
     myColor: 'הצבע שלי',
     language: 'שפה',

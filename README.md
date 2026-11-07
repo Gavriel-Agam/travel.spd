@@ -1,4 +1,4 @@
-# TravelSpend Couple
+# SmartTrip
 
 A shared travel expense app for two people: manual expenses in any currency, shown alongside their ILS value, with live sync between partners, budgets and settle-up.
 

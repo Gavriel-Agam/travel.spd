@@ -1,9 +1,9 @@
-# Travel.Spd: Product Docs
+# SmartTrip (Travel.Spd): Product Docs
 
 Single source of truth for product scope, UX flows, feature specs and roadmap.
 Technical setup lives in [README.md](README.md). Updated after every spec, flow or roadmap change.
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 ---
 
@@ -95,7 +95,8 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
-| 2026-11-07 | Positioning: personal-first tracker, sharing optional. Auth/onboarding copy rewritten (EN + HE); product name unchanged for now. |
+| 2026-11-08 | Renamed to **SmartTrip** (was TravelSpend Couple). Display name only: repo, URL, `travelspend://` scheme and storage keys unchanged. Google consent screen app name to be changed by hand. |
+| 2026-11-07 | Positioning: personal-first tracker, sharing optional. Auth/onboarding copy rewritten (EN + HE). |
 | 2026-11-07 | New trip: name first, dates optional and off by default. |
 | 2026-11-07 | Default Home order: total, today, recent, categories, 7 days, who paid (users with a saved order keep theirs). |
 | 2026-11-07 | Swipe edit/delete on every expense list, incl. Home › Recent. |

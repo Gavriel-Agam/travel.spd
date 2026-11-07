@@ -1,18 +1,19 @@
-# Travel.Spd: Project Status
+# SmartTrip (Travel.Spd): Project Status
 
 Short running log of what changed and what is open. Product scope and specs live in [PRODUCT_DOCS.md](PRODUCT_DOCS.md).
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 ## Current state
 - Live at https://gavriel-agam.github.io/travel.spd/ (deploys on push to `main`).
 - Shipped through Stage 4 (trip colour + photo). Migrations 0001-0014.
-- Last deploy: `44fb38d` (privacy page: deleted expenses hidden, not erased), live 2026-11-07 17:29 UTC; both Actions runs green, live page checked.
+- Last deploy: `0e5e610` (personal-first copy; New trip: name first, dates optional and off), live 2026-11-07 17:48 UTC; both Actions runs green.
 - Verified: backend, Supabase DB + RLS, Google OAuth.
 
 ## Recent fixes
 | Date | Fix | Files |
 |---|---|---|
+| 2026-11-08 | Rename to SmartTrip: sign-in title, browser tab, PWA manifest, iPhone home-screen title, invite share text (EN + HE), README; privacy + terms pages ("formerly TravelSpend Couple", intro now personal-first, date 8 Nov). Kept on purpose: repo/URL `travel.spd`, `travelspend://` scheme, storage/cache keys, bundle id. Open: Google consent screen app name (manual). | `app.json`, `public/manifest.webmanifest`, `public/index.html`, `app/sign-in.tsx`, `src/i18n/*`, `public/privacy.html`, `public/terms.html`, `README.md` |
 | 2026-11-07 | Personal-first positioning: sign-in tagline, onboarding subtitle and hints rewritten (EN + HE) so sharing is optional. New trip form: Trip name first, Your name second; Dates toggle off by default with a hint, date pickers fade in when on (no exit animation: on web it left ghost copies). App name "TravelSpend Couple" unchanged. | `src/i18n/en.ts`, `src/i18n/he.ts`, `app/(app)/onboarding/create.tsx` |
 | 2026-11-07 | Privacy page accuracy: deleting an expense only marks it deleted (`deleted_at`); it stays stored with its receipt photo. Page (EN + HE) now says so, and that account deletion by email includes deleted expenses and photos. | `public/privacy.html` |
 | 2026-11-07 | Swipe actions everywhere: Home › Recent now uses the same swipe row as the Expenses tab (Edit opens the pre-filled form, Delete confirms, removes at once, totals/balances update, syncs). Logic shared in `useExpenseActions`. | `src/hooks/useExpenseActions.ts`, `src/ui/SwipeableExpenseRow.tsx`, `app/(app)/(tabs)/index.tsx`, `app/(app)/(tabs)/expenses.tsx` |

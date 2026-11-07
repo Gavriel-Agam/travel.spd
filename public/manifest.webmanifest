@@ -1,6 +1,6 @@
 {
-  "name": "TravelSpend Couple",
-  "short_name": "TravelSpend",
+  "name": "SmartTrip",
+  "short_name": "SmartTrip",
   "description": "Shared travel expenses for two.",
   "start_url": "/travel.spd/",
   "scope": "/travel.spd/",

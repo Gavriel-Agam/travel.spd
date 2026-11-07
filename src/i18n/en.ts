@@ -401,7 +401,7 @@ const en = {
     members: 'Members',
     invite: 'Invite partner',
     inviteBody: 'Your partner installs the app, signs in, and enters this code.',
-    inviteShare: 'Join our trip on TravelSpend Couple. Code: {{code}}',
+    inviteShare: 'Join my trip on SmartTrip. Code: {{code}}',
     myName: 'My name',
     myColor: 'My color',
     language: 'Language',

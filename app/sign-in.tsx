@@ -98,7 +98,7 @@ export default function SignIn() {
       <View style={{ alignItems: 'center', gap: space.sm }}>
         <Image source={require('../assets/icon.png')} style={{ width: 84, height: 84, borderRadius: 22 }} accessibilityIgnoresInvertColors />
         <Text variant="title" center>
-          TravelSpend Couple
+          SmartTrip
         </Text>
         <Text muted center>
           {t('auth.tagline')}

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TravelSpend Couple",
+    "name": "SmartTrip",
     "slug": "travelspend-couple",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,8 +22,8 @@
     "web": {
       "output": "single",
       "bundler": "metro",
-      "name": "TravelSpend Couple",
-      "shortName": "TravelSpend",
+      "name": "SmartTrip",
+      "shortName": "SmartTrip",
       "backgroundColor": "#F4F5F9",
       "favicon": "./public/favicon.png"
     },

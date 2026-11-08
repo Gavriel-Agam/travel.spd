@@ -15,7 +15,7 @@ import { alertColor, space, useColors } from '@/theme';
 import type { Budget as BudgetRecord } from '@/types/db';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
-import { Avatar, Button, Card, Chip, Divider, ErrorView, Field, Loading, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { Avatar, Button, Card, Chip, Divider, ErrorView, Field, Loading, ScreenSkeleton, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
 
 type Target = { scope: BudgetRecord['scope']; category_id?: string; member_id?: string; title: string };
 
@@ -47,7 +47,7 @@ export default function Budget() {
   );
 
   if (!trip) return null;
-  if (isLoading || !stats) return <Loading />;
+  if (isLoading || !stats) return <ScreenSkeleton />;
   if (data.error)
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import type { ComponentProps, ReactNode, Ref } from 'react';
+import { useEffect, useRef, type ComponentProps, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Platform,
   Pressable,
@@ -476,6 +477,64 @@ export function ProgressBar({ value, color, height = 8, track }: { value: number
     <View style={{ height, borderRadius: height, backgroundColor: track ?? c.track, overflow: 'hidden' }}>
       <View style={{ width: `${pct}%`, height: '100%', borderRadius: height, backgroundColor: color ?? c.primary }} />
     </View>
+  );
+}
+
+/**
+ * Full-screen placeholder while a tab's data loads: the rough shape of a
+ * screen (title, big card, two small cards, rows) gently pulsing, in the app's
+ * own colours, so switching tabs never flashes white or empty.
+ */
+export function ScreenSkeleton({ rowsOnly = false }: { rowsOnly?: boolean }) {
+  const c = useColors();
+  const pulse = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 650, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(pulse, { toValue: 0.55, duration: 650, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  const block = (style: ViewStyle) => <View style={[{ backgroundColor: c.cardAlt, borderRadius: radius.lg }, style]} />;
+  const rows = (
+    <View style={{ backgroundColor: c.card, borderRadius: radius.lg, padding: space.lg, gap: space.lg }}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Row key={i} gap={space.md}>
+          {block({ width: 40, height: 40, borderRadius: 12 })}
+          <View style={{ flex: 1, gap: 6 }}>
+            {block({ width: '60%', height: 12, borderRadius: 6 })}
+            {block({ width: '35%', height: 10, borderRadius: 5 })}
+          </View>
+          {block({ width: 64, height: 14, borderRadius: 7 })}
+        </Row>
+      ))}
+    </View>
+  );
+  // Inside a screen that already shows its own header (Expenses list)
+  if (rowsOnly)
+    return (
+      <Animated.View style={{ flex: 1, paddingHorizontal: space.lg, paddingTop: space.sm, opacity: pulse }} accessibilityLabel="Loading">
+        {rows}
+      </Animated.View>
+    );
+  return (
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }} accessibilityLabel="Loading" accessibilityRole="progressbar">
+      <Animated.View style={{ flex: 1, padding: space.lg, gap: space.lg, opacity: pulse }}>
+        <View style={{ gap: 8 }}>
+          {block({ width: 70, height: 12, borderRadius: 6 })}
+          {block({ width: '55%', height: 28, borderRadius: 10 })}
+        </View>
+        {block({ height: 150, borderRadius: radius.xl })}
+        <Row gap={space.md}>
+          {block({ flex: 1, height: 90 })}
+          {block({ flex: 1, height: 90 })}
+        </Row>
+        {rows}
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 

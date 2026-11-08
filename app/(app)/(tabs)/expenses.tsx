@@ -13,7 +13,7 @@ import { dayKey } from '@/lib/stats';
 import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
-import { Chip, EmptyState, ErrorView, Loading, Row, Text, TripBackdrop } from '@/ui/primitives';
+import { Chip, EmptyState, ErrorView, Row, ScreenSkeleton, Text, TripBackdrop } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
 
 export default function Expenses() {
@@ -159,7 +159,7 @@ export default function Expenses() {
       </View>
 
       {data.isLoading ? (
-        <Loading />
+        <ScreenSkeleton rowsOnly />
       ) : data.error ? (
         <ErrorView error={data.error} onRetry={data.refetch} />
       ) : (

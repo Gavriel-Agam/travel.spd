@@ -22,6 +22,7 @@ import i18n from '@/i18n';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
+import { CopyCode } from '@/ui/CopyCode';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { Sheet } from '@/ui/Sheet';
@@ -124,6 +125,7 @@ export default function Settings() {
     if (Platform.OS === 'web') {
       await Clipboard.setStringAsync(message);
       setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } else {
       await Share.share({ message });
     }
@@ -210,22 +212,15 @@ export default function Settings() {
             <Text variant="caption" muted>
               {t('settings.inviteBody')}
             </Text>
-            <Pressable
-              onPress={async () => {
-                if (!invite.data) return;
-                await Clipboard.setStringAsync(invite.data);
-                setCopied(true);
-              }}
-              style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.lg, alignItems: 'center' }}
-            >
-              <Text variant="title" style={{ letterSpacing: 6 }}>
-                {invite.data ?? '········'}
-              </Text>
-              <Text variant="caption" muted>
-                {copied ? t('common.copied') : t('common.copy')}
-              </Text>
-            </Pressable>
-            <Button title={t('common.share')} icon="share-outline" variant="secondary" onPress={shareInvite} disabled={!invite.data} />
+            <CopyCode code={invite.data} />
+            {/* On the web "Share" copies the invite message: the button says so for a moment */}
+            <Button
+              title={copied ? t('common.copied') : t('common.share')}
+              icon={copied ? 'checkmark' : 'share-outline'}
+              variant="secondary"
+              onPress={shareInvite}
+              disabled={!invite.data}
+            />
           </>
         ) : null}
       </Card>

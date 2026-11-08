@@ -31,7 +31,7 @@ import {
   Button,
   Card,
   ErrorView,
-  Loading,
+  Loading, ScreenSkeleton,
   ProgressBar,
   Row,
   Screen,
@@ -86,7 +86,7 @@ export default function Home() {
   }, [trip, stats]);
 
   if (!trip) return null;
-  if (data.isLoading) return <Loading />;
+  if (data.isLoading) return <ScreenSkeleton />;
   if (data.error)
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>

@@ -96,6 +96,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-08 | Loading states are skeletons, not spinners; navigation themed in app colours (no light flash). |
 | 2026-11-08 | Sign-in is Google-first; email/password and demo behind "More sign-in options". |
 | 2026-11-08 | In-app feedback (panel + bell), stored write-only, developer notified via ntfy.sh. |
 | 2026-11-08 | Renamed to **SmartTrip** (was TravelSpend Couple). Display name only: repo, URL, `travelspend://` scheme and storage keys unchanged. Google consent screen app name to be changed by hand. |

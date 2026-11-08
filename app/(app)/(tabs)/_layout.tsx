@@ -113,8 +113,11 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
 
 export default function TabsLayout() {
   const { t } = useT();
+  const c = useColors();
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
+    // Each tab's container is painted in the app background, so a tab opened for
+    // the first time never flashes white before it draws
+    <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg } }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('tabs.home') }} />
       <Tabs.Screen name="expenses" options={{ title: t('tabs.expenses') }} />
       <Tabs.Screen name="budget" options={{ title: t('tabs.budget') }} />

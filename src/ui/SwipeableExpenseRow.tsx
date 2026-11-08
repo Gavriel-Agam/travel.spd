@@ -9,6 +9,17 @@ import type { Category, Expense, Member } from '@/types/db';
 import { ExpenseRow } from './ExpenseRow';
 import { Row } from './primitives';
 
+// Action tiles: a little gap around each, so the reveal width stays ACTION_WIDTH per action
+const TILE_INSET = 6;
+const tile = {
+  width: ACTION_WIDTH - TILE_INSET * 2,
+  marginHorizontal: TILE_INSET,
+  height: '100%',
+  borderRadius: radius.md,
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+
 // Only one row is open at a time. Each row registers a stable handle (not a
 // per-render closure), so it can always be found again and removed on unmount.
 type RowHandle = { close: () => void };
@@ -123,13 +134,14 @@ export function SwipeableExpenseRow({
     <View style={{ marginBottom: last ? space.md : 0 }}>
       <View style={[corners, { overflow: 'hidden', backgroundColor: c.card }]}>
         {/* Always mounted so screen readers can reach them; only visible while the row is open */}
-        <Row gap={0} style={{ position: 'absolute', top: 0, bottom: 0, opacity: revealed ? 1 : 0, ...(rtl ? { left: 0 } : { right: 0 }) }}>
+        {/* Each action is its own rounded tile (same on every row), inset from the row edges */}
+        <Row gap={0} style={{ position: 'absolute', top: 0, bottom: 0, paddingVertical: TILE_INSET, opacity: revealed ? 1 : 0, ...(rtl ? { left: 0 } : { right: 0 }) }}>
           {canEdit ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('common.edit')}
               onPress={act(onEdit)}
-              style={{ width: ACTION_WIDTH, height: '100%', backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}
+              style={({ pressed }) => [tile, { backgroundColor: c.primary, opacity: pressed ? 0.85 : 1 }]}
             >
               <Ionicons name="create-outline" size={22} color={c.primaryText} />
             </Pressable>
@@ -138,7 +150,7 @@ export function SwipeableExpenseRow({
             accessibilityRole="button"
             accessibilityLabel={t('common.delete')}
             onPress={act(onDelete)}
-            style={{ width: ACTION_WIDTH, height: '100%', backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center' }}
+            style={({ pressed }) => [tile, { backgroundColor: c.danger, opacity: pressed ? 0.85 : 1 }]}
           >
             <Ionicons name="trash-outline" size={22} color={readableOn(c.danger)} />
           </Pressable>

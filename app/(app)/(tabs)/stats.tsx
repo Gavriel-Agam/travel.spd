@@ -9,7 +9,7 @@ import { formatMoney, percent } from '@/lib/money';
 import { dayKey, spendByCurrency } from '@/lib/stats';
 import { alertColor, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
-import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
 
 const PAYMENT_COLORS: Record<string, string> = { cash: '#22C55E', card: '#3366FF', transfer: '#7A5AF8', other: '#F79009', unknown: '#A3A7B9' };
 
@@ -34,7 +34,7 @@ export default function Stats() {
   );
 
   if (!trip) return null;
-  if (isLoading || !stats) return <Loading />;
+  if (isLoading || !stats) return <ScreenSkeleton />;
   if (data.error)
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>

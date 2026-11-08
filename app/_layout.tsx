@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { focusManager, MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppState, Platform, Pressable, Text, View } from 'react-native';
 import type { ErrorBoundaryProps } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -20,6 +20,7 @@ import i18n from '@/i18n';
 import { DialogHost } from '@/ui/Dialog';
 import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
+import { themes } from '@/palette';
 
 const WEEK = 7 * 24 * 3600_000;
 
@@ -59,10 +60,17 @@ function RootNavigator() {
   const { session, loading, recovery, transferring } = useAuth();
   const demo = useIsDemo();
   const c = useColors();
+  // Navigation's own containers in the app's colours (its default is light grey,
+  // which flashed when a tab or screen was opened for the first time)
+  const navTheme = useMemo(() => {
+    const base = c.bg === themes.dark.bg ? DarkTheme : DefaultTheme;
+    return { ...base, colors: { ...base.colors, background: c.bg, card: c.card, text: c.text, border: c.border, primary: c.primary } };
+  }, [c]);
   if (loading || transferring) return <Loading />;
   // An anonymous identity (from the no-login MVP) must sign in; its trips move to the account
   const signedIn = !!session && !session.user.is_anonymous;
   return (
+    <ThemeProvider value={navTheme}>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
       <Stack.Protected guard={!isSupabaseConfigured}>
         <Stack.Screen name="setup" />
@@ -77,6 +85,7 @@ function RootNavigator() {
         <Stack.Screen name="(app)" />
       </Stack.Protected>
     </Stack>
+    </ThemeProvider>
   );
 }
 

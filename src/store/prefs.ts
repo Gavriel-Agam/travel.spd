@@ -18,10 +18,13 @@ type PrefsState = {
   homeOrder: string[] | null;
   /** The order changed on this device and has not reached the account yet (sent again on the next sync). */
   homeOrderDirty: boolean;
+  /** Card order on other screens that can be rearranged (Statistics, Budget), on this device. */
+  screenOrders: Record<string, string[]>;
   /** Guest demo: a read-only sample trip on this device; nothing is sent to the server. */
   demo: boolean;
   setDemo: (demo: boolean) => void;
   setHomeOrder: (order: string[] | null, dirty?: boolean) => void;
+  setScreenOrder: (screen: string, order: string[] | null) => void;
   setLang: (lang: Lang) => void;
   setActiveTrip: (id: string | null) => void;
   noteCurrencyUsed: (tripId: string, code: string) => void;
@@ -39,9 +42,17 @@ export const usePrefs = create<PrefsState>()(
       rates: {},
       homeOrder: null,
       homeOrderDirty: false,
+      screenOrders: {},
       demo: false,
       setDemo: (demo) => set({ demo }),
       setHomeOrder: (homeOrder, dirty = false) => set({ homeOrder, homeOrderDirty: dirty }),
+      setScreenOrder: (screen, order) =>
+        set((s) => {
+          const next = { ...s.screenOrders };
+          if (order) next[screen] = order;
+          else delete next[screen];
+          return { screenOrders: next };
+        }),
       setLang: (lang) => set({ lang }),
       setActiveTrip: (activeTripId) => set({ activeTripId }),
       noteCurrencyUsed: (tripId, code) =>
@@ -64,6 +75,8 @@ export const usePrefs = create<PrefsState>()(
       version: 1,
       // v1: rate snapshots carry a date and source per currency; drop older caches
       migrate: (state) => ({ ...(state as PrefsState), rates: {} }),
+      // Older saved state has no screenOrders yet
+      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<PrefsState>), screenOrders: (persisted as Partial<PrefsState>)?.screenOrders ?? {} }),
     },
   ),
 );

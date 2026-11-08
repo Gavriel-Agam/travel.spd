@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, View, type GestureResponderEvent } from 'react-native';
+import { Animated, Easing, Platform, Pressable, View } from 'react-native';
 import { useT } from '@/i18n';
 import { radius, space, useColors } from '@/theme';
 import { Row, Text } from './primitives';
@@ -23,15 +23,14 @@ function buzz() {
 }
 
 /**
- * The trip's invite code. Tapping copies it, with a drop of colour rippling out
- * from the finger, a small pop of the code and a check mark, plus a short
+ * The trip's invite code. Tapping copies it, with a wave of colour opening from
+ * the centre out to both sides, a small pop of the code and a check mark, plus a short
  * vibration, so it is obvious the code was copied.
  */
 export function CopyCode({ code, onCopied }: { code: string | null | undefined; onCopied?: () => void }) {
   const c = useColors();
   const { t } = useT();
   const [copied, setCopied] = useState(false);
-  const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const ripple = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(1)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,11 +39,10 @@ export function CopyCode({ code, onCopied }: { code: string | null | undefined; 
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  async function copy(e: GestureResponderEvent) {
+  async function copy() {
     if (!code) return;
     await Clipboard.setStringAsync(code);
     buzz();
-    setOrigin({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY });
     setCopied(true);
     onCopied?.();
     ripple.setValue(0);
@@ -60,7 +58,7 @@ export function CopyCode({ code, onCopied }: { code: string | null | undefined; 
     timer.current = setTimeout(() => setCopied(false), 2000);
   }
 
-  const size = 120;
+  const size = 60;
   return (
     <Pressable
       accessibilityRole="button"
@@ -76,19 +74,26 @@ export function CopyCode({ code, onCopied }: { code: string | null | undefined; 
         borderColor: copied ? c.primary : 'transparent',
       }}
     >
-      {/* The drop: a circle growing from the finger and fading out */}
+      {/* The wave: starts as a dot in the centre and stretches out to both sides */}
       <Animated.View
         pointerEvents="none"
         style={{
           position: 'absolute',
-          left: origin.x - size / 2,
-          top: origin.y - size / 2,
+          // Centred without measuring the box (works even before layout events arrive)
+          left: '50%',
+          top: '50%',
+          marginLeft: -size / 2,
+          marginTop: -size / 2,
           width: size,
           height: size,
           borderRadius: size / 2,
           backgroundColor: c.primary,
           opacity: ripple.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0, 0.35, 0] }),
-          transform: [{ scale: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.1, 5] }) }],
+          transform: [
+            // Wide and low: the wave runs out to both sides of the code box (clipped at its edges)
+            { scaleX: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.05, 9] }) },
+            { scaleY: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.05, 2.6] }) },
+          ],
         }}
       />
       <Animated.View style={{ alignItems: 'center', transform: [{ scale: pop }] }}>

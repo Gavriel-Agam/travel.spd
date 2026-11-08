@@ -403,6 +403,7 @@ const he: Dict = {
     addPhoto: 'הוספת תמונה',
     changePhoto: 'החלפת תמונה',
     removePhoto: 'הסרה',
+    memberPhoto: 'התמונה שלך',
     datesInvalid: 'תאריך הסיום מוקדם מתאריך ההתחלה.',
     editMyName: 'עריכת השם והצבע שלי',
     removeMember: 'הסרת {{name}} מהטיול',

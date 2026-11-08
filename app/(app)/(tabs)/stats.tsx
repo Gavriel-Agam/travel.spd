@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -9,7 +9,12 @@ import { formatMoney, percent } from '@/lib/money';
 import { dayKey, spendByCurrency } from '@/lib/stats';
 import { alertColor, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
+import { DraggableGrid } from '@/ui/DraggableGrid';
+import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+
+const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'budget', 'partners', 'payment', 'distribution', 'currency'] as const;
+type StatsSection = (typeof STATS_SECTIONS)[number];
 
 const PAYMENT_COLORS: Record<string, string> = { cash: '#22C55E', card: '#3366FF', transfer: '#7A5AF8', other: '#F79009', unknown: '#A3A7B9' };
 
@@ -21,6 +26,8 @@ export default function Stats() {
   const [selCategory, setSelCategory] = useState<string | null>(null);
   const [selPayment, setSelPayment] = useState<string | null>(null);
   const [selDay, setSelDay] = useState<string | null>(null);
+  const layout = useCardOrder('stats', STATS_SECTIONS);
+  const drag = useDragScroll();
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
   const ilsShort = (m: number) => formatMoney(m, HOME_CURRENCY, { lang, compact: true });
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
@@ -59,17 +66,10 @@ export default function Stats() {
   const maxSizeCount = Math.max(1, ...sizes.map((s) => s.count));
   const categoryBudgets = budgetStatuses.filter((s) => s.scope === 'category');
 
-  return (
-    <Screen refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
-      <Text variant="title">{t('stats.title')}</Text>
-
-      {spendingCount === 0 ? (
-        <Card>
-          <EmptyState emoji="📊" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
-        </Card>
-      ) : (
-        <>
-          {/* Summary */}
+  // Cards in the order chosen on this device (hold a card to move it)
+  const sections: Record<StatsSection, ReactNode> = {
+    summary: (
+      <View style={{ gap: space.md }}>
           <Row gap={space.md} align="stretch">
             <Summary label={t('home.spent')} value={ils(stats.total)} />
             <Summary label={t('home.dailyAvg')} value={ils(stats.dailyAverage)} />
@@ -79,7 +79,9 @@ export default function Stats() {
             <Summary label={t('stats.count')} value={String(spendingCount)} />
           </Row>
 
-          {/* Categories */}
+      </View>
+    ),
+    categories: (
           <Card>
             <SectionHeader title={t('home.byCategory')} />
             <DonutChart
@@ -117,7 +119,8 @@ export default function Stats() {
             </View>
           </Card>
 
-          {/* By day */}
+    ),
+    byDay: (
           <Card>
             <SectionHeader title={t('stats.byDay')} />
             <BarChart
@@ -136,7 +139,8 @@ export default function Stats() {
             </Text>
           </Card>
 
-          {/* Most expensive days */}
+    ),
+    topDays: (
           <Card>
             <SectionHeader title={t('stats.topDays')} />
             {stats.topDays.map((d, i) => (
@@ -149,8 +153,8 @@ export default function Stats() {
             ))}
           </Card>
 
-          {/* Budget vs actual */}
-          {stats.budget ? (
+    ),
+    budget: stats.budget ? (
             <Card>
               <SectionHeader title={t('stats.budgetVsActual')} />
               {series.some((p) => p.pace != null) ? (
@@ -202,10 +206,8 @@ export default function Stats() {
                 );
               })}
             </Card>
-          ) : null}
-
-          {/* By partner */}
-          {balances.length > 1 ? (
+          ) : null,
+    partners: balances.length > 1 ? (
             <Card>
               <SectionHeader title={t('stats.byPartner')} />
               {balances.map((b) => {
@@ -214,7 +216,7 @@ export default function Stats() {
                 return (
                   <View key={b.memberId} style={{ gap: 6 }}>
                     <Row gap={space.sm}>
-                      <Avatar name={m.display_name} color={m.color} size={26} />
+                      <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} size={26} />
                       <Text style={{ flex: 1, fontWeight: '600' }}>{m.display_name}</Text>
                     </Row>
                     <Row gap={space.sm}>
@@ -243,9 +245,8 @@ export default function Stats() {
                 );
               })}
             </Card>
-          ) : null}
-
-          {/* Payment method */}
+          ) : null,
+    payment: (
           <Card>
             <SectionHeader title={t('stats.byPayment')} />
             <DonutChart
@@ -285,7 +286,8 @@ export default function Stats() {
             </View>
           </Card>
 
-          {/* Distribution */}
+    ),
+    distribution: (
           <Card>
             <SectionHeader title={t('stats.distribution')} />
             {sizes.map((s) => (
@@ -303,7 +305,8 @@ export default function Stats() {
             ))}
           </Card>
 
-          {/* By currency */}
+    ),
+    currency: (
           <Card>
             <SectionHeader title={t('stats.byCurrency')} />
             {spendByCurrency(expenses).map((row) => {
@@ -323,7 +326,25 @@ export default function Stats() {
               );
             })}
           </Card>
-        </>
+    ),
+  };
+
+  return (
+    <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
+      <Text variant="title">{t('stats.title')}</Text>
+
+      {spendingCount === 0 ? (
+        <Card>
+          <EmptyState emoji="📊" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
+        </Card>
+      ) : (
+        <DraggableGrid
+          items={layout.order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k] }))}
+          onReorder={layout.onReorder}
+          scrollRef={drag.scrollRef}
+          scroll={drag.scroll}
+          onDragging={drag.setDragging}
+        />
       )}
     </Screen>
   );

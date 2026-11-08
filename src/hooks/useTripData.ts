@@ -26,8 +26,11 @@ export function useTripData() {
   );
 
   const derived = useMemo(() => {
-    // Every member ever in the trip (removed ones stay for history and balances)
+    // Every member ever in the trip: removed partners stay only so old expenses
+    // can still show who paid. Everything else (balances, settle-up, budgets,
+    // stats, pickers) uses the current partners only.
     const memberList = members.data ?? [];
+    const activeIds = new Set(memberList.filter((m) => !m.removed_at).map((m) => m.id));
     const totalBudget = budgets.data?.find((b) => b.scope === 'total')?.amount_ils_minor ?? null;
     const dailyBudget = budgets.data?.find((b) => b.scope === 'daily')?.amount_ils_minor ?? null;
     const stats = trip
@@ -41,18 +44,17 @@ export function useTripData() {
           dailyBudget,
         })
       : null;
-    // A removed partner still counts while they paid or owe something
     const balances = computeBalances(
-      memberList.map((m) => m.id),
+      [...activeIds],
       list.map((e) => ({ ...e, splits: e.expense_splits })),
-    ).filter((b) => !memberList.find((m) => m.id === b.memberId)?.removed_at || b.paid !== 0 || b.share !== 0 || b.net !== 0);
+    ).filter((b) => activeIds.has(b.memberId));
     const statuses = trip
       ? budgetStatuses(
           budgets.data ?? [],
           list.map((e) => ({ ...e, splits: e.expense_splits })),
           trip.timezone,
           new Date(),
-        )
+        ).filter((s) => s.scope !== 'member' || activeIds.has(s.key))
       : [];
     return {
       stats,
@@ -62,7 +64,7 @@ export function useTripData() {
       transfers: settleUp(balances),
       memberById: new Map(memberList.map((m) => [m.id, m])),
       categoryById: categoryMap(categories.data),
-      me: memberList.find((m) => m.user_id === userId) ?? null,
+      me: memberList.find((m) => m.user_id === userId && activeIds.has(m.id)) ?? null,
     };
   }, [list, members.data, budgets.data, categories.data, trip, userId]);
 

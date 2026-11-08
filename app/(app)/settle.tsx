@@ -92,7 +92,7 @@ export default function SettleUp() {
             <View key={b.memberId} style={{ gap: space.sm }}>
               {i > 0 ? <Divider /> : null}
               <Row gap={space.md}>
-                <Avatar name={m.display_name} color={m.color} />
+                <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} />
                 <Text variant="h2" style={{ flex: 1 }}>
                   {m.display_name}
                 </Text>
@@ -122,9 +122,9 @@ export default function SettleUp() {
         transfers.map((tr) => (
           <Card key={tr.from + tr.to}>
             <Row gap={space.md}>
-              <Avatar name={name(tr.from)} color={memberById.get(tr.from)?.color ?? c.textFaint} />
+              <Avatar name={name(tr.from)} color={memberById.get(tr.from)?.color ?? c.textFaint} photoPath={memberById.get(tr.from)?.photo_path} />
               <Ionicons name={lang === 'he' ? 'arrow-back' : 'arrow-forward'} size={20} color={c.textMuted} />
-              <Avatar name={name(tr.to)} color={memberById.get(tr.to)?.color ?? c.textFaint} />
+              <Avatar name={name(tr.to)} color={memberById.get(tr.to)?.color ?? c.textFaint} photoPath={memberById.get(tr.to)?.photo_path} />
               <View style={{ flex: 1 }}>
                 <Text variant="label">{t('home.owes', { from: name(tr.from), to: name(tr.to) })}</Text>
               </View>

@@ -401,6 +401,7 @@ const en = {
     addPhoto: 'Add a photo',
     changePhoto: 'Change photo',
     removePhoto: 'Remove',
+    memberPhoto: 'Your photo',
     datesInvalid: 'The end date is before the start date.',
     editMyName: 'Edit my name and color',
     removeMember: 'Remove {{name}} from the trip',

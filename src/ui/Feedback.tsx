@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSendFeedback } from '@/api/queries';
 import { useT } from '@/i18n';
 import { errorCode } from '@/lib/supabase';
@@ -69,14 +68,14 @@ export function FeedbackBell() {
 }
 
 /**
- * Floating panel at the top of the screen asking for feedback. Closing it
- * (X, or after sending) shrinks it into the bell, so people learn where to
- * find it again.
+ * Panel at the top of the Home screen asking for feedback. It takes its own
+ * space and pushes the screen down (nothing is covered); the space opens and
+ * closes smoothly. Closing it (X, or after sending) shrinks it into the bell,
+ * so people learn where to find it again.
  */
 export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
   const c = useColors();
   const { t, lang } = useT();
-  const insets = useSafeAreaInsets();
   const open = useFeedback((s) => s.open);
   const send = useSendFeedback();
   const [visible, setVisible] = useState(false);
@@ -86,6 +85,11 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
   const panel = useRef<unknown>(null);
   const v = useRef({ opacity: new Animated.Value(0), x: new Animated.Value(0), y: new Animated.Value(-16), scale: new Animated.Value(1) }).current;
   const closing = useRef(false);
+  // While open the panel sits in the page at its natural height (pushing the
+  // screen down). On close its space shrinks from that height to nothing
+  // (JS-driven: height can't use the native driver).
+  const room = useRef({ h: new Animated.Value(0), gap: new Animated.Value(0) }).current;
+  const [shrinking, setShrinking] = useState(false);
 
   // Open: drop in from the top
   useEffect(() => {
@@ -97,11 +101,22 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
     v.y.setValue(-16);
     v.scale.setValue(1);
     v.opacity.setValue(0);
+    setShrinking(false);
+    room.gap.setValue(0);
     setVisible(true);
     Animated.parallel([
       Animated.timing(v.opacity, { toValue: 1, duration: 220, useNativeDriver: native }),
       Animated.spring(v.y, { toValue: 0, useNativeDriver: native, speed: 16, bounciness: 6 }),
     ]).start();
+    // Same safety as below: fully shown even if animation frames are throttled
+    const id = setTimeout(() => {
+      if (closing.current) return;
+      v.opacity.stopAnimation();
+      v.y.stopAnimation();
+      v.opacity.setValue(1);
+      v.y.setValue(0);
+    }, 600);
+    return () => clearTimeout(id);
   }, [open]);
 
   // Close: shrink and fly into the bell, then nudge it
@@ -112,6 +127,9 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
     const dx = from && to ? to.x + to.width / 2 - (from.x + from.width / 2) : 0;
     const dy = from && to ? to.y + to.height / 2 - (from.y + from.height / 2) : -80;
     const ease = Easing.bezier(0.55, 0, 0.75, 0.2);
+    // From here the panel's space has a fixed height that shrinks to nothing
+    room.h.setValue(from?.height ?? 0);
+    setShrinking(true);
     // Finish once: when the animation ends, or after a short safety delay if the
     // browser throttles animation frames (background tab, low-power mode)
     let done = false;
@@ -122,6 +140,10 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
       useFeedback.getState().setOpen(false);
       useFeedback.getState().nudgeBell();
     };
+    Animated.parallel([
+      Animated.timing(room.h, { toValue: 0, duration: 420, easing: ease, useNativeDriver: false }),
+      Animated.timing(room.gap, { toValue: -space.lg, duration: 420, easing: ease, useNativeDriver: false }),
+    ]).start();
     Animated.parallel([
       Animated.timing(v.x, { toValue: dx, duration: 420, easing: ease, useNativeDriver: native }),
       Animated.timing(v.y, { toValue: dy, duration: 420, easing: ease, useNativeDriver: native }),
@@ -148,17 +170,14 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
   if (!visible) return null;
 
   return (
+    <Animated.View style={{ height: shrinking ? room.h : undefined, marginBottom: room.gap, zIndex: 50 }}>
     <Animated.View
       ref={(n: unknown) => {
         panel.current = n;
       }}
       accessibilityViewIsModal={false}
       style={{
-        position: 'absolute',
-        top: insets.top + space.sm,
-        left: space.md,
-        right: space.md,
-        zIndex: 100,
+        width: '100%',
         maxWidth: 560,
         alignSelf: 'center',
         backgroundColor: c.card,
@@ -167,7 +186,7 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
         borderColor: c.primary + '55',
         padding: space.md,
         gap: space.sm,
-        boxShadow: `0 12px 32px rgba(0,0,0,0.35), 0 0 18px ${c.primary}22`,
+        boxShadow: `0 8px 24px rgba(0,0,0,0.25), 0 0 18px ${c.primary}22`,
         opacity: v.opacity,
         transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.scale }],
       }}
@@ -197,6 +216,7 @@ export function FeedbackBanner({ tripId }: { tripId?: string | null }) {
           <Button title={t('feedback.send')} icon="send" onPress={submit} loading={send.isPending} disabled={!text.trim()} />
         </>
       ) : null}
+    </Animated.View>
     </Animated.View>
   );
 }

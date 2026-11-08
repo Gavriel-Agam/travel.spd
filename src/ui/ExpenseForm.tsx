@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { goBack } from '@/lib/nav';
+import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
@@ -263,6 +264,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     const done = () => {
       noteCurrencyUsed(trip.id, currency);
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // A little celebration for every new expense (also when saved offline), not for edits
+      if (!existing) useConfetti.getState().fire();
       goBack('/expenses');
     };
 

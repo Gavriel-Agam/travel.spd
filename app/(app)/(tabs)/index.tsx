@@ -78,6 +78,11 @@ export default function Home() {
     }, 1200);
     return () => clearTimeout(id);
   }, [canFeedback, trip?.id, feedbackShown]);
+  // The panel lives at the top of the page: bring it into view when it opens
+  const feedbackOpen = useFeedback((s) => s.open);
+  useEffect(() => {
+    if (feedbackOpen) scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [feedbackOpen]);
 
   const trend = useMemo(() => {
     if (!trip || !stats) return [];
@@ -207,7 +212,7 @@ export default function Home() {
             return (
               <View key={b.memberId} style={{ gap: 6 }}>
                 <Row gap={space.md}>
-                  <Avatar name={m.display_name} color={m.color} />
+                  <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} />
                   <Text style={{ flex: 1, fontWeight: '600' }}>{m.display_name}</Text>
                   <Text variant="mono">{ils(b.paid)}</Text>
                 </Row>
@@ -339,6 +344,8 @@ export default function Home() {
       onLayout={(e) => measure({ viewH: e.nativeEvent.layout.height })}
       refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
     >
+      {/* Feedback panel: takes its own space at the top and pushes the screen down */}
+      {canFeedback ? <FeedbackBanner tripId={trip.id} /> : null}
       {/* The trip photo (Settings › Trip details) */}
       {coverUrl ? (
         <Image
@@ -438,7 +445,6 @@ export default function Home() {
         </View>
       </Sheet>
     </Screen>
-    {canFeedback ? <FeedbackBanner tripId={trip.id} /> : null}
     </View>
   );
 }

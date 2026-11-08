@@ -445,4 +445,15 @@ assert.equal(fb[0].user_id, A);
 assert.equal(fb[1].user_id, C);
 ok('feedback: write-only, sender is always the caller, own trips only, notify trigger never blocks');
 
+// Member photos (0016): own row only, path inside the trip's folder, bucket limited to the trip's members
+await as(A, `update trip_members set photo_path = $2 where id = $1`, [mA, `${trip}/member-a.jpg`]);
+await rejects(as(A, `update trip_members set photo_path = $2 where id = $1`, [mA, `other/member-a.jpg`]), /check constraint/);
+const bPhoto = await as(A, `update trip_members set photo_path = $2 where id = $1 returning id`, [mB, `${trip}/hijack.jpg`]);
+assert.equal(bPhoto.length, 0); // RLS: not your row, nothing updated
+await as(B, `insert into storage.objects (bucket_id, name) values ('member-photos', $1)`, [`${trip}/member-b.jpg`]);
+await rejects(as(C, `insert into storage.objects (bucket_id, name) values ('member-photos', $1)`, [`${trip}/x.jpg`]), /row-level security/);
+assert.equal((await as(C, `select * from storage.objects where bucket_id = 'member-photos'`)).length, 0);
+assert.equal((await as(A, `select * from storage.objects where bucket_id = 'member-photos'`)).length, 1);
+ok('member photos: own row only, trip folder only, visible to the trip only');
+
 console.log(`\n${passed} SQL checks passed`);

@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Platform, Pressable, Share, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { removeTripCover, uploadTripCover, useInviteCode, useRemoveMember, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useInviteCode, useRemoveMember, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
 import { TRIP_THEMES, type TripTheme } from '@/palette';
 import { useTripLook } from '@/store/tripLook';
@@ -59,6 +59,7 @@ export default function Settings() {
   const [currency, setCurrency] = useState('THB');
   const [themeColor, setThemeColor] = useState<TripTheme>('blue');
   const [coverBusy, setCoverBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const [pickCurrency, setPickCurrency] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -78,6 +79,35 @@ export default function Settings() {
       setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
     } finally {
       setCoverBusy(false);
+    }
+  }
+
+  async function pickMemberPhoto() {
+    if (!trip || !me || blockedInDemo(queryClient)) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+    if (res.canceled || !res.assets[0]) return;
+    setPhotoBusy(true);
+    setFormError(null);
+    try {
+      await uploadMemberPhoto(trip.id, me.id, res.assets[0].uri, me.photo_path);
+      await queryClient.invalidateQueries({ queryKey: ['members', trip.id] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function dropMemberPhoto() {
+    if (!trip || !me?.photo_path || blockedInDemo(queryClient)) return;
+    setPhotoBusy(true);
+    try {
+      await removeMemberPhoto(me.id, me.photo_path);
+      await queryClient.invalidateQueries({ queryKey: ['members', trip.id] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setPhotoBusy(false);
     }
   }
 
@@ -135,6 +165,26 @@ export default function Settings() {
     <Screen>
       <Text variant="title">{t('settings.title')}</Text>
 
+      {/* Trips (not in the shared MVP trip: a separate trip would be invisible to the partner) */}
+      {!trip.shared ? (
+        <Card style={{ gap: 0 }}>
+          <Text variant="label" muted>
+            {t('settings.trips')}
+          </Text>
+          {(trips.data ?? []).map((tr) => (
+            <ListRow
+              key={tr.id}
+              icon={<Ionicons name={tr.id === trip.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={c.primary} />}
+              title={tr.name}
+              onPress={() => setActiveTrip(tr.id)}
+            />
+          ))}
+          <Divider />
+          <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/create')} />
+          <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/join')} />
+        </Card>
+      ) : null}
+
       {/* Trip */}
       <Card style={{ gap: 0 }}>
         <Text variant="label" muted>
@@ -174,7 +224,7 @@ export default function Settings() {
         </Text>
         {members.map((m) => (
           <Row key={m.id} gap={space.md}>
-            <Avatar name={m.display_name} color={m.color} />
+            <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} size={40} />
             <Text style={{ flex: 1, fontWeight: '600' }}>
               {m.display_name}
               {m.id === me?.id ? ` (${t('common.you')})` : ''}
@@ -200,7 +250,7 @@ export default function Settings() {
                 disabled={removeMember.isPending}
                 hitSlop={8}
               >
-                <Ionicons name="person-remove-outline" size={20} color={c.danger} />
+                <Ionicons name="trash-outline" size={18} color={c.danger} />
               </Pressable>
             ) : null}
           </Row>
@@ -239,26 +289,6 @@ export default function Settings() {
           onChange={changeLang}
         />
       </Card>
-
-      {/* Trips (not in the shared MVP trip: a separate trip would be invisible to the partner) */}
-      {!trip.shared ? (
-        <Card style={{ gap: 0 }}>
-          <Text variant="label" muted>
-            {t('settings.trips')}
-          </Text>
-          {(trips.data ?? []).map((tr) => (
-            <ListRow
-              key={tr.id}
-              icon={<Ionicons name={tr.id === trip.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={c.primary} />}
-              title={tr.name}
-              onPress={() => setActiveTrip(tr.id)}
-            />
-          ))}
-          <Divider />
-          <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/create')} />
-          <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/join')} />
-        </Card>
-      ) : null}
 
       {/* Anonymous (MVP) devices would come back as a new traveller, so no sign-out */}
       {demo ? (
@@ -362,6 +392,21 @@ export default function Settings() {
               </View>
               {formError ? <Text color={c.danger}>{formError}</Text> : null}
             </>
+          ) : null}
+          {edit === 'me' && me ? (
+            // Your photo: shown in your circle everywhere instead of your initial
+            <Row style={{ justifyContent: 'center' }} gap={space.md}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('settings.memberPhoto')} onPress={pickMemberPhoto} disabled={photoBusy}>
+                <Avatar name={me.display_name} color={me.color} photoPath={me.photo_path} size={64} />
+                <View style={{ position: 'absolute', bottom: -2, end: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.card }}>
+                  <Ionicons name="camera" size={13} color={c.primaryText} />
+                </View>
+              </Pressable>
+              <View style={{ gap: space.xs }}>
+                <Button title={me.photo_path ? t('settings.changePhoto') : t('settings.addPhoto')} icon="image-outline" variant="secondary" loading={photoBusy} onPress={pickMemberPhoto} />
+                {me.photo_path ? <Button title={t('settings.removePhoto')} icon="trash-outline" variant="ghost" disabled={photoBusy} onPress={dropMemberPhoto} /> : null}
+              </View>
+            </Row>
           ) : null}
           {edit === 'me' ? (
             <Row style={{ justifyContent: 'center' }} gap={space.md}>

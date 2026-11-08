@@ -18,6 +18,7 @@ import { useIsDemo, usePrefs } from '@/store/prefs';
 import { seedDemo } from '@/lib/demoSeed';
 import i18n from '@/i18n';
 import { DialogHost } from '@/ui/Dialog';
+import { ConfettiHost } from '@/ui/Confetti';
 import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
 import { themes } from '@/palette';
@@ -110,6 +111,7 @@ export default function RootLayout() {
             <StatusBar style="auto" />
             {hydrated ? <RootNavigator /> : <Loading />}
             <DialogHost />
+            <ConfettiHost />
           </AuthProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

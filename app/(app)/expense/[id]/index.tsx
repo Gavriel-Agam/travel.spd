@@ -156,7 +156,7 @@ export default function ExpenseDetails() {
           const m = memberById.get(s.member_id);
           return (
             <Row key={s.member_id} gap={space.md}>
-              <Avatar name={m?.display_name ?? '?'} color={m?.color ?? c.textFaint} size={28} />
+              <Avatar name={m?.display_name ?? '?'} color={m?.color ?? c.textFaint} photoPath={m?.photo_path} size={28} />
               <Text style={{ flex: 1 }}>{m?.display_name}</Text>
               {s.share_pct ? (
                 <Text variant="caption" muted>

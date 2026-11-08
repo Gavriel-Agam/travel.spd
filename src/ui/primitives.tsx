@@ -26,6 +26,7 @@ import { flatten, readableOn } from '@/lib/contrast';
 import { errorCode } from '@/lib/supabase';
 import { useT } from '@/i18n';
 import { useTripLook } from '@/store/tripLook';
+import { useMemberPhotoUrl } from '@/api/queries';
 import { radius, space, useColors } from '@/theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -618,7 +619,9 @@ export function Dot({ color, size = 10 }: { color: string; size?: number }) {
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />;
 }
 
-export function Avatar({ name, color, size = 32 }: { name: string; color: string; size?: number }) {
+/** A member's circle: their photo if they set one, otherwise their initial on their colour. */
+export function Avatar({ name, color, size = 32, photoPath }: { name: string; color: string; size?: number; photoPath?: string | null }) {
+  const photo = useMemberPhotoUrl(photoPath);
   return (
     <View
       style={{
@@ -628,11 +631,16 @@ export function Avatar({ name, color, size = 32 }: { name: string; color: string
         backgroundColor: color,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
       }}
     >
-      <Text variant="label" color={readableOn(color)} style={{ fontSize: size * 0.42 }}>
-        {name.trim().charAt(0).toUpperCase() || '?'}
-      </Text>
+      {photo.data ? (
+        <Image source={{ uri: photo.data }} style={{ width: size, height: size }} accessibilityIgnoresInvertColors />
+      ) : (
+        <Text variant="label" color={readableOn(color)} style={{ fontSize: size * 0.42 }}>
+          {name.trim().charAt(0).toUpperCase() || '?'}
+        </Text>
+      )}
     </View>
   );
 }

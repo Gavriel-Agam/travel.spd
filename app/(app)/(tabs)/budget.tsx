@@ -16,6 +16,11 @@ import type { Budget as BudgetRecord } from '@/types/db';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Chip, Divider, ErrorView, Field, Loading, ScreenSkeleton, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { DraggableGrid } from '@/ui/DraggableGrid';
+import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
+
+const BUDGET_SECTIONS = ['totals', 'projection', 'categories', 'personal'] as const;
+type BudgetSection = (typeof BUDGET_SECTIONS)[number];
 
 type Target = { scope: BudgetRecord['scope']; category_id?: string; member_id?: string; title: string };
 
@@ -29,6 +34,8 @@ export default function Budget() {
   const [pickingCategory, setPickingCategory] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const layout = useCardOrder('budget', BUDGET_SECTIONS);
+  const drag = useDragScroll();
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
 
   const series = useMemo(
@@ -91,12 +98,8 @@ export default function Budget() {
   const categoryBudgets = budgetStatuses.filter((s) => s.scope === 'category');
   const unbudgeted = categories.filter((cat) => !categoryBudgets.some((s) => s.key === cat.id));
 
-  return (
-    <Screen refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
-      <Text variant="title">{t('budget.title')}</Text>
-      <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
-
-      {/* Total + daily */}
+  const sections: Record<BudgetSection, ReactNode> = {
+    totals: (
       <Card>
         <BudgetLine
           title={t('budget.total')}
@@ -138,7 +141,8 @@ export default function Budget() {
         />
       </Card>
 
-      {/* Projection */}
+    ),
+    projection: (
       <Card>
         <SectionHeader title={t('budget.projection')} />
         <Row style={{ justifyContent: 'space-between' }}>
@@ -170,7 +174,8 @@ export default function Budget() {
         ) : null}
       </Card>
 
-      {/* Categories */}
+    ),
+    categories: (
       <Card>
         <SectionHeader title={t('budget.byCategory')} action={unbudgeted.length ? t('budget.add') : undefined} onAction={() => setPickingCategory(true)} />
         {categoryBudgets.length === 0 ? (
@@ -196,8 +201,8 @@ export default function Budget() {
         )}
       </Card>
 
-      {/* Personal limits */}
-      {members.length > 1 ? (
+    ),
+    personal: members.length > 1 ? (
         <Card>
           <SectionHeader title={t('budget.personal')} />
           <Text variant="caption" muted>
@@ -207,7 +212,7 @@ export default function Budget() {
             <View key={m.id} style={{ gap: space.sm }}>
               {i > 0 ? <Divider /> : null}
               <BudgetLine
-                avatar={<Avatar name={m.display_name} color={m.color} size={28} />}
+                avatar={<Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} size={28} />}
                 title={m.display_name}
                 status={statusOf('member', m.id)}
                 onPress={() => open({ scope: 'member', member_id: m.id, title: t('budget.personalOf', { name: m.display_name }) })}
@@ -216,7 +221,22 @@ export default function Budget() {
             </View>
           ))}
         </Card>
-      ) : null}
+      ) : null,
+  };
+
+  return (
+    <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
+      <Text variant="title">{t('budget.title')}</Text>
+      <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
+
+      {/* Cards in the order chosen on this device (hold a card to move it) */}
+      <DraggableGrid
+        items={layout.order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k] }))}
+        onReorder={layout.onReorder}
+        scrollRef={drag.scrollRef}
+        scroll={drag.scroll}
+        onDragging={drag.setDragging}
+      />
 
       {/* Choose a category to budget */}
       <Sheet visible={pickingCategory} onClose={() => setPickingCategory(false)} title={t('budget.chooseCategory')}>

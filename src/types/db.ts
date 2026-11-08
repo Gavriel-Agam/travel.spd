@@ -28,6 +28,8 @@ export type Member = {
   joined_at: string;
   /** Set when the trip creator removed this partner (0014); the row stays for history. */
   removed_at?: string | null;
+  /** Profile photo in the member-photos bucket (0016); null shows the initial. */
+  photo_path?: string | null;
 };
 
 export type Category = {

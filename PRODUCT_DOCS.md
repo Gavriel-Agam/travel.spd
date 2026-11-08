@@ -68,7 +68,7 @@ Test users' email addresses are kept only in the console, never in this public r
 
 **Remove partner (creator only):** Settings › Members → remove icon next to partner → confirm → partner loses access at once (RLS); their expenses and open balance stay on Home. Re-invite with a new code restores the same member.
 
-**Reorder Home:** hold any card ~0.5 s (no handle) → it lifts (scale 1.05 + shadow), a faint grid appears, an accent line shows the drop spot (upper/lower half of the card under the finger = before/after it) → release; order saved to the account. Short taps and scrolls never lift a card. Screen readers: Arrange sheet.
+**Reorder cards (Home, Statistics, Budget):** hold any card ~0.5 s (no handle) → it lifts (scale 1.05 + shadow), a faint grid appears, an accent line shows the drop spot (upper/lower half of the card under the finger = before/after it) → release; order saved to the account. Short taps and scrolls never lift a card. Screen readers: Arrange sheet.
 
 **Demo → real account:** demo prompts sign-up; demo data stays local.
 
@@ -96,6 +96,9 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-08 | Removed partners disappear from every screen except as payer on old expenses. |
+| 2026-11-08 | Cards can be dragged on Statistics and Budget (order per device). |
+| 2026-11-08 | Member profile photos (own photo, visible to the trip). Confetti on every new expense. |
 | 2026-11-08 | Loading states are skeletons, not spinners; navigation themed in app colours (no light flash). |
 | 2026-11-08 | Sign-in is Google-first; email/password and demo behind "More sign-in options". |
 | 2026-11-08 | In-app feedback (panel + bell), stored write-only, developer notified via ntfy.sh. |

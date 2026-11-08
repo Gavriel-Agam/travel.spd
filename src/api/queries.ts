@@ -364,6 +364,31 @@ export function useTripCoverUrl(path: string | null | undefined) {
   });
 }
 
+/** Your own photo on this trip (shrunk first); replaces and deletes the previous one. */
+export async function uploadMemberPhoto(tripId: string, memberId: string, uri: string, previous?: string | null) {
+  const { body, mime } = await shrinkForUpload(uri);
+  const path = `${tripId}/${memberId}-${Date.now()}.jpg`;
+  unwrap(await supabase.storage.from('member-photos').upload(path, body, { contentType: mime }));
+  unwrap(await supabase.from('trip_members').update({ photo_path: path }).eq('id', memberId).select().single());
+  if (previous) await supabase.storage.from('member-photos').remove([previous]);
+  return path;
+}
+
+export async function removeMemberPhoto(memberId: string, previous: string) {
+  unwrap(await supabase.from('trip_members').update({ photo_path: null }).eq('id', memberId).select().single());
+  await supabase.storage.from('member-photos').remove([previous]);
+}
+
+export function useMemberPhotoUrl(path: string | null | undefined) {
+  const demo = useIsDemo();
+  return useQuery({
+    queryKey: ['member-photo', path],
+    enabled: !!path && !demo,
+    staleTime: 50 * 60_000,
+    queryFn: async () => unwrap(await supabase.storage.from('member-photos').createSignedUrl(path!, 3600)).signedUrl,
+  });
+}
+
 export function useReceiptUrl(path: string | null | undefined) {
   const demo = useIsDemo();
   return useQuery({

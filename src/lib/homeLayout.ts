@@ -14,6 +14,13 @@ export function resolveHomeOrder(saved: string[] | undefined | null): HomeSectio
   return [...kept, ...HOME_SECTIONS.filter((k) => !kept.includes(k))];
 }
 
+/** Same clean-up for any screen's cards: saved order first (unknown and repeated keys dropped), then new cards in default order. */
+export function resolveOrder<T extends string>(saved: readonly string[] | undefined | null, defaults: readonly T[]): T[] {
+  const known = new Set<string>(defaults);
+  const kept = (saved ?? []).filter((k, i, a): k is T => known.has(k) && a.indexOf(k) === i);
+  return [...kept, ...defaults.filter((k) => !kept.includes(k))];
+}
+
 /** The list with the item at `from` moved to `to`. */
 export function moveItem<T>(list: T[], from: number, to: number): T[] {
   const next = list.slice();

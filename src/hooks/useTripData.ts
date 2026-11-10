@@ -7,6 +7,7 @@ import { mergePending } from '@/lib/pending';
 import { computeTripStats } from '@/lib/stats';
 import { useUserId } from '@/providers/AuthProvider';
 import { useOutbox } from '@/store/outbox';
+import { errorCode } from '@/lib/supabase';
 
 /** Everything a trip screen needs, plus the derived figures. */
 export function useTripData() {
@@ -79,8 +80,10 @@ export function useTripData() {
     expenses: list,
     budgets: budgets.data ?? [],
     isLoading: queries.some((q) => q.isLoading),
+    // Offline with nothing saved on this device for this trip yet (paused, or failed for lack of signal)
+    offlineEmpty: queries.some((q) => q.data === undefined && (q.fetchStatus === 'paused' || (!!q.error && errorCode(q.error) === 'network'))),
     // Only a problem when there is nothing to show; offline, the saved copy is used
-    error: queries.find((q) => q.error && q.data === undefined)?.error ?? null,
+    error: queries.find((q) => q.error && q.data === undefined && errorCode(q.error) !== 'network')?.error ?? null,
     refetch: async () => {
       await Promise.all(queries.map((q) => q.refetch()));
     },

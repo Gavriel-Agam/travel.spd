@@ -572,6 +572,20 @@ export function EmptyState({ emoji, title, body, action, onAction }: {
   );
 }
 
+/**
+ * Offline, and this screen's data was never saved on the device (e.g. a trip
+ * opened for the first time on a plane). Never a spinner that waits forever:
+ * it says so, and fills in by itself once the connection is back.
+ */
+export function OfflineNoData({ onRetry }: { onRetry?: () => void }) {
+  const { t } = useT();
+  return (
+    <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+      <EmptyState emoji="📡" title={t('sync.noSavedTitle')} body={t('sync.noSavedBody')} action={onRetry ? t('common.retry') : undefined} onAction={onRetry} />
+    </Screen>
+  );
+}
+
 export function ErrorView({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useT();
   const code = errorCode(error);

@@ -2,6 +2,7 @@
 // public.client_errors (write-only from the app), so problems on the phones
 // can be diagnosed later from the server. Logging never throws.
 import Constants from 'expo-constants';
+import { onlineManager } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import { errorCode, supabase } from './supabase';
 
@@ -40,6 +41,9 @@ export function logError(error: unknown, context: string, extra?: Record<string,
     // Expected outcomes the screen already explains (the demo, a wrong code or
     // password, a partner's concurrent edit): not app errors
     if (EXPECTED.has(code)) return;
+    // No connection is a normal state here (offline mode shows saved data and
+    // queues changes), not an app error; nothing could be sent anyway
+    if (code === 'network' && !onlineManager.isOnline()) return;
     const { message, details } = describe(error);
     console.error(`[${context}] ${code}: ${message}`, error);
 

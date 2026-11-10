@@ -31,7 +31,7 @@ import {
   Button,
   Card,
   ErrorView,
-  Loading, ScreenSkeleton,
+  Loading, ScreenSkeleton, OfflineNoData,
   ProgressBar,
   Row,
   Screen,
@@ -91,6 +91,7 @@ export default function Home() {
   }, [trip, stats]);
 
   if (!trip) return null;
+  if (data.offlineEmpty) return <OfflineNoData onRetry={data.refetch} />;
   if (data.isLoading) return <ScreenSkeleton />;
   if (data.error)
     return (

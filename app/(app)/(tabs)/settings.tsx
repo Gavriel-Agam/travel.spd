@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { SyncStatus } from '@/ui/SyncStatus';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
@@ -164,6 +165,7 @@ export default function Settings() {
   return (
     <Screen>
       <Text variant="title">{t('settings.title')}</Text>
+      <SyncStatus tripId={trip.id} />
 
       {/* Trips (not in the shared MVP trip: a separate trip would be invisible to the partner) */}
       {!trip.shared ? (

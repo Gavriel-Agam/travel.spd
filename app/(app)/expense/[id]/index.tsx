@@ -2,18 +2,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { Image, View } from 'react-native';
-import { useDeleteExpense, useReceiptUrl } from '@/api/queries';
+import { useReceiptUrl } from '@/api/queries';
+import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useTripData } from '@/hooks/useTripData';
-import { useOutbox } from '@/store/outbox';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, invertRate, trimRate } from '@/lib/money';
 import { rateSourceName } from '@/lib/rateLabels';
 import { blockedInDemo } from '@/lib/demoPrompt';
-import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
-import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { Avatar, Banner, Button, Card, Divider, EmptyState, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
 
 export default function ExpenseDetails() {
@@ -21,7 +19,7 @@ export default function ExpenseDetails() {
   const { t, lang } = useT();
   const c = useColors();
   const { trip, isLoading, expenses, memberById, categoryById, members } = useTripData();
-  const del = useDeleteExpense(trip?.id ?? '');
+  const actions = useExpenseActions(trip?.id ?? '');
   const qc = useQueryClient();
   const e = expenses.find((x) => x.id === id);
   const receipt = useReceiptUrl(e?.receipt_path);
@@ -41,25 +39,7 @@ export default function ExpenseDetails() {
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const isHome = e.currency === HOME_CURRENCY;
 
-  async function remove() {
-    if (blockedInDemo(qc)) return;
-    if (e!.pending) {
-      if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
-        useOutbox.getState().remove(e!.id);
-        goBack('/expenses');
-      }
-      return;
-    }
-    const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
-    if (!ok) return;
-    del.mutate(
-      { id: e!.id, version: e!.version },
-      {
-        onSuccess: () => goBack('/expenses'),
-        onError: (err) => showDialog(t('errors.title'), t(`errors.${errorCode(err)}`)),
-      },
-    );
-  }
+  const remove = () => actions.remove(e!, () => goBack('/expenses'));
 
   const Line = ({ label, value }: { label: string; value: string }) => (
     <Row style={{ justifyContent: 'space-between' }} gap={space.md}>
@@ -74,14 +54,19 @@ export default function ExpenseDetails() {
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
         <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/expenses')} />
-        {e.kind === 'expense' && !e.pending ? (
+        {/* An expense with an edit still waiting to sync can be edited again (the newest edit wins) */}
+        {e.kind === 'expense' && (!e.pending || e.pending_op === 'update') ? (
           <IconButton name="create-outline" onPress={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
         ) : null}
       </Row>
 
       {e.pending ? (
         <Banner
-          text={e.pending === 'failed' ? t('sync.detailFailed', { reason: t(`errors.${e.pending_error ?? 'unknown'}`) }) : t('sync.detailWaiting')}
+          text={
+            e.pending === 'failed'
+              ? t(e.pending_op === 'update' ? 'sync.detailFailedEdit' : e.pending_op === 'delete' ? 'sync.detailFailedDelete' : 'sync.detailFailed', { reason: t(`errors.${e.pending_error ?? 'unknown'}`) })
+              : t('sync.detailWaiting')
+          }
           color={e.pending === 'failed' ? c.danger : c.warning}
           icon={e.pending === 'failed' ? 'alert-circle' : 'cloud-upload-outline'}
         />
@@ -193,7 +178,7 @@ export default function ExpenseDetails() {
         </Text>
       ) : null}
 
-      <Button title={t('common.delete')} variant="danger" icon="trash-outline" onPress={remove} loading={del.isPending} />
+      <Button title={t('common.delete')} variant="danger" icon="trash-outline" onPress={remove} loading={actions.removing} />
     </Screen>
   );
 }

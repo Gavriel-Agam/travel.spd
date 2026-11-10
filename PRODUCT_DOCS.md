@@ -3,7 +3,7 @@
 Single source of truth for product scope, UX flows, feature specs and roadmap.
 Technical setup lives in [README.md](README.md). Updated after every spec, flow or roadmap change.
 
-Last updated: 2026-11-08
+Last updated: 2026-11-10
 
 ---
 
@@ -37,7 +37,7 @@ Last updated: 2026-11-08
 | Stats | Trend, category and payment pie charts, pace / projection. |
 | Home | Cards (default order): hero (total + budget), today + daily avg, recent, categories, 7 days, who paid. Long-press to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
 | Categories | Editable per trip (0009 overrides). |
-| Sync | Supabase Realtime between partners; offline outbox with idempotency (0005); sync status banner. |
+| Sync | Supabase Realtime between partners. Offline-first: data saved on the device (30 days) shows instantly with no signal; new expenses, edits and deletes are queued (outbox, idempotent creates 0005, versioned edits/deletes), shown immediately, and sent automatically when the server is reachable again (probe every 10s). Conflicts with a partner's edit are flagged, never overwritten. Banner: offline (showing saved data) → syncing → all synced. |
 | Reliability | Every client error logged to `public.client_errors`; expired sessions recover automatically. |
 | Feedback | Floating panel ("the app is in beta…") with text + Send; X shrinks it into a bell (top left of Home header in Hebrew), bell reopens it. Opens by itself once per app start once a trip exists (new users: right after creating their first trip). Saved to `app_feedback` (0015, write-only); ntfy.sh push/email to the developer via Vault secrets. |
 
@@ -96,6 +96,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-10 | Offline-first: cached reads, queued edits/deletes, auto-sync, offline/synced banner. |
 | 2026-11-08 | Removed partners disappear from every screen except as payer on old expenses. |
 | 2026-11-08 | Cards can be dragged on Statistics and Budget (order per device). |
 | 2026-11-08 | Member profile photos (own photo, visible to the trip). Confetti on every new expense. |

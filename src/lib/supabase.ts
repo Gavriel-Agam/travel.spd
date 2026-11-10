@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { usePrefs } from '@/store/prefs';
+import { isNetworkError, noteNetworkFailure } from './connectivity';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -42,9 +43,30 @@ const webStorage = {
   removeItem: async (k: string) => localStorage.removeItem(k),
 };
 
-// The guest demo never talks to the server: any request (read or write) is refused
-const guardedFetch: typeof fetch = (input, init) =>
-  usePrefs.getState().demo ? Promise.reject(new Error('demo_readonly')) : fetch(input, init);
+// Requests give up after a while instead of hanging on a weak signal (uploads get longer)
+const TIMEOUT = 15_000;
+const UPLOAD_TIMEOUT = 90_000;
+
+// The guest demo never talks to the server: any request (read or write) is refused.
+// A request that fails at network level (or times out) switches the app to
+// offline mode right away: saved data shows and changes are queued.
+const guardedFetch: typeof fetch = (input, init) => {
+  if (usePrefs.getState().demo) return Promise.reject(new Error('demo_readonly'));
+  const href = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+  const upload = /\/storage\/v1\/object/.test(href) && (init?.method ?? 'GET') !== 'GET';
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), upload ? UPLOAD_TIMEOUT : TIMEOUT);
+  // Keep the caller's own cancel signal working too
+  init?.signal?.addEventListener('abort', () => ctrl.abort());
+  return fetch(input, { ...init, signal: ctrl.signal })
+    .catch((e) => {
+      const timedOut = ctrl.signal.aborted && !init?.signal?.aborted;
+      const err = timedOut ? new TypeError('Network request timed out') : e;
+      if (timedOut || isNetworkError(err)) noteNetworkFailure();
+      throw err;
+    })
+    .finally(() => clearTimeout(timer));
+};
 
 export const supabase = createClient(url || 'https://not-configured.supabase.co', anonKey || 'not-configured', {
   global: { fetch: guardedFetch },
@@ -88,5 +110,24 @@ export function errorCode(e: unknown): string {
   const authCode = (e as { code?: string })?.code;
   if (authCode && known.includes(authCode)) return authCode;
   if (/provider is not enabled|Unsupported provider/i.test(msg)) return 'provider_disabled';
-  return known.find((k) => msg.includes(k)) ?? (/network|fetch/i.test(msg) ? 'network' : 'unknown');
+  return known.find((k) => msg.includes(k)) ?? (/network|fetch|timed out|abort|load failed/i.test(msg) || (e as { name?: string })?.name === 'AuthRetryableFetchError' ? 'network' : 'unknown');
+}
+
+/**
+ * The session saved on this device, read without any network. Used when the
+ * app opens offline: Supabase can't refresh an expired login token without a
+ * connection and then reports "no session", which would show the sign-in
+ * screen. The stored one is good enough to show cached data; it is refreshed
+ * as soon as the server is reachable.
+ */
+export async function readStoredSession() {
+  try {
+    const key = (supabase.auth as unknown as { storageKey?: string }).storageKey;
+    const storage = Platform.OS === 'web' ? webStorage : secureChunked;
+    const raw = key ? await storage.getItem(key) : null;
+    const s = raw ? JSON.parse(raw) : null;
+    return s?.user?.id && s?.access_token ? (s as import('@supabase/supabase-js').Session) : null;
+  } catch {
+    return null;
+  }
 }

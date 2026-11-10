@@ -95,9 +95,11 @@ export type Expense = {
   deleted_at: string | null;
   client_id?: string | null;
   expense_splits: ExpenseSplit[];
-  /** Only on expenses queued on this device and not yet saved on the server. */
+  /** Only on expenses with a change queued on this device and not yet saved on the server. */
   pending?: 'waiting' | 'failed';
   pending_error?: string;
+  /** Which change is queued: a new expense, an edit of a saved one, or a delete that failed. */
+  pending_op?: 'create' | 'update' | 'delete';
 };
 
 export type Budget = {

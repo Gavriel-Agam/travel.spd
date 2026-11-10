@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { applyDirection, deviceLang, initI18n } from '@/i18n';
 import { installGlobalErrorLogging, logError } from '@/lib/log';
+import { startConnectivity } from '@/lib/connectivity';
 import { promptSignUp } from '@/lib/demoPrompt';
 import { errorCode, isSupabaseConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
@@ -23,11 +24,16 @@ import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
 import { themes } from '@/palette';
 
-const WEEK = 7 * 24 * 3600_000;
+// Saved data is kept a month: long trips can go days without a usable signal.
+// In memory, unused queries live 24 days: React Query's timer can't go past
+// ~24.8 days (a longer value overflows and drops every query at once).
+const DAY = 24 * 3600_000;
+const MONTH = 30 * DAY;
+const MEMORY = 24 * DAY;
 
 const queryClient: QueryClient = new QueryClient({
-  // Kept for a week so the last-loaded trip still shows when the app opens offline
-  defaultOptions: { queries: { staleTime: 30_000, retry: 2, gcTime: WEEK } },
+  // Kept so the last-loaded trip still shows when the app opens offline
+  defaultOptions: { queries: { staleTime: 30_000, retry: 2, gcTime: MEMORY } },
   // Every failed load or save is logged (console + public.client_errors)
   queryCache: new QueryCache({ onError: (e, query) => logError(e, `query:${JSON.stringify(query.queryKey)}`) }),
   mutationCache: new MutationCache({
@@ -43,6 +49,8 @@ const queryClient: QueryClient = new QueryClient({
 });
 
 installGlobalErrorLogging();
+// Offline detection: the browser's flag at launch, failed requests, and a probe until the server answers
+startConnectivity();
 
 const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: 'travelspend-cache', throttleTime: 2000 });
 
@@ -103,7 +111,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <PersistQueryClientProvider
           client={queryClient}
-          persistOptions={{ persister, maxAge: WEEK, buster: 'v1' }}
+          persistOptions={{ persister, maxAge: MONTH, buster: 'v1' }}
           // Restoring the saved cache must not replace the demo trip
           onSuccess={() => usePrefs.getState().demo && seedDemo(queryClient, i18n.t)}
         >

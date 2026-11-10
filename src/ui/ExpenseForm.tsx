@@ -32,7 +32,7 @@ import { dayKey } from '@/lib/stats';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useUserId } from '@/providers/AuthProvider';
-import { useOutbox } from '@/store/outbox';
+import { editKey, useOutbox } from '@/store/outbox';
 import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import type { Expense } from '@/types/db';
@@ -90,6 +90,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // pass the conflict check and silently overwrite their change (bug #1).
   const [baseVersion] = useState(existing?.version);
   const addToOutbox = useOutbox((s) => s.add);
+  const queueUpdate = useOutbox((s) => s.queueUpdate);
   const userId = useUserId();
 
   const [splitType, setSplitType] = useState<SplitType>(existing?.split_type ?? 'equal');
@@ -263,6 +264,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
     const done = () => {
       noteCurrencyUsed(trip.id, currency);
+      // Saved for real: an older offline edit of this expense must not be sent later
+      if (existing) useOutbox.getState().remove(editKey(existing.id));
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       // A little celebration for every new expense (also when saved offline), not for edits
       if (!existing) useConfetti.getState().fire();
@@ -277,7 +280,18 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       done();
     };
 
-    if (!existing && !onlineManager.isOnline()) return queueOffline();
+    // No signal: keep the edit on the phone and send it later, starting from the
+    // version that was opened (a partner's change meanwhile is caught, not overwritten)
+    const queueEdit = () => {
+      if (localReceipt) return setError(t('form.receiptOffline'));
+      const { version: _v, ...payload } = build(receiptPath);
+      queueUpdate({ expenseId: existing!.id, expectedVersion: existing!.version, tripId: trip.id, createdBy: userId ?? '', queuedAt: new Date().toISOString(), payload });
+      noteCurrencyUsed(trip.id, currency);
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      goBack('/expenses');
+    };
+
+    if (!onlineManager.isOnline()) return existing ? queueEdit() : queueOffline();
 
     setBusy(true);
     try {
@@ -287,13 +301,14 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       done();
     } catch (e) {
       const code = errorCode(e);
-      if (code === 'network' && !existing) {
-        queueOffline();
-      } else if (code === 'network') {
-        setError(t('form.editOffline'));
+      if (code === 'network') {
+        if (existing) queueEdit();
+        else queueOffline();
       } else if (code === 'conflict' && existing) {
         const keepMine = await confirmDialog(t('form.conflictTitle'), t('errors.conflict'), t('form.conflictKeepMine'), t('form.conflictUseTheirs'));
         if (!keepMine) {
+          // Their version wins: a queued edit of mine must not be sent later
+          useOutbox.getState().remove(editKey(existing.id));
           goBack('/expenses');
           return;
         }

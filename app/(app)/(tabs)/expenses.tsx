@@ -158,7 +158,9 @@ export default function Expenses() {
         ) : null}
       </View>
 
-      {data.isLoading ? (
+      {data.offlineEmpty ? (
+        <EmptyState emoji="📡" title={t('sync.noSavedTitle')} body={t('sync.noSavedBody')} action={t('common.retry')} onAction={data.refetch} />
+      ) : data.isLoading ? (
         <ScreenSkeleton rowsOnly />
       ) : data.error ? (
         <ErrorView error={data.error} onRetry={data.refetch} />

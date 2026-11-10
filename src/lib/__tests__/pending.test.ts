@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { mergePending, pendingToExpense } from '../pending';
-import type { OutboxItem } from '@/store/outbox';
+import type { CreateItem } from '@/store/outbox';
 import type { Expense } from '@/types/db';
 
 const A = 'aaaaaaaa-0000-0000-0000-000000000000';
 const B = 'bbbbbbbb-0000-0000-0000-000000000000';
 
-const item = (clientId: string, extra: Partial<OutboxItem['payload']> = {}, error?: string): OutboxItem => ({
+const item = (clientId: string, extra: Partial<CreateItem['payload']> = {}, error?: string): CreateItem => ({
   clientId,
   tripId: 't1',
   createdBy: 'u1',
@@ -67,5 +67,62 @@ describe('mergePending', () => {
   it('drops queued items the server already has, and other trips', () => {
     const other = { ...item('c3'), tripId: 't2' };
     expect(mergePending(saved, [item('c9'), other], 't1').map((e) => e.id)).toEqual(['s1', 's2']);
+  });
+});
+
+describe('mergePending: offline edits and deletes', () => {
+  const saved = (id: string, extra: Partial<Expense> = {}): Expense => ({
+    ...pendingToExpense(item(`c-${id}`)),
+    id,
+    client_id: null,
+    version: 3,
+    pending: undefined,
+    pending_error: undefined,
+    pending_op: undefined,
+    ...extra,
+  });
+  const edit = (expenseId: string, extra: Partial<CreateItem['payload']> = {}, error?: string) => ({
+    ...item(`edit:${expenseId}`, extra, error),
+    kind: 'update' as const,
+    expenseId,
+    expectedVersion: 3,
+  });
+  const del = (expenseId: string, error?: string) => ({
+    clientId: `del:${expenseId}`,
+    tripId: 't1',
+    createdBy: 'u1',
+    queuedAt: '2026-11-03T06:00:00Z',
+    kind: 'delete' as const,
+    expenseId,
+    expectedVersion: 3,
+    error,
+  });
+
+  it('an edit replaces the saved expense, with amounts recomputed and the starting version kept', () => {
+    const [e] = mergePending([saved('e1')], [edit('e1', { amount_minor: 250000, description: 'Dinner' })], 't1');
+    expect(e.id).toBe('e1');
+    expect(e.description).toBe('Dinner');
+    expect(e.amount_ils_minor).toBe(23187); // 2,500 THB at the same rate
+    expect(e.expense_splits.reduce((t, s) => t + s.share_ils_minor, 0)).toBe(23187);
+    expect(e.version).toBe(3);
+    expect(e.pending).toBe('waiting');
+    expect(e.pending_op).toBe('update');
+  });
+
+  it('a delete hides the expense at once, so totals drop', () => {
+    const list = mergePending([saved('e1'), saved('e2')], [del('e1')], 't1');
+    expect(list.map((e) => e.id)).toEqual(['e2']);
+  });
+
+  it('a delete the server refused shows the expense again, marked', () => {
+    const [e] = mergePending([saved('e1')], [del('e1', 'conflict')], 't1');
+    expect(e.pending).toBe('failed');
+    expect(e.pending_op).toBe('delete');
+    expect(e.pending_error).toBe('conflict');
+  });
+
+  it('changes queued for another trip are ignored', () => {
+    const list = mergePending([saved('e1')], [{ ...del('e1'), tripId: 't2' }], 't1');
+    expect(list[0].pending).toBeUndefined();
   });
 });

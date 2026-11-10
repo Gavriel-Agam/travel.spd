@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { SyncStatus } from '@/ui/SyncStatus';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
 import type { ReactNode } from 'react';
@@ -15,7 +16,7 @@ import { alertColor, space, useColors } from '@/theme';
 import type { Budget as BudgetRecord } from '@/types/db';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
-import { Avatar, Button, Card, Chip, Divider, ErrorView, Field, Loading, ScreenSkeleton, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { Avatar, Button, Card, Chip, Divider, ErrorView, Field, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 
@@ -54,6 +55,7 @@ export default function Budget() {
   );
 
   if (!trip) return null;
+  if (data.offlineEmpty) return <OfflineNoData onRetry={data.refetch} />;
   if (isLoading || !stats) return <ScreenSkeleton />;
   if (data.error)
     return (
@@ -227,6 +229,7 @@ export default function Budget() {
   return (
     <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
       <Text variant="title">{t('budget.title')}</Text>
+      <SyncStatus tripId={trip.id} />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
 
       {/* Cards in the order chosen on this device (hold a card to move it) */}

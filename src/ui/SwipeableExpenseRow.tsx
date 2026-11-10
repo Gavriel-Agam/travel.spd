@@ -58,7 +58,8 @@ export function SwipeableExpenseRow({
   const c = useColors();
   const { t, lang } = useT();
   const rtl = lang === 'he';
-  const canEdit = expense.kind === 'expense' && !expense.pending;
+  // A new expense still on the phone can't be edited yet; one with a queued edit can
+  const canEdit = expense.kind === 'expense' && (!expense.pending || expense.pending_op === 'update');
   const width = ACTION_WIDTH * (canEdit ? 2 : 1);
   const x = useRef(new Animated.Value(0)).current;
   const [revealed, setRevealed] = useState(false);

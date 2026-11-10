@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { SyncStatus } from '@/ui/SyncStatus';
 import { RefreshControl, View } from 'react-native';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -11,7 +12,7 @@ import { alertColor, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
-import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
 
 const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'budget', 'partners', 'payment', 'distribution', 'currency'] as const;
 type StatsSection = (typeof STATS_SECTIONS)[number];
@@ -41,6 +42,7 @@ export default function Stats() {
   );
 
   if (!trip) return null;
+  if (data.offlineEmpty) return <OfflineNoData onRetry={data.refetch} />;
   if (isLoading || !stats) return <ScreenSkeleton />;
   if (data.error)
     return (
@@ -332,6 +334,7 @@ export default function Stats() {
   return (
     <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
       <Text variant="title">{t('stats.title')}</Text>
+      <SyncStatus tripId={trip.id} />
 
       {spendingCount === 0 ? (
         <Card>

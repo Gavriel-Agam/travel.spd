@@ -2,12 +2,12 @@
 
 Short running log of what changed and what is open. Product scope and specs live in [PRODUCT_DOCS.md](PRODUCT_DOCS.md).
 
-Last updated: 2026-11-08
+Last updated: 2026-11-10
 
 ## Current state
 - Live at https://gavriel-agam.github.io/travel.spd/ (deploys on push to `main`).
 - Shipped through Stage 4 (trip colour + photo). Migrations 0001-0016.
-- Last deploy: `80a4e67` (rounded swipe tiles, no flash on tab switch + skeletons, copy-code feedback), live 2026-11-08; both Actions runs green.
+- Last deploy: `a17c339` (removed partners hidden everywhere, member photos, drag on Stats/Budget, feedback push-down, centred copy wave, confetti), live 2026-11-08; migration 0016 applied and verified on the live DB; both Actions runs green.
 - Verified: backend, Supabase DB + RLS, Google OAuth.
 - Known: dev-only console warnings on the Stats tab (react-native-svg passes touch handlers of tappable pie slices to the DOM on web); harmless in production.
 - Pending: feedback notifications: ntfy topic created and test push sent (2026-11-08); the live Vault secret `feedback_ntfy_topic` still has to be added (blocked for Claude, done by hand in the Supabase SQL Editor). Until then feedback is only stored.
@@ -15,6 +15,7 @@ Last updated: 2026-11-08
 ## Recent fixes
 | Date | Fix | Files |
 |---|---|---|
+| 2026-11-10 | Offline-first. Reads: saved data restores on launch and shows within ~1s offline (no sign-in screen, no endless skeleton, never "no trips" → onboarding); offline detection = browser flag + any request failing at network level (15s request timeout, 90s for uploads) + a probe every 10s until the server answers; an expired login token no longer blocks start-up (saved session used, refreshed in the background). Cache kept 30 days on disk (in memory 24 days: React Query's timer overflows past ~24.8 days, which had wiped the cache at start-up). Writes: edits and deletes of saved expenses are queued offline too (new expenses already were), shown immediately (totals/balances follow), sent in order on reconnect with the version they started from; a partner's change meanwhile is caught (marked, explained, resolvable via Edit → keep mine / use theirs), never overwritten. Banner on every tab: "מצב לא מקוון - מציג נתונים שמורים" (+ waiting count) → "מסנכרן…" → "הכל מעודכן" for 3s. Offline with nothing saved: clear message instead of a spinner. Connectivity errors no longer logged while offline. Tested on the local stack by stopping the API gateway: launch, offline delete/edit/create, auto-sync ~10s after reconnect, server rows match the offline view, conflict path. Privacy page updated. | `src/lib/connectivity.ts`, `src/lib/supabase.ts`, `src/providers/AuthProvider.tsx`, `app/_layout.tsx`, `app/(app)/_layout.tsx`, `src/store/outbox.ts`, `src/lib/pending.ts` (+tests), `src/hooks/useOutboxSync.ts`, `src/hooks/useExpenseActions.ts`, `src/ui/ExpenseForm.tsx`, `src/ui/SyncStatus.tsx`, tab screens, `src/lib/log.ts`, i18n, `public/privacy.html` |
 | 2026-11-08 | Bug: a removed partner still showed in Statistics ("by partner"). Now removed partners are dropped from balances, settle-up, Who paid, per-partner budget alerts and `me` in `useTripData` (the one source for every screen); they remain only as the payer name on old expenses. The DB keeps the member row (soft remove) so history stays readable. | `src/hooks/useTripData.ts` |
 | 2026-11-08 | Settings: order Trips → current trip → Members → Language; remove-partner icon is a small red trash can. Member photo (0016: `trip_members.photo_path`, private `member-photos` bucket, trip-only access, own row only, +1 SQL check): add/change/remove in "Edit my name" sheet; shown in every member circle instead of the initial. Privacy page (EN + HE) updated. | `supabase/migrations/…0016_member_photos.sql`, `app/(app)/(tabs)/settings.tsx`, `src/ui/primitives.tsx` (Avatar), `src/api/queries.ts`, screens using Avatar, `public/privacy.html` |
 | 2026-11-08 | Drag to reorder cards on Statistics and Budget too (long-press, same grid as Home); order saved on the device (`prefs.screenOrders`). Home's order still syncs to the account. | `src/hooks/useCardOrder.ts`, `src/lib/homeLayout.ts` (`resolveOrder`), `src/store/prefs.ts`, `stats.tsx`, `budget.tsx` |

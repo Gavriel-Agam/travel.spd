@@ -4,13 +4,16 @@ import { useActiveTrip, useCurrencyList, useRates, useTripCoverUrl, useTripRealt
 import { useTripLook } from '@/store/tripLook';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
 import { dayKey } from '@/lib/stats';
-import { ErrorView, Loading, Screen } from '@/ui/primitives';
+import { ErrorView, OfflineNoData, Screen, ScreenSkeleton } from '@/ui/primitives';
+import { useOnline } from '@/hooks/useOutboxSync';
+import { errorCode } from '@/lib/supabase';
 import { useColors } from '@/theme';
 
 export default function AppLayout() {
   const c = useColors();
   const pathname = usePathname();
-  const { trip, isLoading, error, refetch } = useActiveTrip();
+  const { trip, data: trips, error, fetchStatus, refetch } = useActiveTrip();
+  const online = useOnline();
   useCurrencyList();
   useTripRealtime(trip?.id);
   useOutboxSync();
@@ -23,14 +26,19 @@ export default function AppLayout() {
   useEffect(() => setLook({ theme: trip?.theme_color ?? null, coverUrl: cover.data ?? null }), [trip?.theme_color, cover.data]);
   useEffect(() => () => setLook({ theme: null, coverUrl: null }), []);
 
-  // Without a trip the stack shows onboarding: create one, or join with a code
-  if (isLoading) return <Loading />;
-  if (error && !trip)
-    return (
-      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
-        <ErrorView error={error} onRetry={refetch} />
-      </Screen>
-    );
+  // The trip list isn't known yet (still loading, restoring the saved copy, or
+  // offline with nothing saved). Never treat that as "no trips" (which would
+  // send the user to onboarding) and never wait forever.
+  if (trips === undefined) {
+    if (error && errorCode(error) !== 'network')
+      return (
+        <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+          <ErrorView error={error} onRetry={refetch} />
+        </Screen>
+      );
+    if (!online || fetchStatus === 'paused' || error) return <OfflineNoData onRetry={refetch} />;
+    return <ScreenSkeleton />;
+  }
 
   const hasTrip = !!trip;
   // Without a trip, start at the choice screen (create or join). Otherwise the

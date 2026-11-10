@@ -5,6 +5,7 @@ import { HOME_CURRENCY } from '@/lib/currencies';
 import { useT } from '@/i18n';
 import { space, useColors } from '@/theme';
 import type { Category, Expense, Member } from '@/types/db';
+import { CategoryIcon } from './CategoryIcon';
 import { Row, Text } from './primitives';
 
 /**
@@ -46,7 +47,7 @@ export function ExpenseRow({
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 22 }}>{expense.kind === 'settlement' ? '🤝' : category?.icon ?? UNCATEGORIZED.icon}</Text>
+          <CategoryIcon category={category} size={22} emoji={expense.kind === 'settlement' ? '🤝' : undefined} />
         </View>
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={{ fontWeight: '600' }} numberOfLines={1}>

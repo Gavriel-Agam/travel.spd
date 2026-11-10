@@ -1,10 +1,11 @@
+import { onlineManager } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { HERO_GLOW_OPACITY } from '@/palette';
-import { useHomeLayout, useInviteCode } from '@/api/queries';
+import { claimFeedbackPrompt, useHomeLayout, useInviteCode } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
@@ -18,10 +19,11 @@ import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
 import { SortableList } from '@/ui/SortableList';
 import { SyncStatus } from '@/ui/SyncStatus';
+import { CategoryIcon } from '@/ui/CategoryIcon';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTripLook } from '@/store/tripLook';
 import { useFeedback } from '@/store/feedback';
-import { useIsDemo } from '@/store/prefs';
+import { useIsDemo, usePrefs } from '@/store/prefs';
 import { FeedbackBanner, FeedbackBell } from '@/ui/Feedback';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
@@ -66,18 +68,31 @@ export default function Home() {
   const [draggingCard, setDraggingCard] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const actions = useExpenseActions(trip?.id ?? '');
-  // Feedback: signed-in users only (not the demo); opens by itself once per app start
+  // Feedback: signed-in users only (not the demo). Opens by itself once per
+  // account (the first time Home opens after signing up), on any device; after
+  // that only from the bell. The server keeps the "already asked" mark; this
+  // device remembers it too, so it never asks the server again.
   const demo = useIsDemo();
+  const userId = session?.user.id;
   const canFeedback = !!session && !session.user.is_anonymous && !demo;
-  const feedbackShown = useFeedback((s) => s.shownThisSession);
+  const feedbackChecked = useFeedback((s) => s.shownThisSession);
+  const feedbackPrompted = usePrefs((s) => !!userId && s.feedbackPrompted.includes(userId));
   useEffect(() => {
-    if (!canFeedback || !trip || feedbackShown) return;
-    const id = setTimeout(() => {
+    if (!canFeedback || !trip || !userId || feedbackChecked || feedbackPrompted) return;
+    const id = setTimeout(async () => {
+      // Offline: ask on a later start
+      if (!onlineManager.isOnline()) return;
       useFeedback.getState().markShown();
-      useFeedback.getState().setOpen(true);
+      try {
+        const first = await claimFeedbackPrompt();
+        usePrefs.getState().markFeedbackPrompted(userId);
+        if (first) useFeedback.getState().setOpen(true);
+      } catch {
+        // No answer from the server: try again on the next start
+      }
     }, 1200);
     return () => clearTimeout(id);
-  }, [canFeedback, trip?.id, feedbackShown]);
+  }, [canFeedback, trip?.id, userId, feedbackChecked, feedbackPrompted]);
   // The panel lives at the top of the page: bring it into view when it opens
   const feedbackOpen = useFeedback((s) => s.open);
   useEffect(() => {
@@ -294,7 +309,7 @@ export default function Home() {
           return (
             <View key={row.categoryId ?? 'none'} style={{ gap: 6 }}>
               <Row>
-                <Text>{cat?.icon ?? UNCATEGORIZED.icon}</Text>
+                <CategoryIcon category={cat} size={15} />
                 <Text style={{ flex: 1 }} numberOfLines={1}>
                   {categoryLabel(cat, t)}
                 </Text>

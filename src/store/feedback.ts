@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 
 /**
- * The feedback panel (not saved): open or closed, whether it was already shown
- * this session (it opens by itself once per app start), and a counter the bell
- * watches to give a little nudge when the panel collapses into it.
+ * The feedback panel (not saved): open or closed, whether this app start
+ * already checked if it should open by itself (only once per account, ever:
+ * see claim_feedback_prompt), and a counter the bell watches to give a little
+ * nudge when the panel collapses into it.
  */
 type FeedbackState = {
   open: boolean;

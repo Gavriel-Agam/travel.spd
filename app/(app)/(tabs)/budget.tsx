@@ -7,7 +7,7 @@ import { useSetBudget } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { dailySeries, type BudgetStatus } from '@/lib/budget';
-import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
+import { categoryLabel } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, minorToInput, parseAmount } from '@/lib/money';
 import { errorCode } from '@/lib/supabase';
@@ -17,6 +17,7 @@ import type { Budget as BudgetRecord } from '@/types/db';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Chip, Divider, ErrorView, Field, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 
@@ -191,7 +192,7 @@ export default function Budget() {
               <View key={s.key} style={{ gap: space.sm }}>
                 {i > 0 ? <Divider /> : null}
                 <BudgetLine
-                  icon={cat?.icon ?? UNCATEGORIZED.icon}
+                  icon={<CategoryIcon category={cat} size={18} />}
                   title={categoryLabel(cat, t)}
                   status={s}
                   onPress={() => open({ scope: 'category', category_id: s.key, title: categoryLabel(cat, t) })}
@@ -247,7 +248,7 @@ export default function Budget() {
           {unbudgeted.map((cat) => (
             <Chip
               key={cat.id}
-              icon={cat.icon}
+              icon={<CategoryIcon category={cat} size={15} />}
               label={categoryLabel(cat, t)}
               onPress={() => open({ scope: 'category', category_id: cat.id, title: categoryLabel(cat, t) })}
             />
@@ -278,7 +279,7 @@ function BudgetLine({
 }: {
   title: string;
   subtitle?: string;
-  icon?: string;
+  icon?: ReactNode;
   avatar?: ReactNode;
   status?: BudgetStatus;
   onPress: () => void;
@@ -290,7 +291,7 @@ function BudgetLine({
     <Pressable onPress={onPress} style={({ pressed }) => ({ gap: 6, opacity: pressed ? 0.7 : 1 })}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Row gap={space.sm} style={{ flex: 1 }}>
-          {avatar ?? (icon ? <Text style={{ fontSize: 18 }}>{icon}</Text> : null)}
+          {avatar ?? icon ?? null}
           <Text variant="h2" numberOfLines={1} style={{ flexShrink: 1 }}>
             {title}
           </Text>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useActiveTrip, useBudgets, useCategories, useExpenses, useMembers } from '@/api/queries';
 import { budgetStatuses, topAlert } from '@/lib/budget';
-import { categoryMap, isSelectable } from '@/lib/categories';
+import { categoryMap, isSelectable, orderCategories } from '@/lib/categories';
 import { computeBalances, settleUp } from '@/lib/settlement';
 import { mergePending } from '@/lib/pending';
 import { computeTripStats } from '@/lib/stats';
@@ -19,6 +19,12 @@ export function useTripData() {
   const expenses = useExpenses(tripId);
   const budgets = useBudgets(tripId);
   const outbox = useOutbox((s) => s.items);
+  // In the order chosen for this trip (Categories screen or a long press in the expense form)
+  const orderKey = trip?.category_order?.join(',') ?? '';
+  const sortedCategories = useMemo(
+    () => orderCategories(categories.data ?? [], trip?.category_order),
+    [categories.data, orderKey],
+  );
 
   // Saved expenses plus ones queued offline on this device
   const list = useMemo(
@@ -75,8 +81,8 @@ export function useTripData() {
     // Current partners only (pickers, counts, Settings); memberById also has removed ones
     members: (members.data ?? []).filter((m) => !m.removed_at),
     // Pickers, filters and budgets: only categories still in use; categoryById has all
-    categories: (categories.data ?? []).filter(isSelectable),
-    allCategories: categories.data ?? [],
+    categories: sortedCategories.filter(isSelectable),
+    allCategories: sortedCategories,
     expenses: list,
     budgets: budgets.data ?? [],
     isLoading: queries.some((q) => q.isLoading),

@@ -9,9 +9,11 @@ import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, invertRate, trimRate } from '@/lib/money';
+import { paymentLabel } from '@/lib/payments';
 import { rateSourceName } from '@/lib/rateLabels';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { radius, space, useColors } from '@/theme';
+import { CategoryIcon } from '@/ui/CategoryIcon';
 import { Avatar, Banner, Button, Card, Divider, EmptyState, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
 
 export default function ExpenseDetails() {
@@ -83,7 +85,7 @@ export default function ExpenseDetails() {
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 32 }}>{e.kind === 'settlement' ? '🤝' : cat?.icon ?? UNCATEGORIZED.icon}</Text>
+          <CategoryIcon category={cat} size={32} emoji={e.kind === 'settlement' ? '🤝' : undefined} />
         </View>
         <Text variant="h2" center>
           {e.kind === 'settlement'
@@ -111,7 +113,7 @@ export default function ExpenseDetails() {
         {e.payment_method ? (
           <>
             <Divider />
-            <Line label={t('form.paymentMethod')} value={t(`payment.${e.payment_method}`)} />
+            <Line label={t('form.paymentMethod')} value={paymentLabel(e.payment_method, t)} />
           </>
         ) : null}
       </Card>

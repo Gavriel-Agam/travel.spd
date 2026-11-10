@@ -1,7 +1,7 @@
 // Small, dependency-free charts on react-native-svg. Every chart is tappable:
 // selecting a slice or bar reports its key so the screen can show details.
 // Time axes always run left to right, also in Hebrew.
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View, type LayoutChangeEvent, type ScrollViewInstance } from 'react-native';
 import Svg, { Circle, G, Line, Path, Polyline, Rect } from 'react-native-svg';
 import { useColors } from '@/theme';
@@ -253,6 +253,7 @@ export function PaceChart({
 export function LegendRow({
   color,
   label,
+  icon,
   value,
   pct,
   selected,
@@ -260,6 +261,8 @@ export function LegendRow({
 }: {
   color: string;
   label: string;
+  /** Shown before the label (e.g. a category's emoji or picture). */
+  icon?: ReactNode;
   value: string;
   pct?: number;
   selected?: boolean;
@@ -280,6 +283,7 @@ export function LegendRow({
       })}
     >
       <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: color }} />
+      {icon ?? null}
       <Text style={{ flex: 1 }} numberOfLines={1}>
         {label}
       </Text>

@@ -49,6 +49,35 @@ const variants: Record<Variant, TextStyle> = {
   mono: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
 };
 
+const LETTER = /\p{L}/u;
+
+/** The text of plain string / number children, or null when there is anything else inside. */
+function plainText(children: ReactNode): string | null {
+  if (children == null || typeof children === 'boolean') return '';
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  if (Array.isArray(children)) {
+    let out = '';
+    for (const ch of children) {
+      const part = plainText(ch);
+      if (part == null) return null;
+      out += part;
+    }
+    return out;
+  }
+  return null;
+}
+
+/**
+ * Amounts and other text without letters ("700.64 ₪", "12%"). The browser
+ * reads them as left-to-right and lines them up on the left even in Hebrew;
+ * they should start on the right like the words around them.
+ */
+function rtlNumbersOnly(children: ReactNode) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined' || document.documentElement.dir !== 'rtl') return false;
+  const text = plainText(children);
+  return text != null && text.trim() !== '' && !LETTER.test(text);
+}
+
 export function Text({
   variant = 'body',
   muted,
@@ -66,7 +95,7 @@ export function Text({
         variants[variant],
         { color: color ?? (faint ? c.textFaint : muted ? c.textMuted : c.text), writingDirection: 'auto' },
         // Start-aligned text that follows the layout direction
-        { textAlign: center ? 'center' : 'auto' },
+        { textAlign: center ? 'center' : rtlNumbersOnly(rest.children) ? 'right' : 'auto' },
         style,
       ]}
     />
@@ -266,21 +295,27 @@ export function IconButton({ name, onPress, size = 22, color, label }: {
   );
 }
 
-export function Chip({ label, selected, onPress, icon, color }: {
+export function Chip({ label, selected, onPress, onLongPress, icon, color }: {
   label: string;
   selected?: boolean;
   onPress?: () => void;
-  icon?: string;
+  /** Also stops a long hold from counting as a tap (chips that can be dragged). */
+  onLongPress?: () => void;
+  /** An emoji, or a ready element (e.g. a category's picture). */
+  icon?: string | ReactNode;
   color?: string;
 }) {
   const c = useColors();
   const accent = color ?? c.primary;
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!selected }}
       onPress={() => {
         tap();
         onPress?.();
       }}
+      onLongPress={onLongPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -295,7 +330,7 @@ export function Chip({ label, selected, onPress, icon, color }: {
         opacity: pressed ? 0.8 : 1,
       })}
     >
-      {icon ? <RNText style={{ fontSize: 15 }}>{icon}</RNText> : null}
+      {typeof icon === 'string' ? <RNText style={{ fontSize: 15 }}>{icon}</RNText> : icon ?? null}
       <Text variant="label" color={c.text} style={selected ? { fontWeight: '700' } : undefined}>
         {label}
       </Text>
@@ -424,19 +459,21 @@ export function Field({ label, error, hint, style, ...input }: TextInputProps & 
   );
 }
 
-export function ListRow({ icon, iconBg, title, subtitle, right, onPress, chevron }: {
+export function ListRow({ icon, iconBg, title, subtitle, right, onPress, onLongPress, chevron }: {
   icon?: ReactNode;
   iconBg?: string;
   title: string;
   subtitle?: string;
   right?: ReactNode;
   onPress?: PressableProps['onPress'];
+  /** Also keeps a long hold (picking the row up to drag it) from counting as a tap. */
+  onLongPress?: PressableProps['onLongPress'];
   chevron?: boolean;
 }) {
   const c = useColors();
   const { lang } = useT();
   return (
-    <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} disabled={!onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <Row gap={space.md} style={{ paddingVertical: 10 }}>
         {icon ? (
           <View

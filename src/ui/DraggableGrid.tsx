@@ -39,6 +39,8 @@ export function DraggableGrid({
   scrollRef,
   scroll,
   onDragging,
+  columns: fixedColumns,
+  gap = space.lg,
 }: {
   items: GridItem[];
   onReorder: (keys: string[]) => void;
@@ -46,10 +48,14 @@ export function DraggableGrid({
   /** The page's scroll offset and how far it can scroll, kept up to date by the screen. */
   scroll: RefObject<{ y: number; max: number }>;
   onDragging: (dragging: boolean) => void;
+  /** Fixed number of columns (a list: 1); by default it follows the screen width. */
+  columns?: number;
+  /** Space between cards. */
+  gap?: number;
 }) {
   const c = useColors();
   const { width, height } = useWindowDimensions();
-  const cols = columnCount(width);
+  const cols = fixedColumns ?? columnCount(width);
   const keys = items.map((i) => i.key);
   const columns = splitColumns(items, cols);
 
@@ -234,13 +240,13 @@ export function DraggableGrid({
       ? {
           left: lineRect.x - grid.x + space.sm,
           width: lineRect.width - space.sm * 2,
-          top: (drag!.side === 'before' ? lineRect.y - space.lg / 2 : lineRect.y + lineRect.height + space.lg / 2) - grid.y - 2,
+          top: (drag!.side === 'before' ? lineRect.y - gap / 2 : lineRect.y + lineRect.height + gap / 2) - grid.y - 2,
         }
       : null;
 
   return (
     // 'row' already runs right to left in Hebrew
-    <View ref={gridRef} style={{ flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' }}>
+    <View ref={gridRef} style={{ flexDirection: 'row', gap, alignItems: 'flex-start' }}>
       {/* Drag mode: a faint grid behind the cards */}
       {drag ? (
         <View pointerEvents="none" style={{ position: 'absolute', top: -space.sm, bottom: -space.sm, left: -space.sm, right: -space.sm, borderRadius: radii.lg, overflow: 'hidden' }}>
@@ -256,7 +262,7 @@ export function DraggableGrid({
         </View>
       ) : null}
       {columns.map((colItems, col) => (
-        <View key={col} style={{ flex: 1, gap: space.lg, zIndex: drag && colItems.some((i) => i.key === drag.key) ? 10 : 0 }}>
+        <View key={col} style={{ flex: 1, gap, zIndex: drag && colItems.some((i) => i.key === drag.key) ? 10 : 0 }}>
           {colItems.map((item) => {
             const lifted = drag?.key === item.key;
             return (

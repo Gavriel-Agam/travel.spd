@@ -7,11 +7,13 @@ import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, type SaveExpenseInput } from '@/api/queries';
+import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useSetCategoryOrder, useSetPaymentMethods, type SaveExpenseInput } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
-import { categoryLabel } from '@/lib/categories';
+import { categoryLabel, nextCategoryOrder } from '@/lib/categories';
+import { BUILTIN_PAYMENTS, cleanPaymentName, MAX_CUSTOM_PAYMENTS, PAYMENT_NAME_MAX, paymentIcon, paymentLabel } from '@/lib/payments';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import {
   convertToHomeMinor,
@@ -36,28 +38,27 @@ import { editKey, useOutbox } from '@/store/outbox';
 import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import type { Expense } from '@/types/db';
+import { CategoryIcon } from './CategoryIcon';
 import { CurrencyPicker } from './CurrencyPicker';
+import { ReorderChips } from './ReorderChips';
+import { Sheet } from './Sheet';
 import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
-import { Button, Chip, Divider, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
+import { Button, Chip, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
 
 type RateMode = 'stored' | 'auto' | 'manual';
 
-// Quick picks right under the category; "other" stays only for older expenses that use it
 // The "Paid by" option for joint money (a shared wallet or joint card)
 const JOINT = '__joint';
-
-const PAYMENT_METHODS = [
-  { key: 'card', icon: '💳' },
-  { key: 'cash', icon: '💵' },
-  { key: 'transfer', icon: '🏦' },
-] as const;
 
 export function ExpenseForm({ existing }: { existing?: Expense }) {
   const { t, lang } = useT();
   const c = useColors();
-  const { trip, members, categories, me, memberById } = useTripData();
+  const { trip, members, categories, allCategories, me, memberById } = useTripData();
   const save = useSaveExpense(trip?.id ?? '');
+  const setCategoryOrder = useSetCategoryOrder(trip?.id ?? '');
+  const setPaymentMethods = useSetPaymentMethods(trip?.id ?? '');
+  const customPayments = trip?.payment_methods ?? [];
   const queryClient = useQueryClient();
   const lastCurrency = usePrefs((s) => (trip ? s.lastCurrency[trip.id] : undefined));
   const noteCurrencyUsed = usePrefs((s) => s.noteCurrencyUsed);
@@ -75,7 +76,14 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(existing?.payment_method ?? null);
   const [receiptPath, setReceiptPath] = useState<string | null>(existing?.receipt_path ?? null);
   const [localReceipt, setLocalReceipt] = useState<{ uri: string; mime: string } | null>(null);
-  const [showMore, setShowMore] = useState(!!(existing?.notes || existing?.receipt_path));
+  // Who paid, split, date, notes and receipt: folded away until opened
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  // A category chip is being dragged: the form stops scrolling meanwhile
+  const [draggingChip, setDraggingChip] = useState(false);
+  // Adding the trip's own payment method
+  const [addingPayment, setAddingPayment] = useState(false);
+  const [newPayment, setNewPayment] = useState('');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [pickCurrency, setPickCurrency] = useState(false);
   const [rateMode, setRateMode] = useState<RateMode>(existing ? (existing.fx_is_manual ? 'manual' : 'stored') : 'auto');
   const [manualRate, setManualRate] = useState(existing?.fx_is_manual ? trimRate(existing.fx_rate) : '');
@@ -233,7 +241,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       return;
     }
     if (!effectiveRate) return setError(t('form.rateRequired'));
-    if (!splitCheck.ok) return setError(t('errors.invalid_split'));
+    if (!splitCheck.ok) {
+      // The split lives under "More details": show it
+      setDetailsOpen(true);
+      return setError(t('errors.invalid_split'));
+    }
     setError(null);
 
     const auto = rateMode === 'auto' && currency !== HOME_CURRENCY;
@@ -322,9 +334,43 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     }
   }
 
+  // ---------------------------------------------------------------- payment methods
+  function addPayment() {
+    const name = cleanPaymentName(newPayment, customPayments, t);
+    if (!name) return setPaymentError(newPayment.trim() ? t('payment.addInvalid') : null);
+    if (customPayments.length >= MAX_CUSTOM_PAYMENTS) return setPaymentError(t('payment.addLimit', { count: MAX_CUSTOM_PAYMENTS }));
+    // Shared with the trip (shows at once; sent when there is a connection) and chosen for this expense
+    setPaymentMethods.mutate([...customPayments, name]);
+    setPaymentMethod(name);
+    setNewPayment('');
+    setPaymentError(null);
+    setAddingPayment(false);
+  }
+  async function removePayment(name: string) {
+    const ok = await confirmDialog(t('payment.removeConfirm', { name }), t('payment.removeBody'), t('common.delete'), t('common.cancel'), true);
+    if (!ok) return;
+    setPaymentMethods.mutate(customPayments.filter((n) => n !== name));
+  }
+
   if (!trip) return null;
 
   // ---------------------------------------------------------------- render
+  const locale = lang === 'he' ? 'he-IL' : 'en-GB';
+  // What "More details" holds, in one line while it is folded
+  const detailsSummary = [
+    members.length > 1 ? (payerId === null ? t('form.joint') : memberById.get(payerId)?.display_name) : null,
+    `${occurredAt.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} ${occurredAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`,
+    notes.trim() ? '📝' : null,
+    localReceipt || receiptPath ? '🧾' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  // Payment chips: built-ins, the trip's own, and an older expense's method that is no longer listed
+  const paymentKeys: string[] = [
+    ...BUILTIN_PAYMENTS.map((p) => p.key),
+    ...customPayments,
+    ...(paymentMethod && !BUILTIN_PAYMENTS.some((p) => p.key === paymentMethod) && !customPayments.includes(paymentMethod) ? [paymentMethod] : []),
+  ];
   const rateInfo = (() => {
     if (currency === HOME_CURRENCY) return null;
     if (rateMode === 'manual') return t('form.rateManual');
@@ -341,7 +387,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         <View style={{ width: 40 }} />
       </Row>
 
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!draggingChip}
+        contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl }}
+      >
         {/* Amount + currency */}
         <View style={{ alignItems: 'center', gap: space.sm }}>
           <Pressable
@@ -426,217 +476,254 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           ) : null}
         </View>
 
-        {/* Category */}
+        {/* Category: hold a chip to drag it to a new place (saved for the trip) */}
         <View style={{ gap: space.sm }}>
-          <Text variant="label" muted>
-            {t('form.category')}
+          <SectionTitle icon="pricetag-outline" title={t('form.category')} />
+          <ReorderChips
+            items={categories.map((cat) => ({
+              key: cat.id,
+              node: (
+                <Chip
+                  icon={<CategoryIcon category={cat} size={15} />}
+                  label={categoryLabel(cat, t)}
+                  color={cat.color}
+                  selected={categoryId === cat.id}
+                  onPress={() => setCategoryId(categoryId === cat.id ? null : cat.id)}
+                  onLongPress={() => {}}
+                />
+              ),
+            }))}
+            onReorder={(keys) => setCategoryOrder.mutate(nextCategoryOrder(allCategories, keys))}
+            onDragging={setDraggingChip}
+          />
+          <Text variant="caption" faint>
+            {t('form.categoryDragHint')}
           </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-            {categories.map((cat) => (
-              <Chip
-                key={cat.id}
-                icon={cat.icon}
-                label={categoryLabel(cat, t)}
-                color={cat.color}
-                selected={categoryId === cat.id}
-                onPress={() => setCategoryId(categoryId === cat.id ? null : cat.id)}
-              />
-            ))}
-          </View>
         </View>
+
+        {/* A clear break: categories above, how it was paid below */}
+        <SectionBreak />
 
         {/* Payment method */}
         <View style={{ gap: space.sm }}>
-          <Text variant="label" muted>
-            {t('form.paymentMethod')}
-          </Text>
+          <SectionTitle icon="card-outline" title={t('form.paymentMethod')} />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-            {PAYMENT_METHODS.map((m) => (
+            {paymentKeys.map((key) => (
               <Chip
-                key={m.key}
-                icon={m.icon}
-                label={t(`payment.${m.key}`)}
-                selected={paymentMethod === m.key}
-                onPress={() => setPaymentMethod(paymentMethod === m.key ? null : m.key)}
+                key={key}
+                icon={paymentIcon(key)}
+                label={paymentLabel(key, t)}
+                selected={paymentMethod === key}
+                onPress={() => setPaymentMethod(paymentMethod === key ? null : key)}
               />
             ))}
-            {paymentMethod === 'other' ? <Chip label={t('payment.other')} selected onPress={() => setPaymentMethod(null)} /> : null}
+            <Chip
+              icon={<Ionicons name="add" size={16} color={c.primary} />}
+              label={t('payment.add')}
+              onPress={() => {
+                setPaymentError(null);
+                setNewPayment('');
+                setAddingPayment(true);
+              }}
+            />
           </View>
         </View>
 
+        <SectionBreak />
+
+
         <Field label={t('form.description')} value={description} onChangeText={setDescription} placeholder={t('form.descriptionPlaceholder')} maxLength={120} />
 
-        {/* Who paid */}
-        {members.length > 1 ? (
-          <View style={{ gap: space.sm }}>
-            <Text variant="label" muted>
-              {t('form.paidBy')}
-            </Text>
-            <Segmented
-              options={[{ value: JOINT, label: t('form.joint') }, ...members.map((m) => ({ value: m.id, label: m.display_name }))]}
-              value={payerId ?? JOINT}
-              onChange={(v) => {
-                setPayerId(v === JOINT ? null : v);
-                // A treat belongs to whoever paid; it has no meaning for joint money
-                if (v === JOINT && splitType === 'treat') setSplitType('equal');
-              }}
-            />
-            {payerId === null ? (
-              <Text variant="caption" muted>
-                {t('form.jointHint')}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Split: only when one person paid (joint money is shared by everyone) */}
-        {members.length > 1 && payerId !== null ? (
-          <View style={{ gap: space.sm }}>
-            <Text variant="label" muted>
-              {t('form.split')}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
-              {(['equal', 'treat', 'personal', 'percent', 'amount'] as const).map((type) => (
-                <Chip
-                  key={type}
-                  label={type === 'equal' && members.length > 2 ? t('split.equalN') : t(`split.${type}`)}
-                  selected={splitType === type}
-                  onPress={() => setSplitType(type)}
-                />
-              ))}
-            </ScrollView>
-
-            {splitType === 'equal' && members.length > 2 ? (
-              <Row style={{ flexWrap: 'wrap' }}>
-                {members.map((m) => (
-                  <Chip
-                    key={m.id}
-                    label={m.display_name}
-                    color={m.color}
-                    selected={equalIds.includes(m.id)}
-                    onPress={() => setEqualIds((ids) => (ids.includes(m.id) ? ids.filter((x) => x !== m.id) : [...ids, m.id]))}
-                  />
-                ))}
-              </Row>
-            ) : null}
-            {splitType === 'treat' ? (
-              <Text variant="caption" muted>
-                {t('split.treatHint', { name: memberById.get(payerId)?.display_name ?? '' })}
-              </Text>
-            ) : null}
-            {splitType === 'personal' ? (
-              <View style={{ gap: 6 }}>
-                <Text variant="caption" muted>
-                  {t('split.belongsTo')}
-                </Text>
-                <Segmented
-                  options={members.map((m) => ({ value: m.id, label: m.display_name }))}
-                  value={personalId ?? payerId}
-                  onChange={setPersonalId}
-                />
-              </View>
-            ) : null}
-            {splitType === 'percent' || splitType === 'amount'
-              ? members.map((m) => (
-                  <Row key={m.id} gap={space.md}>
-                    <Text style={{ flex: 1 }}>{m.display_name}</Text>
-                    <TextInput
-                      value={(splitType === 'percent' ? percents : amounts)[m.id] ?? ''}
-                      onChangeText={(v) => setComplement(splitType, m.id, v.replace(',', '.').replace(/[^\d.]/g, ''))}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={c.textFaint}
-                      style={{
-                        width: 120,
-                        height: 42,
-                        borderRadius: radius.sm,
-                        backgroundColor: c.cardAlt,
-                        paddingHorizontal: space.md,
-                        fontSize: 16,
-                        color: c.text,
-                        textAlign: 'center',
-                      }}
-                    />
-                    <Text muted style={{ width: 28 }}>
-                      {splitType === 'percent' ? '%' : cur.symbol}
-                    </Text>
-                  </Row>
-                ))
-              : null}
-
-            {shares ? (
-              <Row style={{ flexWrap: 'wrap', backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }} gap={space.md}>
-                {shares.map((s) => (
-                  <Text key={s.memberId} variant="caption">
-                    {t('split.shareOf', { name: memberById.get(s.memberId)?.display_name ?? '', amount: formatMoney(s.share, HOME_CURRENCY, { lang }) })}
-                  </Text>
-                ))}
-              </Row>
-            ) : amountMinor != null && !splitCheck.ok ? (
-              <Text variant="caption" color={c.danger}>
-                {t('errors.invalid_split')}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Date / time */}
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Text variant="label" muted>
-            {t('form.date')}
-          </Text>
-          <Row gap={space.sm}>
-            <DateField value={occurredAt} onChange={changeDate} />
-            <DateField value={occurredAt} onChange={changeDate} mode="time" />
-          </Row>
-        </Row>
-
-        <Divider />
-
-        {showMore ? (
-          <View style={{ gap: space.lg }}>
-            <Field label={t('form.notes')} value={notes} onChangeText={setNotes} placeholder={t('form.notesPlaceholder')} multiline maxLength={1000} style={{ minHeight: 80, textAlignVertical: 'top' }} />
-            <View style={{ gap: space.sm }}>
-              <Text variant="label" muted>
-                {t('form.receipt')}
-              </Text>
-              {localReceipt || remoteReceipt.data ? (
-                <View style={{ gap: space.sm }}>
-                  <Image source={{ uri: localReceipt?.uri ?? remoteReceipt.data }} style={{ width: '100%', height: 200, borderRadius: radius.md }} resizeMode="cover" />
-                  <Button
-                    title={t('form.removeReceipt')}
-                    variant="danger"
-                    onPress={() => {
-                      setLocalReceipt(null);
-                      setReceiptPath(null);
-                    }}
-                  />
-                </View>
-              ) : (
-                <Row gap={space.sm}>
-                  {Platform.OS !== 'web' ? (
-                    <Button title={t('form.takePhoto')} icon="camera-outline" variant="secondary" onPress={() => pickReceipt('camera')} style={{ flex: 1 }} />
-                  ) : null}
-                  <Button title={t('form.choosePhoto')} icon="image-outline" variant="secondary" onPress={() => pickReceipt('library')} style={{ flex: 1 }} />
-                </Row>
-              )}
-            </View>
-          </View>
-        ) : (
+        {/* More details: who paid, split, date, notes, receipt. Folded until opened. */}
+        <View style={{ gap: space.lg }}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: detailsOpen }}
             onPress={() => {
               tap();
-              setShowMore(true);
+              setDetailsOpen((v) => !v);
             }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.sm,
+              backgroundColor: c.cardAlt,
+              borderRadius: radius.md,
+              paddingHorizontal: space.md,
+              paddingVertical: 12,
+              opacity: pressed ? 0.8 : 1,
+            })}
           >
-            <Row>
-              <Ionicons name="add-circle-outline" size={18} color={c.primary} />
-              <Text variant="label" color={c.primary}>
+            <Ionicons name="options-outline" size={18} color={c.primary} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="label" color={c.text}>
                 {t('form.more')}
               </Text>
-            </Row>
+              {!detailsOpen ? (
+                <Text variant="caption" muted numberOfLines={1}>
+                  {detailsSummary}
+                </Text>
+              ) : null}
+            </View>
+            <Ionicons name={detailsOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
           </Pressable>
-        )}
+
+          {detailsOpen ? (
+            <Animated.View entering={FadeIn.duration(180)} style={{ gap: space.lg }}>
+              {/* Who paid */}
+              {members.length > 1 ? (
+                <View style={{ gap: space.sm }}>
+                  <Text variant="label" muted>
+                    {t('form.paidBy')}
+                  </Text>
+                  <Segmented
+                    options={[{ value: JOINT, label: t('form.joint') }, ...members.map((m) => ({ value: m.id, label: m.display_name }))]}
+                    value={payerId ?? JOINT}
+                    onChange={(v) => {
+                      setPayerId(v === JOINT ? null : v);
+                      // A treat belongs to whoever paid; it has no meaning for joint money
+                      if (v === JOINT && splitType === 'treat') setSplitType('equal');
+                    }}
+                  />
+                  {payerId === null ? (
+                    <Text variant="caption" muted>
+                      {t('form.jointHint')}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Split: only when one person paid (joint money is shared by everyone) */}
+              {members.length > 1 && payerId !== null ? (
+                <View style={{ gap: space.sm }}>
+                  <Text variant="label" muted>
+                    {t('form.split')}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
+                    {(['equal', 'treat', 'personal', 'percent', 'amount'] as const).map((type) => (
+                      <Chip
+                        key={type}
+                        label={type === 'equal' && members.length > 2 ? t('split.equalN') : t(`split.${type}`)}
+                        selected={splitType === type}
+                        onPress={() => setSplitType(type)}
+                      />
+                    ))}
+                  </ScrollView>
+
+                  {splitType === 'equal' && members.length > 2 ? (
+                    <Row style={{ flexWrap: 'wrap' }}>
+                      {members.map((m) => (
+                        <Chip
+                          key={m.id}
+                          label={m.display_name}
+                          color={m.color}
+                          selected={equalIds.includes(m.id)}
+                          onPress={() => setEqualIds((ids) => (ids.includes(m.id) ? ids.filter((x) => x !== m.id) : [...ids, m.id]))}
+                        />
+                      ))}
+                    </Row>
+                  ) : null}
+                  {splitType === 'treat' ? (
+                    <Text variant="caption" muted>
+                      {t('split.treatHint', { name: memberById.get(payerId)?.display_name ?? '' })}
+                    </Text>
+                  ) : null}
+                  {splitType === 'personal' ? (
+                    <View style={{ gap: 6 }}>
+                      <Text variant="caption" muted>
+                        {t('split.belongsTo')}
+                      </Text>
+                      <Segmented
+                        options={members.map((m) => ({ value: m.id, label: m.display_name }))}
+                        value={personalId ?? payerId}
+                        onChange={setPersonalId}
+                      />
+                    </View>
+                  ) : null}
+                  {splitType === 'percent' || splitType === 'amount'
+                    ? members.map((m) => (
+                        <Row key={m.id} gap={space.md}>
+                          <Text style={{ flex: 1 }}>{m.display_name}</Text>
+                          <TextInput
+                            value={(splitType === 'percent' ? percents : amounts)[m.id] ?? ''}
+                            onChangeText={(v) => setComplement(splitType, m.id, v.replace(',', '.').replace(/[^\d.]/g, ''))}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={c.textFaint}
+                            style={{
+                              width: 120,
+                              height: 42,
+                              borderRadius: radius.sm,
+                              backgroundColor: c.cardAlt,
+                              paddingHorizontal: space.md,
+                              fontSize: 16,
+                              color: c.text,
+                              textAlign: 'center',
+                            }}
+                          />
+                          <Text muted style={{ width: 28 }}>
+                            {splitType === 'percent' ? '%' : cur.symbol}
+                          </Text>
+                        </Row>
+                      ))
+                    : null}
+
+                  {shares ? (
+                    <Row style={{ flexWrap: 'wrap', backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }} gap={space.md}>
+                      {shares.map((s) => (
+                        <Text key={s.memberId} variant="caption">
+                          {t('split.shareOf', { name: memberById.get(s.memberId)?.display_name ?? '', amount: formatMoney(s.share, HOME_CURRENCY, { lang }) })}
+                        </Text>
+                      ))}
+                    </Row>
+                  ) : amountMinor != null && !splitCheck.ok ? (
+                    <Text variant="caption" color={c.danger}>
+                      {t('errors.invalid_split')}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Date / time */}
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Text variant="label" muted>
+                  {t('form.date')}
+                </Text>
+                <Row gap={space.sm}>
+                  <DateField value={occurredAt} onChange={changeDate} />
+                  <DateField value={occurredAt} onChange={changeDate} mode="time" />
+                </Row>
+              </Row>
+
+              <Field label={t('form.notes')} value={notes} onChangeText={setNotes} placeholder={t('form.notesPlaceholder')} multiline maxLength={1000} style={{ minHeight: 80, textAlignVertical: 'top' }} />
+              <View style={{ gap: space.sm }}>
+                <Text variant="label" muted>
+                  {t('form.receipt')}
+                </Text>
+                {localReceipt || remoteReceipt.data ? (
+                  <View style={{ gap: space.sm }}>
+                    <Image source={{ uri: localReceipt?.uri ?? remoteReceipt.data }} style={{ width: '100%', height: 200, borderRadius: radius.md }} resizeMode="cover" />
+                    <Button
+                      title={t('form.removeReceipt')}
+                      variant="danger"
+                      onPress={() => {
+                        setLocalReceipt(null);
+                        setReceiptPath(null);
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <Row gap={space.sm}>
+                    {Platform.OS !== 'web' ? (
+                      <Button title={t('form.takePhoto')} icon="camera-outline" variant="secondary" onPress={() => pickReceipt('camera')} style={{ flex: 1 }} />
+                    ) : null}
+                    <Button title={t('form.choosePhoto')} icon="image-outline" variant="secondary" onPress={() => pickReceipt('library')} style={{ flex: 1 }} />
+                  </Row>
+                )}
+              </View>
+            </Animated.View>
+          ) : null}
+        </View>
       </ScrollView>
 
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm }}>
@@ -648,6 +735,45 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         <Button title={busy ? t('form.saving') : t('common.save')} onPress={() => submit()} loading={busy} disabled={amountMinor == null || !effectiveRate} />
       </View>
 
+      {/* The trip's own payment methods: add one (and pick it), or remove one */}
+      <Sheet visible={addingPayment} onClose={() => setAddingPayment(false)} title={t('payment.addTitle')}>
+        <View style={{ padding: space.lg, gap: space.md }}>
+          <Field
+            label={t('payment.addLabel')}
+            value={newPayment}
+            onChangeText={(v) => {
+              setNewPayment(v);
+              setPaymentError(null);
+            }}
+            placeholder={t('payment.addPlaceholder')}
+            maxLength={PAYMENT_NAME_MAX}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={addPayment}
+            error={paymentError}
+          />
+          <Button title={t('payment.addSave')} icon="add" onPress={addPayment} disabled={!newPayment.trim()} />
+          {customPayments.length > 0 ? (
+            <View style={{ gap: space.sm }}>
+              <Text variant="label" muted>
+                {t('payment.yours')}
+              </Text>
+              {customPayments.map((name) => (
+                <Row key={name} gap={space.sm} style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: 10 }}>
+                  <Text style={{ flex: 1, fontWeight: '600' }} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  <IconButton name="trash-outline" color={c.danger} onPress={() => removePayment(name)} label={t('common.delete')} />
+                </Row>
+              ))}
+              <Text variant="caption" muted>
+                {t('payment.removeHint')}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </Sheet>
+
       <CurrencyPicker
         visible={pickCurrency}
         value={currency}
@@ -657,4 +783,23 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       />
     </SafeAreaView>
   );
+}
+
+/** A section heading in the form: small icon and label. */
+function SectionTitle({ icon, title }: { icon: keyof typeof Ionicons.glyphMap; title: string }) {
+  const c = useColors();
+  return (
+    <Row gap={6}>
+      <Ionicons name={icon} size={15} color={c.textMuted} />
+      <Text variant="label" muted>
+        {title}
+      </Text>
+    </Row>
+  );
+}
+
+/** A full-width line between sections, so categories and payment methods never read as one list. */
+function SectionBreak() {
+  const c = useColors();
+  return <View accessibilityElementsHidden importantForAccessibility="no" style={{ height: 1, backgroundColor: c.border, marginHorizontal: -space.lg }} />;
 }

@@ -20,6 +20,9 @@ type PrefsState = {
   homeOrderDirty: boolean;
   /** Card order on other screens that can be rearranged (Statistics, Budget), on this device. */
   screenOrders: Record<string, string[]>;
+  /** Accounts on this device that were already offered the feedback panel (it opens by itself once per account). */
+  feedbackPrompted: string[];
+  markFeedbackPrompted: (userId: string) => void;
   /** Guest demo: a read-only sample trip on this device; nothing is sent to the server. */
   demo: boolean;
   setDemo: (demo: boolean) => void;
@@ -43,6 +46,9 @@ export const usePrefs = create<PrefsState>()(
       homeOrder: null,
       homeOrderDirty: false,
       screenOrders: {},
+      feedbackPrompted: [],
+      markFeedbackPrompted: (userId) =>
+        set((s) => (s.feedbackPrompted.includes(userId) ? s : { feedbackPrompted: [...s.feedbackPrompted, userId].slice(-10) })),
       demo: false,
       setDemo: (demo) => set({ demo }),
       setHomeOrder: (homeOrder, dirty = false) => set({ homeOrder, homeOrderDirty: dirty }),

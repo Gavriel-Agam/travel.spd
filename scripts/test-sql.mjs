@@ -456,4 +456,33 @@ assert.equal((await as(C, `select * from storage.objects where bucket_id = 'memb
 assert.equal((await as(A, `select * from storage.objects where bucket_id = 'member-photos'`)).length, 1);
 ok('member photos: own row only, trip folder only, visible to the trip only');
 
+// Category pictures, order and payment methods (0017)
+const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const [custom] = await as(A, `insert into expense_categories (trip_id, name, icon, image) values ($1, 'Diving', '🤿', $2) returning id, image`, [trip, tinyPng]);
+assert.equal(custom.image, tinyPng);
+await as(B, `insert into category_overrides (trip_id, category_id, image) values ($1, $2, $3)
+  on conflict (trip_id, category_id) do update set image = excluded.image`, [trip, catStreet, tinyPng]);
+await rejects(as(A, `update expense_categories set image = 'data:image/svg+xml;base64,PHN2Zz4=' where id = $1`, [custom.id]), /check constraint/);
+await rejects(as(A, `update expense_categories set image = 'https://example.com/x.png' where id = $1`, [custom.id]), /check constraint/);
+await rejects(as(A, `update expense_categories set image = $2 where id = $1`, [custom.id, 'data:image/png;base64,' + 'A'.repeat(160000)]), /check constraint/);
+await as(B, `update trips set category_order = $2::uuid[] where id = $1`, [trip, [custom.id, catStreet]]);
+assert.deepEqual((await as(A, 'select category_order from trips where id = $1', [trip]))[0].category_order, [custom.id, catStreet]);
+assert.equal((await as(C, `update trips set category_order = '{}' where id = $1 returning id`, [trip])).length, 0);
+await as(A, `update trips set payment_methods = '{PayPal,Revolut}' where id = $1`, [trip]);
+await rejects(as(A, `update trips set payment_methods = $2::text[] where id = $1`, [trip, Array.from({ length: 21 }, (_, i) => `m${i}`)]), /check constraint/);
+const [paidBit] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ payment_method: 'bit' })]);
+assert.equal(paidBit.payment_method, 'bit');
+const [paidPal] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ payment_method: 'PayPal' })]);
+assert.equal(paidPal.payment_method, 'PayPal');
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ payment_method: 'x'.repeat(31) })]), /check constraint/);
+ok('categories: pictures (small data URLs only), shared order; payment methods: bit and custom names');
+
+// Feedback prompt (0017): once per account, nobody reads the table
+assert.equal((await as(C, 'select claim_feedback_prompt() v'))[0].v, true);
+assert.equal((await as(C, 'select claim_feedback_prompt() v'))[0].v, false);
+assert.equal((await as(A, 'select claim_feedback_prompt() v'))[0].v, true);
+await rejects(as(A, 'select * from feedback_prompts'), /permission denied/);
+await rejects(as(A, `insert into feedback_prompts (user_id) values ($1)`, [B]), /permission denied/);
+ok('feedback prompt: true once per account, then false; table not reachable');
+
 console.log(`\n${passed} SQL checks passed`);

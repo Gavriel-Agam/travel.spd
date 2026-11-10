@@ -16,6 +16,10 @@ export type Trip = {
   theme_color?: string | null;
   /** Cover photo in the trip-covers bucket: <trip_id>/<file>. */
   cover_path?: string | null;
+  /** Category ids in the order chosen for this trip (0017); others follow in their default order. */
+  category_order?: string[] | null;
+  /** This trip's own payment methods, by name (0017). */
+  payment_methods?: string[];
 };
 
 export type Member = {
@@ -41,6 +45,8 @@ export type Category = {
   color: string;
   sort_order: number;
   archived: boolean;
+  /** Small picture shown instead of the emoji (data URL, 0017). */
+  image?: string | null;
   /** Set on built-ins this trip edited (from category_overrides). */
   renamed?: boolean;
   hidden?: boolean;
@@ -54,6 +60,7 @@ export type CategoryOverride = {
   name: string | null;
   icon: string | null;
   color: string | null;
+  image?: string | null;
   hidden: boolean;
 };
 
@@ -87,7 +94,8 @@ export type Expense = {
   notes: string | null;
   occurred_at: string;
   receipt_path: string | null;
-  payment_method: 'cash' | 'card' | 'transfer' | 'other' | null;
+  /** A built-in key (see lib/payments) or one of the trip's own names. */
+  payment_method: string | null;
   split_type: SplitType;
   version: number;
   created_at: string;

@@ -168,6 +168,11 @@ export function useSendFeedback() {
   });
 }
 
+/** True only the first time for this account (any device): the feedback panel may open by itself. */
+export async function claimFeedbackPrompt() {
+  return !!unwrap(await supabase.rpc('claim_feedback_prompt'));
+}
+
 /** Trip creator only (checked by the server): the partner loses access; their history stays. */
 export function useRemoveMember(tripId: string) {
   const qc = useQueryClient();
@@ -200,15 +205,22 @@ export function useUpdateCategory(tripId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: ['update_category'],
-    mutationFn: async (p: { category: Category; name: string; icon: string; color: string }) => {
+    mutationFn: async (p: { category: Category; name: string; icon: string; color: string; image: string | null }) => {
       if (p.category.trip_id) {
-        unwrap(await supabase.from('expense_categories').update({ name: p.name, icon: p.icon, color: p.color }).eq('id', p.category.id).select().single());
+        unwrap(
+          await supabase
+            .from('expense_categories')
+            .update({ name: p.name, icon: p.icon, color: p.color, image: p.image })
+            .eq('id', p.category.id)
+            .select('id')
+            .single(),
+        );
         return;
       }
       unwrap(
         await supabase
           .from('category_overrides')
-          .upsert({ trip_id: tripId, category_id: p.category.id, name: p.name, icon: p.icon, color: p.color, hidden: false }),
+          .upsert({ trip_id: tripId, category_id: p.category.id, name: p.name, icon: p.icon, color: p.color, image: p.image, hidden: false }),
       );
     },
     onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
@@ -245,15 +257,55 @@ export function useResetCategory(tripId: string) {
 export function useAddCategory(tripId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { name: string; icon: string; color: string }) =>
+    mutationFn: async (p: { name: string; icon: string; color: string; image: string | null }) =>
       unwrap(
         await supabase
           .from('expense_categories')
-          .insert({ trip_id: tripId, name: p.name, icon: p.icon, color: p.color, sort_order: 500 })
+          .insert({ trip_id: tripId, name: p.name, icon: p.icon, color: p.color, image: p.image, sort_order: 500 })
           .select()
           .single(),
       ) as Category,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
+  });
+}
+
+/** Change a field of the cached trip right away (the server copy follows). */
+function patchCachedTrip(qc: ReturnType<typeof useQueryClient>, tripId: string, patch: Partial<Trip>) {
+  qc.setQueryData<Trip[]>(keys.trips, (list) => list?.map((tr) => (tr.id === tripId ? { ...tr, ...patch } : tr)));
+}
+
+/**
+ * The trip's category order (shared by everyone on the trip). Shows at once;
+ * without a connection it is sent when the app is back online.
+ */
+export function useSetCategoryOrder(tripId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['category_order', tripId],
+    scope: { id: `category_order:${tripId}` },
+    onMutate: async (order: string[]) => {
+      await qc.cancelQueries({ queryKey: keys.trips });
+      patchCachedTrip(qc, tripId, { category_order: order });
+    },
+    mutationFn: async (order: string[]) =>
+      unwrap(await supabase.from('trips').update({ category_order: order }).eq('id', tripId).select('id').single()),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.trips }),
+  });
+}
+
+/** The trip's own payment methods (names), shared by everyone on the trip. */
+export function useSetPaymentMethods(tripId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['payment_methods', tripId],
+    scope: { id: `payment_methods:${tripId}` },
+    onMutate: async (methods: string[]) => {
+      await qc.cancelQueries({ queryKey: keys.trips });
+      patchCachedTrip(qc, tripId, { payment_methods: methods });
+    },
+    mutationFn: async (methods: string[]) =>
+      unwrap(await supabase.from('trips').update({ payment_methods: methods }).eq('id', tripId).select('id').single()),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.trips }),
   });
 }
 

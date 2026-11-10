@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
-import { categoryLabel, isSelectable, mergeCategories } from '../categories';
+import { categoryLabel, isSelectable, mergeCategories, nextCategoryOrder, normalizeEmoji, orderCategories } from '../categories';
 import type { Category, CategoryOverride } from '@/types/db';
 
 const t = ((k: string) => ({ 'categories.accommodation': 'לינה', 'categories.other': 'אחר' })[k] ?? k) as unknown as TFunction;
@@ -43,3 +43,53 @@ describe('mergeCategories', () => {
     expect(isSelectable(cat('c2', { trip_id: 't', key: null, archived: true }))).toBe(false);
   });
 });
+
+describe('category pictures', () => {
+  it('a built-in takes its picture from the trip override', () => {
+    const png = 'data:image/png;base64,AAAA';
+    const [hotel] = mergeCategories([cat('accommodation')], [ov('accommodation', { image: png })]);
+    expect(hotel.image).toBe(png);
+    const [plain] = mergeCategories([cat('accommodation')], [ov('accommodation', { icon: '🛏️' })]);
+    expect(plain.image).toBeNull();
+  });
+});
+
+describe('orderCategories', () => {
+  const list = [cat('a'), cat('b'), cat('c'), cat('d')];
+  const ids = (l: Category[]) => l.map((c) => c.id);
+
+  it('keeps the default order when nothing was arranged', () => {
+    expect(ids(orderCategories(list, null))).toEqual(['a', 'b', 'c', 'd']);
+    expect(ids(orderCategories(list, []))).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('follows the saved order; ones added later go last in their default order', () => {
+    expect(ids(orderCategories(list, ['c', 'a']))).toEqual(['c', 'a', 'b', 'd']);
+  });
+
+  it('ignores ids that no longer exist', () => {
+    expect(ids(orderCategories(list, ['gone', 'd', 'b']))).toEqual(['d', 'b', 'a', 'c']);
+  });
+
+  it('a reorder of the visible ones keeps hidden ones in their slots', () => {
+    // b is hidden; the visible a, c, d become d, a, c
+    expect(nextCategoryOrder(list, ['d', 'a', 'c'])).toEqual(['d', 'b', 'a', 'c']);
+  });
+});
+
+describe('normalizeEmoji', () => {
+  it('keeps the last emoji typed, whole', () => {
+    expect(normalizeEmoji('🏨💆‍♀️')).toBe('💆‍♀️');
+    expect(normalizeEmoji('👨‍👩‍👧')).toBe('👨‍👩‍👧');
+    expect(normalizeEmoji('🇹🇭')).toBe('🇹🇭');
+    expect(normalizeEmoji('👍🏽')).toBe('👍🏽');
+    expect(normalizeEmoji('  ')).toBe('');
+  });
+
+  it('asks for the colour version of symbols phones draw as text', () => {
+    expect(normalizeEmoji('✈')).toBe('✈️');
+    expect(normalizeEmoji('✈️')).toBe('✈️');
+    expect(normalizeEmoji('🍜')).toBe('🍜');
+  });
+});
+

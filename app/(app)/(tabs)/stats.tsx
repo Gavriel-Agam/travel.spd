@@ -5,11 +5,13 @@ import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { byPaymentMethod, dailySeries, sizeDistribution } from '@/lib/budget';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
+import { paymentColor, paymentLabel } from '@/lib/payments';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, percent } from '@/lib/money';
 import { dayKey, spendByCurrency } from '@/lib/stats';
 import { alertColor, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
+import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
@@ -17,7 +19,7 @@ import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, Offl
 const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'budget', 'partners', 'payment', 'distribution', 'currency'] as const;
 type StatsSection = (typeof STATS_SECTIONS)[number];
 
-const PAYMENT_COLORS: Record<string, string> = { cash: '#22C55E', card: '#3366FF', transfer: '#7A5AF8', other: '#F79009', unknown: '#A3A7B9' };
+const NO_PAYMENT_COLOR = '#A3A7B9';
 
 export default function Stats() {
   const { t, lang } = useT();
@@ -111,7 +113,8 @@ export default function Stats() {
                 <LegendRow
                   key={s.key}
                   color={s.color}
-                  label={`${s.cat?.icon ?? UNCATEGORIZED.icon}  ${categoryLabel(s.cat, t)}`}
+                  icon={<CategoryIcon category={s.cat} size={15} />}
+                  label={categoryLabel(s.cat, t)}
                   value={ils(s.value)}
                   pct={s.row.pct}
                   selected={selCategory === s.key}
@@ -196,9 +199,12 @@ export default function Stats() {
                 return (
                   <View key={s.key} style={{ gap: 4 }}>
                     <Row style={{ justifyContent: 'space-between' }}>
-                      <Text variant="label">
-                        {cat?.icon} {categoryLabel(cat, t)}
-                      </Text>
+                      <Row gap={6} style={{ flexShrink: 1 }}>
+                        <CategoryIcon category={cat} size={13} />
+                        <Text variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
+                          {categoryLabel(cat, t)}
+                        </Text>
+                      </Row>
                       <Text variant="caption" muted>
                         {ils(s.spent)} / {ils(s.limit)}
                       </Text>
@@ -252,7 +258,7 @@ export default function Stats() {
           <Card>
             <SectionHeader title={t('stats.byPayment')} />
             <DonutChart
-              data={payments.map((p) => ({ key: p.key, value: p.total, color: PAYMENT_COLORS[p.key] ?? c.textFaint }))}
+              data={payments.map((p) => ({ key: p.key, value: p.total, color: paymentColor(p.key, NO_PAYMENT_COLOR) }))}
               size={170}
               thickness={22}
               selected={selPayment}
@@ -260,7 +266,7 @@ export default function Stats() {
               center={
                 <>
                   <Text variant="caption" muted center numberOfLines={1}>
-                    {selPay ? t(`payment.${selPay.key}`) : t('stats.total')}
+                    {selPay ? paymentLabel(selPay.key, t) : t('stats.total')}
                   </Text>
                   <Text variant="h2" center numberOfLines={1} adjustsFontSizeToFit>
                     {ils(selPay ? selPay.total : stats.total)}
@@ -277,8 +283,8 @@ export default function Stats() {
               {payments.map((p) => (
                 <LegendRow
                   key={p.key}
-                  color={PAYMENT_COLORS[p.key] ?? c.textFaint}
-                  label={t(`payment.${p.key}`)}
+                  color={paymentColor(p.key, NO_PAYMENT_COLOR)}
+                  label={paymentLabel(p.key, t)}
                   value={ils(p.total)}
                   pct={p.pct}
                   selected={selPayment === p.key}

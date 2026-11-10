@@ -19,11 +19,13 @@ const web = Platform.OS === 'web';
  * the chips keep working as a picker. Chips should pass `onLongPress` (a no-op
  * is enough) so the hold that lifts them doesn't also count as a tap.
  */
-export function ReorderChips({ items, onReorder, onDragging }: {
+export function ReorderChips({ items, onReorder, onDragging, columns }: {
   items: ChipItem[];
   onReorder: (keys: string[]) => void;
   /** While a chip is held: the screen should stop scrolling. */
   onDragging?: (dragging: boolean) => void;
+  /** Equal-width tiles, this many per line, filling the whole width (default: chips as wide as their text). */
+  columns?: number;
 }) {
   const c = useColors();
   const { lang } = useT();
@@ -145,10 +147,15 @@ export function ReorderChips({ items, onReorder, onDragging }: {
   const target = drag?.lineKey ? rects.current[drag.lineKey] : undefined;
   const box = rects.current.__box;
   const leftSide = drag?.side === 'before' ? !rtl : rtl;
-  const bar = target && box ? { left: (leftSide ? target.x - GAP / 2 : target.x + target.width + GAP / 2) - box.x - 2, top: target.y - box.y, height: target.height } : null;
+  // Grid cells carry the gap as padding, so the bar sits on the cell edge itself
+  const edge = columns ? 0 : GAP / 2;
+  const bar = target && box ? { left: (leftSide ? target.x - edge : target.x + target.width + edge) - box.x - 2, top: target.y - box.y + (columns ? GAP / 2 : 0), height: target.height - (columns ? GAP : 0) } : null;
 
   return (
-    <View ref={boxRef} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}>
+    <View
+      ref={boxRef}
+      style={columns ? { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -GAP / 2, marginVertical: -GAP / 2 } : { flexDirection: 'row', flexWrap: 'wrap', gap: GAP }}
+    >
       {items.map((item) => {
         const lifted = drag?.key === item.key;
         return (
@@ -164,13 +171,14 @@ export function ReorderChips({ items, onReorder, onDragging }: {
             onTouchEnd={release}
             onTouchCancel={release}
             style={[
+              columns ? { width: `${100 / columns}%`, padding: GAP / 2 } : null,
               web ? ({ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', cursor: lifted ? 'grabbing' : undefined } as object) : null,
               lifted
                 ? {
                     zIndex: 20,
                     transform: [{ translateX: drag.dx }, { translateY: drag.dy }, { scale: 1.08 }],
                     boxShadow: '0 12px 28px rgba(0,0,0,0.45)',
-                    borderRadius: 999,
+                    borderRadius: columns ? 16 : 999,
                   }
                 : null,
             ]}

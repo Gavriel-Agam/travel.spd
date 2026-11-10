@@ -7,13 +7,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Platform, Pressable, Share, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useInviteCode, useRemoveMember, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useInviteCode, useRemoveMember, useSetBudget, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
 import { TRIP_THEMES, type TripTheme } from '@/palette';
 import { useTripLook } from '@/store/tripLook';
 import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
-import { currencyName, getCurrency } from '@/lib/currencies';
+import { currencyName, getCurrency, HOME_CURRENCY } from '@/lib/currencies';
+import { canvasToJpegUrl } from '@/lib/image';
+import { minorToInput, parseAmount } from '@/lib/money';
 import { useAuth, useUserId } from '@/providers/AuthProvider';
 import { useExitDemo } from '@/hooks/useExitDemo';
 import { useSignOut } from '@/hooks/useSignOut';
@@ -26,6 +28,7 @@ import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { CopyCode } from '@/ui/CopyCode';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
+import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
 
@@ -36,10 +39,12 @@ function isoDate(d: Date) {
 export default function Settings() {
   const { t, lang } = useT();
   const c = useColors();
-  const { trip, members, me } = useTripData();
+  const { trip, members, me, budgets } = useTripData();
   const trips = useTrips();
   const invite = useInviteCode(trip && !trip.shared ? trip.id : undefined);
   const updateTrip = useUpdateTrip(trip?.id ?? '');
+  const setBudget = useSetBudget(trip?.id ?? '');
+  const totalBudget = budgets.find((b) => b.scope === 'total')?.amount_ils_minor ?? null;
   const updateMe = useUpdateMyMember(trip?.id ?? '');
   const removeMember = useRemoveMember(trip?.id ?? '');
   const userId = useUserId();
@@ -59,8 +64,12 @@ export default function Settings() {
   const [end, setEnd] = useState(new Date());
   const [currency, setCurrency] = useState('THB');
   const [themeColor, setThemeColor] = useState<TripTheme>('blue');
+  // Total trip budget in shekels, as typed; empty = no budget
+  const [budgetText, setBudgetText] = useState('');
   const [coverBusy, setCoverBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  // A picked profile photo waiting to be cropped (browser)
+  const [cropUri, setCropUri] = useState<string | null>(null);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const [pickCurrency, setPickCurrency] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -85,12 +94,19 @@ export default function Settings() {
 
   async function pickMemberPhoto() {
     if (!trip || !me || blockedInDemo(queryClient)) return;
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: Platform.OS !== 'web', aspect: [1, 1] });
     if (res.canceled || !res.assets[0]) return;
+    // Browser: crop and zoom first; the phone app's picker already did
+    if (Platform.OS === 'web') return setCropUri(res.assets[0].uri);
+    await saveMemberPhoto(res.assets[0].uri);
+  }
+
+  async function saveMemberPhoto(uri: string) {
+    if (!trip || !me) return;
     setPhotoBusy(true);
     setFormError(null);
     try {
-      await uploadMemberPhoto(trip.id, me.id, res.assets[0].uri, me.photo_path);
+      await uploadMemberPhoto(trip.id, me.id, uri, me.photo_path);
       await queryClient.invalidateQueries({ queryKey: ['members', trip.id] });
     } catch (e) {
       setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
@@ -211,6 +227,7 @@ export default function Settings() {
             setEnd(trip.end_date ? new Date(trip.end_date + 'T12:00:00') : new Date(Date.now() + 14 * 86_400_000));
             setCurrency(trip.default_currency);
             setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
+            setBudgetText(totalBudget ? minorToInput(totalBudget, HOME_CURRENCY) : '');
             setFormError(null);
             setEdit('trip');
           }}
@@ -331,6 +348,15 @@ export default function Settings() {
                   </Row>
                 </>
               ) : null}
+              {/* The whole trip's budget in shekels (Home shows progress against it); empty = none */}
+              <Field
+                label={t('settings.tripBudget')}
+                value={budgetText}
+                onChangeText={(v) => setBudgetText(v.replace(',', '.').replace(/[^\d.]/g, ''))}
+                keyboardType="decimal-pad"
+                placeholder={t('settings.tripBudgetPlaceholder')}
+                hint={t('settings.tripBudgetHint')}
+              />
               <Pressable
                 onPress={() => setPickCurrency(true)}
                 style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md }}
@@ -430,7 +456,7 @@ export default function Settings() {
           ) : null}
           <Button
             title={t('common.save')}
-            loading={updateTrip.isPending || updateMe.isPending}
+            loading={updateTrip.isPending || updateMe.isPending || setBudget.isPending}
             disabled={!text.trim()}
             onPress={async () => {
               if (blockedInDemo(queryClient)) return setEdit(null);
@@ -438,6 +464,9 @@ export default function Settings() {
                 const s = hasDates ? isoDate(start) : null;
                 const e = hasDates ? isoDate(end) : null;
                 if (s && e && e < s) return setFormError(t('settings.datesInvalid'));
+                const budget = budgetText.trim() ? parseAmount(budgetText, HOME_CURRENCY) : null;
+                if (budgetText.trim() && (budget == null || budget <= 0)) return setFormError(t('errors.invalid_amount'));
+                if (budget !== totalBudget) await setBudget.mutateAsync({ scope: 'total', amount: budget });
                 await updateTrip.mutateAsync({
                   name: text.trim(),
                   start_date: s,
@@ -453,6 +482,22 @@ export default function Settings() {
         </View>
       </Sheet>
       <CurrencyPicker visible={pickCurrency} value={currency} onSelect={setCurrency} onClose={() => setPickCurrency(false)} />
+      <ImageCropper
+        uri={cropUri}
+        shape="circle"
+        outputSize={512}
+        fit="cover"
+        onCancel={() => setCropUri(null)}
+        onConfirm={async (canvas) => {
+          const url = await canvasToJpegUrl(canvas);
+          setCropUri(null);
+          try {
+            await saveMemberPhoto(url);
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        }}
+      />
     </Screen>
   );
 }

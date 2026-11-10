@@ -7,7 +7,7 @@ import { useDragScroll } from '@/hooks/useCardOrder';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, EMOJI_CHOICES, isSelectable, nextCategoryOrder, normalizeEmoji } from '@/lib/categories';
-import { categoryIconFromPick } from '@/lib/image';
+import { categoryIconFromPick, encodeIcon } from '@/lib/image';
 import { goBack } from '@/lib/nav';
 import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
@@ -15,6 +15,7 @@ import type { Category } from '@/types/db';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { confirmDialog } from '@/ui/Dialog';
 import { DraggableGrid } from '@/ui/DraggableGrid';
+import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
 import { SwipeRow } from '@/ui/SwipeRow';
 import { Button, Card, Field, IconButton, ListRow, Row, Screen, Text, tap } from '@/ui/primitives';
@@ -41,6 +42,8 @@ export default function Categories() {
   const [color, setColor] = useState(COLORS[0]);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  // A picked picture waiting to be cropped (browser)
+  const [cropUri, setCropUri] = useState<string | null>(null);
 
   const active = allCategories.filter(isSelectable);
   const hidden = allCategories.filter((x) => !isSelectable(x));
@@ -105,11 +108,12 @@ export default function Categories() {
     if (!perm.granted) return;
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      // The phone app crops and shrinks it here; the browser does it in categoryIconFromPick
+      // The phone app crops it in the system editor; the browser opens our cropper
       ...(Platform.OS === 'web' ? { quality: 1 } : { allowsEditing: true, aspect: [1, 1] as [number, number], quality: 0.4 }),
     });
     const asset = !res.canceled ? res.assets[0] : undefined;
     if (!asset) return;
+    if (Platform.OS === 'web') return setCropUri(asset.uri);
     setPicking(true);
     try {
       setImage(await categoryIconFromPick(asset.uri));
@@ -313,6 +317,21 @@ export default function Categories() {
           ) : null}
         </View>
       </Sheet>
+
+      <ImageCropper
+        uri={cropUri}
+        shape="square"
+        outputSize={128}
+        onCancel={() => setCropUri(null)}
+        onConfirm={(canvas) => {
+          try {
+            setImage(encodeIcon(canvas));
+          } catch (e) {
+            setError(t((e as Error).message === 'image_too_large' ? 'categories.imageTooLarge' : 'categories.imageUnreadable'));
+          }
+          setCropUri(null);
+        }}
+      />
     </Screen>
   );
 }

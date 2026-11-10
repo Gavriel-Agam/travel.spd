@@ -79,20 +79,50 @@ export async function categoryIconFromPick(uri: string, size = 128): Promise<str
       const dh = h * scale;
       ctx.drawImage(img, (size - dw) / 2, (size - dh) / 2, dw, dh);
     }
-    // WebP where the browser can write it (small, keeps transparency), else PNG, else JPEG
-    const tries: [string, number | undefined][] = [['image/webp', 0.86], ['image/png', undefined], ['image/jpeg', 0.86]];
-    for (const [type, quality] of tries) {
-      let url: string;
-      try {
-        url = canvas.toDataURL(type, quality);
-      } catch {
-        // A picture that points at other files can't be read back (browser security)
-        throw new Error('image_unreadable');
-      }
-      if (url.startsWith(`data:${type};base64,`) && url.length <= ICON_MAX_CHARS) return url;
-    }
-    throw new Error('image_too_large');
+    return encodeIcon(canvas);
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+/**
+ * A finished icon canvas as a data URL: WebP where the browser can write it
+ * (small, keeps transparency), else PNG, else JPEG. Throws `image_unreadable`
+ * (the browser won't read it back) or `image_too_large`.
+ */
+export function encodeIcon(canvas: HTMLCanvasElement): string {
+  const tries: [string, number | undefined][] = [['image/webp', 0.86], ['image/png', undefined], ['image/jpeg', 0.86]];
+  for (const [type, quality] of tries) {
+    let url: string;
+    try {
+      url = canvas.toDataURL(type, quality);
+    } catch {
+      // A picture that points at other files can't be read back (browser security)
+      throw new Error('image_unreadable');
+    }
+    if (url.startsWith(`data:${type};base64,`) && url.length <= ICON_MAX_CHARS) return url;
+  }
+  throw new Error('image_too_large');
+}
+
+/** A finished photo canvas as a JPEG file in memory, with a local address to upload it from. */
+export async function canvasToJpegUrl(canvas: HTMLCanvasElement, quality = 0.86): Promise<string> {
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('image_encode_failed'))), 'image/jpeg', quality),
+  );
+  return URL.createObjectURL(blob);
+}
+
+/** Loads a picked picture to draw it (SVG without its own size gets `fallback` px). */
+export async function loadPicture(uri: string, fallback = 512): Promise<{ img: HTMLImageElement; src: string; w: number; h: number; type: string }> {
+  const blob = await (await fetch(uri)).blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new window.Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('image_unreadable'));
+    el.src = objectUrl;
+  });
+  // `src` stays valid until released with URL.revokeObjectURL
+  return { img, src: objectUrl, w: img.naturalWidth || fallback, h: img.naturalHeight || fallback, type: blob.type };
 }

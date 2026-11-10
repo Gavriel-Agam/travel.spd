@@ -8,18 +8,27 @@ import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { paymentColor, paymentLabel } from '@/lib/payments';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, percent } from '@/lib/money';
-import { dayKey, spendByCurrency } from '@/lib/stats';
+import { byCategoryBetween, dayKey, periodRange, spendByCurrency, type Period } from '@/lib/stats';
 import { alertColor, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
-import { Avatar, Card, Dot, EmptyState, ErrorView, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Text } from '@/ui/primitives';
+import { DateField } from '@/ui/DateField';
+import { Avatar, Card, Dot, EmptyState, ErrorView, IconButton, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Segmented, Text } from '@/ui/primitives';
 
 const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'budget', 'partners', 'payment', 'distribution', 'currency'] as const;
 type StatsSection = (typeof STATS_SECTIONS)[number];
 
 const NO_PAYMENT_COLOR = '#A3A7B9';
+
+/** Time range of the category pie: the whole trip, a day / week / month, or chosen dates. */
+type PieRange = 'all' | Period | 'custom';
+
+/** A Date picked in a date field as a "YYYY-MM-DD" key (its own calendar day). */
+function localDayKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export default function Stats() {
   const { t, lang } = useT();
@@ -29,6 +38,11 @@ export default function Stats() {
   const [selCategory, setSelCategory] = useState<string | null>(null);
   const [selPayment, setSelPayment] = useState<string | null>(null);
   const [selDay, setSelDay] = useState<string | null>(null);
+  const [pieRange, setPieRange] = useState<PieRange>('all');
+  // Day / week / month: how many periods back (negative) from the current one
+  const [pieOffset, setPieOffset] = useState(0);
+  const [customFrom, setCustomFrom] = useState(() => new Date(Date.now() - 6 * 86_400_000));
+  const [customTo, setCustomTo] = useState(() => new Date());
   const layout = useCardOrder('stats', STATS_SECTIONS);
   const drag = useDragScroll();
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
@@ -56,7 +70,40 @@ export default function Stats() {
   const spendingCount = expenses.filter((e) => e.kind === 'expense').length;
   const fmtDay = (d: string, opts: Intl.DateTimeFormatOptions) => new Date(d + 'T12:00:00Z').toLocaleDateString(locale, { ...opts, timeZone: 'UTC' });
 
-  const slices = stats.byCategory.map((row) => {
+  // Category pie: the whole trip or the chosen range
+  const todayKey = dayKey(new Date(), trip.timezone);
+  const span =
+    pieRange === 'all'
+      ? null
+      : pieRange === 'custom'
+        ? (() => {
+            const a = localDayKey(customFrom);
+            const b = localDayKey(customTo);
+            return a <= b ? { from: a, to: b } : { from: b, to: a };
+          })()
+        : periodRange(pieRange, todayKey, pieOffset, lang === 'he' ? 0 : 1);
+  const pie = span ? byCategoryBetween(expenses, trip.timezone, span.from, span.to) : { total: stats.total, rows: stats.byCategory };
+  // Stepping forward stops at the current period (or the trip's last day, if later)
+  const lastStep = trip.end_date && trip.end_date > todayKey ? trip.end_date : todayKey;
+  const shortDay = (d: string) => fmtDay(d, { day: 'numeric', month: 'short' });
+  const spanLabel = !span
+    ? null
+    : pieRange === 'day'
+      ? fmtDay(span.from, { weekday: 'short', day: 'numeric', month: 'short' })
+      : pieRange === 'month'
+        ? fmtDay(span.from, { month: 'long', year: 'numeric' })
+        : t('stats.range', { from: shortDay(span.from), to: shortDay(span.to) });
+  const choosePieRange = (r: PieRange) => {
+    setPieRange(r);
+    setPieOffset(0);
+    setSelCategory(null);
+  };
+  const stepPie = (delta: number) => {
+    setPieOffset((o) => o + delta);
+    setSelCategory(null);
+  };
+
+  const slices = pie.rows.map((row) => {
     const cat = row.categoryId ? categoryById.get(row.categoryId) : undefined;
     return { key: row.categoryId ?? 'none', value: row.total, color: cat?.color ?? UNCATEGORIZED.color, row, cat };
   });
@@ -88,6 +135,69 @@ export default function Stats() {
     categories: (
           <Card>
             <SectionHeader title={t('home.byCategory')} />
+            {/* Time range: whole trip, day, week, month or chosen dates */}
+            <Segmented<PieRange>
+              options={[
+                { value: 'all', label: t('stats.rangeAll') },
+                { value: 'day', label: t('stats.rangeDay') },
+                { value: 'week', label: t('stats.rangeWeek') },
+                { value: 'month', label: t('stats.rangeMonth') },
+                { value: 'custom', label: t('stats.rangeCustom') },
+              ]}
+              value={pieRange}
+              onChange={choosePieRange}
+            />
+            {span && pieRange !== 'custom' ? (
+              // Previous / next period ("back" points to the start side: right in Hebrew)
+              <Row style={{ justifyContent: 'space-between' }}>
+                <IconButton name={lang === 'he' ? 'chevron-forward' : 'chevron-back'} onPress={() => stepPie(-1)} label={t('stats.rangePrev')} />
+                <Text variant="label">{spanLabel}</Text>
+                <View style={{ opacity: span.to >= lastStep ? 0.3 : 1 }}>
+                  <IconButton
+                    name={lang === 'he' ? 'chevron-back' : 'chevron-forward'}
+                    onPress={() => {
+                      if (span.to < lastStep) stepPie(1);
+                    }}
+                    label={t('stats.rangeNext')}
+                  />
+                </View>
+              </Row>
+            ) : null}
+            {pieRange === 'custom' ? (
+              <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }} gap={space.sm}>
+                <Row gap={space.sm}>
+                  <Text variant="label" muted>
+                    {t('stats.rangeFrom')}
+                  </Text>
+                  <DateField
+                    value={customFrom}
+                    onChange={(d) => {
+                      setCustomFrom(d);
+                      setSelCategory(null);
+                    }}
+                  />
+                </Row>
+                <Row gap={space.sm}>
+                  <Text variant="label" muted>
+                    {t('stats.rangeTo')}
+                  </Text>
+                  <DateField
+                    value={customTo}
+                    minimumDate={customFrom}
+                    onChange={(d) => {
+                      setCustomTo(d);
+                      setSelCategory(null);
+                    }}
+                  />
+                </Row>
+              </Row>
+            ) : null}
+            {pie.total === 0 ? (
+              <Text muted center style={{ paddingVertical: space.xl }}>
+                {t('stats.rangeEmpty')}
+              </Text>
+            ) : (
+              <>
             <DonutChart
               data={slices}
               selected={selCategory}
@@ -98,7 +208,7 @@ export default function Stats() {
                     {sel ? categoryLabel(sel.cat, t) : t('stats.total')}
                   </Text>
                   <Text variant="h2" center numberOfLines={1} adjustsFontSizeToFit>
-                    {ils(sel ? sel.value : stats.total)}
+                    {ils(sel ? sel.value : pie.total)}
                   </Text>
                   {sel ? (
                     <Text variant="caption" muted center>
@@ -122,6 +232,8 @@ export default function Stats() {
                 />
               ))}
             </View>
+              </>
+            )}
           </Card>
 
     ),

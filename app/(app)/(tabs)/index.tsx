@@ -20,6 +20,7 @@ import { Sheet } from '@/ui/Sheet';
 import { SortableList } from '@/ui/SortableList';
 import { SyncStatus } from '@/ui/SyncStatus';
 import { CategoryIcon } from '@/ui/CategoryIcon';
+import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTripLook } from '@/store/tripLook';
 import { useFeedback } from '@/store/feedback';
@@ -66,6 +67,7 @@ export default function Home() {
     scroll.current.max = Math.max(0, scroll.current.contentH - scroll.current.viewH);
   };
   const [draggingCard, setDraggingCard] = useState(false);
+  const [avgOpen, setAvgOpen] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const actions = useExpenseActions(trip?.id ?? '');
   // Feedback: signed-in users only (not the demo). Opens by itself once per
@@ -202,19 +204,38 @@ export default function Home() {
             </>
           ) : null}
         </Card>
-        <Card style={{ flex: 1, gap: 6 }}>
-          <Text variant="label" muted>
-            {t('home.dailyAvg')}
-          </Text>
-          <Text variant="h2" style={{ fontSize: 20 }}>
-            {ils(stats.dailyAverage)}
-          </Text>
-          {stats.projected != null ? (
-            <Text variant="caption" muted>
-              {t('home.projected')}: {ils(stats.projected)}
+        {/* Tap: how the average is worked out, per category */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('home.avgOpen')}
+          onPress={() => setAvgOpen(true)}
+          style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
+        >
+          <Card style={{ flex: 1, gap: 6 }}>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text variant="label" muted>
+                {t('home.dailyAvg')}
+              </Text>
+              <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} />
+            </Row>
+            <Text variant="h2" style={{ fontSize: 20 }}>
+              {ils(stats.dailyAverage)}
             </Text>
-          ) : null}
-        </Card>
+            <Text variant="caption" muted>
+              {stats.daysElapsed ? t('home.avgMath', { amount: ils(stats.averagedTotal), count: stats.daysElapsed }) : t('home.avgNotStarted')}
+            </Text>
+            {stats.preTrip > 0 ? (
+              <Text variant="caption" faint>
+                {t('home.avgExcludesPre', { amount: ils(stats.preTrip) })}
+              </Text>
+            ) : null}
+            {stats.projected != null ? (
+              <Text variant="caption" muted>
+                {t('home.projected')}: {ils(stats.projected)}
+              </Text>
+            ) : null}
+          </Card>
+        </Pressable>
       </Row>
     ),
     // Also shown after a partner was removed while money is still open between you
@@ -460,6 +481,16 @@ export default function Home() {
           <Button title={t('home.arrangeReset')} variant="ghost" icon="refresh" onPress={() => setHomeOrder(null)} />
         </View>
       </Sheet>
+      {stats ? (
+        <DailyAverageSheet
+          visible={avgOpen}
+          onClose={() => setAvgOpen(false)}
+          stats={stats}
+          expenses={expenses}
+          categoryById={categoryById}
+          timeZone={trip.timezone}
+        />
+      ) : null}
     </Screen>
     </View>
   );

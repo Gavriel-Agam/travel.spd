@@ -34,16 +34,16 @@ Last updated: 2026-11-10
 | Payment methods | Built-in: card, cash, **Bit**, transfer (legacy "other" still shown on old expenses). Each trip can add its own names (max 20, ≤30 chars, shared with the partner; 0017) via the "+ Add" chip, which also selects it. Removing one never changes saved expenses. |
 | Paid by | Defaults to joint money (`paid_by_member_id = null`, 0012); or a specific partner. |
 | Splits & settle-up | Server-side splits that sum exactly; Settle screen. |
-| Budget | Scopes: total, daily, per category, per member. Alert levels in the Budget tab. |
-| Stats | Trend, category and payment pie charts, pace / projection. |
-| Home | Cards (default order): hero (total + budget), today + daily avg, recent, categories, 7 days, who paid. Long-press to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
-| Categories | Editable per trip (0009 overrides). Settings › Categories: swipe a row (right in Hebrew) → Edit / Delete (built-ins are hidden for the trip, restorable from the hidden section); hold ~0.5 s and drag to reorder. Same hold-and-drag on the category chips in the expense form. Order is per trip, shared (`trips.category_order`, 0017). Icon: emoji grid, own emoji (kept whole, colour form), or an uploaded PNG / SVG / JPG turned into a 128 px icon (data URL in the row, works offline; 0017). Broken picture → emoji → 🏷️ fallback. |
+| Budget | One **trip budget** (total, ₪), set in Settings › Trip details; Home shows used / left and alerts. The Budget tab was removed (2026-11-10): daily, per-category and per-member limits can no longer be edited (existing ones still count in Home, alerts and Stats; a daily limit can still be entered when creating a trip). |
+| Stats | Trend, category and payment pie charts, pace / projection. Category pie has a range selector: All / Day / Week (Sun-Sat in Hebrew, Mon-Sun in English) / Month, with ‹ › to step back and forward (not past today or the trip end), or Custom (from / to dates). |
+| Home | Cards (default order): hero (total + budget), today + daily avg, recent, categories, 7 days, who paid. Daily average = spending from the trip start (or first expense) to today ÷ those days; spending before the trip and expenses dated later are left out and the card says so ("X ₪ over N days · excludes Y ₪ from before the trip"). Tap the card → breakdown: the math, then per category ₪/day, total, share and today's spend. Long-press to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
+| Categories | Editable per trip (0009 overrides). Settings › Categories: swipe a row (right in Hebrew) → Edit / Delete (built-ins are hidden for the trip, restorable from the hidden section); hold ~0.5 s and drag to reorder. Same hold-and-drag on the category chips in the expense form. Order is per trip, shared (`trips.category_order`, 0017). Icon: emoji grid, own emoji (kept whole, colour form), or an uploaded PNG / SVG / JPG turned into a 128 px icon (data URL in the row, works offline; 0017). Uploads (category pictures and profile photos) open a crop screen in the browser: drag to move, two-finger pinch / mouse wheel / − + to zoom, live preview at final size; photos start filling the frame, logos start whole. Phone app: the system cropper. Broken picture → emoji → 🏷️ fallback. |
 | Sync | Supabase Realtime between partners. Offline-first: data saved on the device (30 days) shows instantly with no signal; new expenses, edits and deletes are queued (outbox, idempotent creates 0005, versioned edits/deletes), shown immediately, and sent automatically when the server is reachable again (probe every 10s). Conflicts with a partner's edit are flagged, never overwritten. Banner: offline (showing saved data) → syncing → all synced. |
 | Reliability | Every client error logged to `public.client_errors`; expired sessions recover automatically. |
 | Feedback | Floating panel ("the app is in beta…") with text + Send; X shrinks it into a bell (top left of Home header in Hebrew), bell reopens it. Opens by itself **once per account, ever** (first Home with a trip after signing up, any device): server claim `claim_feedback_prompt()` (0017; accounts that existed before were marked as already asked) plus a per-device flag. Afterwards only from the bell. Saved to `app_feedback` (0015, write-only); ntfy.sh push/email to the developer via Vault secrets. |
 
 ### Screens
-`sign-in`, `setup`, `reset-password`, `onboarding` (create / join), tabs: **Home**, **Expenses**, **Budget**, **Stats**, **Settings**; plus `expense/new`, `expense/[id]`, `expense/[id]/edit`, `categories`, `settle`.
+`sign-in`, `setup`, `reset-password`, `onboarding` (create / join), tabs: **Home**, **Expenses**, **Stats**, **Settings**; plus `expense/new`, `expense/[id]`, `expense/[id]/edit`, `categories`, `settle`.
 
 ### Google sign-in test users
 The Google OAuth app is in **Testing** mode, so only accounts on its Test users list can use "Continue with Google". Email + password sign-up is open to everyone and needs no list. Access to a trip still requires its invite code.
@@ -63,13 +63,13 @@ Test users' email addresses are kept only in the console, never in this public r
 
 **Create trip:** trip name → your name → Dates toggle (off by default; on = start/end pickers fade in) → main currency → optional budgets → Create. A trip without dates has no start or end.
 
-**Add expense:** Home or Expenses → New → amount + currency → (rate auto or manual) → category → payment method → optional description → (More details: paid by, default joint → split → date → notes / receipt) → save. Offline: saved as "waiting to sync". An invalid split opens More details.
+**Add expense:** Home or Expenses → New → amount + currency → (rate auto or manual) → category (full-width grid of tiles, 3 per row, 4 on wide screens; hold a tile to drag it) → payment method → optional description → (More details: paid by, default joint → split → date → notes / receipt) → save. Offline: saved as "waiting to sync". An invalid split opens More details.
 
 **Partner join:** partner A shares invite code from Settings → partner B signs in → onboarding/join → enters code → shared trip, live sync.
 
 **Remove partner (creator only):** Settings › Members → remove icon next to partner → confirm → partner loses access at once (RLS); their expenses and open balance stay on Home. Re-invite with a new code restores the same member.
 
-**Reorder cards (Home, Statistics, Budget):** hold any card ~0.5 s (no handle) → it lifts (scale 1.05 + shadow), a faint grid appears, an accent line shows the drop spot (upper/lower half of the card under the finger = before/after it) → release; order saved to the account. Short taps and scrolls never lift a card. Screen readers: Arrange sheet.
+**Reorder cards (Home, Statistics):** hold any card ~0.5 s (no handle) → it lifts (scale 1.05 + shadow), a faint grid appears, an accent line shows the drop spot (upper/lower half of the card under the finger = before/after it) → release; order saved to the account. Short taps and scrolls never lift a card. Screen readers: Arrange sheet.
 
 **Demo → real account:** demo prompts sign-up; demo data stays local.
 
@@ -97,6 +97,9 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | Date | Decision |
 |---|---|
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
+| 2026-11-10 | Budget tab removed; the only budget is the trip budget in Settings › Trip details (per Gabriel: "remove the budget tab, add only trip budget"). |
+| 2026-11-10 | Daily average = trip days so far only; pre-trip and later-dated spending excluded and shown as such (Gabriel chose this over dividing the full total). |
+| 2026-11-10 | Stats category pie: All / Day / Week / Month / Custom range. Picture uploads get a crop + zoom screen. Category picker in the form is a full-width tile grid. |
 | 2026-11-10 | Expense form: who paid + date moved into folded More details; dividers between category and payment sections. |
 | 2026-11-10 | Feedback panel opens by itself once per account (not per app start). |
 | 2026-11-10 | Categories: swipe edit/delete, drag to reorder (list + form chips, per trip), picture upload. Payment: Bit + custom per trip. |

@@ -6,7 +6,7 @@ import { goBack } from '@/lib/nav';
 import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, TextInput, View, type TextInputInstance } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type TextInputInstance } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useSetCategoryOrder, useSetPaymentMethods, type SaveExpenseInput } from '@/api/queries';
@@ -37,8 +37,9 @@ import { useUserId } from '@/providers/AuthProvider';
 import { editKey, useOutbox } from '@/store/outbox';
 import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
-import type { Expense } from '@/types/db';
+import type { Category, Expense } from '@/types/db';
 import { CategoryIcon } from './CategoryIcon';
+import { flatten } from '@/lib/contrast';
 import { CurrencyPicker } from './CurrencyPicker';
 import { ReorderChips } from './ReorderChips';
 import { Sheet } from './Sheet';
@@ -54,6 +55,7 @@ const JOINT = '__joint';
 export function ExpenseForm({ existing }: { existing?: Expense }) {
   const { t, lang } = useT();
   const c = useColors();
+  const { width } = useWindowDimensions();
   const { trip, members, categories, allCategories, me, memberById } = useTripData();
   const save = useSaveExpense(trip?.id ?? '');
   const setCategoryOrder = useSetCategoryOrder(trip?.id ?? '');
@@ -480,16 +482,15 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         <View style={{ gap: space.sm }}>
           <SectionTitle icon="pricetag-outline" title={t('form.category')} />
           <ReorderChips
+            columns={width >= 520 ? 4 : 3}
             items={categories.map((cat) => ({
               key: cat.id,
               node: (
-                <Chip
-                  icon={<CategoryIcon category={cat} size={15} />}
+                <CategoryTile
+                  category={cat}
                   label={categoryLabel(cat, t)}
-                  color={cat.color}
                   selected={categoryId === cat.id}
                   onPress={() => setCategoryId(categoryId === cat.id ? null : cat.id)}
-                  onLongPress={() => {}}
                 />
               ),
             }))}
@@ -803,3 +804,44 @@ function SectionBreak() {
   const c = useColors();
   return <View accessibilityElementsHidden importantForAccessibility="no" style={{ height: 1, backgroundColor: c.border, marginHorizontal: -space.lg }} />;
 }
+
+/**
+ * One category in the form's picker: an equal-width tile (icon over name) so
+ * the grid fills the whole width and every tile is an easy target. A long
+ * hold picks it up to drag instead of selecting it.
+ */
+function CategoryTile({ category, label, selected, onPress }: { category: Category; label: string; selected: boolean; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      onPress={() => {
+        tap();
+        onPress();
+      }}
+      onLongPress={() => {}}
+      style={({ pressed }) => ({
+        flex: 1,
+        minHeight: 72,
+        borderRadius: radius.md,
+        paddingHorizontal: 6,
+        paddingVertical: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        backgroundColor: selected ? flatten(category.color + '2E', c.card) : c.cardAlt,
+        borderWidth: 1.5,
+        borderColor: selected ? category.color : 'transparent',
+        opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      <CategoryIcon category={category} size={22} />
+      <Text variant="caption" color={c.text} center numberOfLines={2} style={selected ? { fontWeight: '700' } : undefined}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+

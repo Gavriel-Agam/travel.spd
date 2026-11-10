@@ -16,7 +16,6 @@ import { Text, type IconName } from '@/ui/primitives';
 const ICONS: Record<string, [IconName, IconName]> = {
   index: ['home-outline', 'home'],
   expenses: ['receipt-outline', 'receipt'],
-  budget: ['wallet-outline', 'wallet'],
   stats: ['pie-chart-outline', 'pie-chart'],
   settings: ['settings-outline', 'settings'],
 };
@@ -120,7 +119,6 @@ export default function TabsLayout() {
     <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg } }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('tabs.home') }} />
       <Tabs.Screen name="expenses" options={{ title: t('tabs.expenses') }} />
-      <Tabs.Screen name="budget" options={{ title: t('tabs.budget') }} />
       <Tabs.Screen name="stats" options={{ title: t('tabs.stats') }} />
       <Tabs.Screen name="settings" options={{ title: t('tabs.settings') }} />
     </Tabs>

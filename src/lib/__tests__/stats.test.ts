@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alertLevel, computeTripStats, dayKey, lastNDays, spendByCurrency } from '../stats';
+import { addDays, alertLevel, byCategoryBetween, computeTripStats, dayKey, lastNDays, periodRange, spendByCurrency } from '../stats';
 
 const TZ = 'Asia/Bangkok';
 const e = (amount: number, at: string, cat: string | null = 'food', kind: 'expense' | 'settlement' = 'expense') => ({
@@ -85,6 +85,45 @@ describe('computeTripStats', () => {
     expect(s.byDay).toEqual([]);
   });
 
+  it('averages only the days so far: future-dated spending stays out, and the math is reported', () => {
+    // Trip Nov 2-11, today Nov 3: flights before, 1000 + 3000 on the trip, a hotel booked for Nov 8
+    const s = computeTripStats({
+      ...base,
+      startDate: '2026-11-02',
+      endDate: '2026-11-11',
+      expenses: [
+        e(5000, '2026-11-01T05:00:00Z', 'flights'),
+        e(1000, '2026-11-02T05:00:00Z', 'food'),
+        e(3000, '2026-11-03T04:00:00Z', 'hotel'),
+        e(8000, '2026-11-08T05:00:00Z', 'hotel'),
+      ],
+    });
+    expect(s.total).toBe(17000);
+    expect(s.averagedTotal).toBe(4000);
+    expect(s.daysElapsed).toBe(2);
+    expect(s.dailyAverage).toBe(2000);
+    expect(s.preTrip).toBe(5000);
+    expect(s.afterAverage).toBe(8000);
+    expect([s.averageFrom, s.averageTo]).toEqual(['2026-11-02', '2026-11-03']);
+    expect(s.averageByCategory).toEqual([
+      { categoryId: 'hotel', total: 3000, perDay: 1500, pct: 75 },
+      { categoryId: 'food', total: 1000, perDay: 500, pct: 25 },
+    ]);
+  });
+
+  it('without dates: from the first expense up to today, later-dated ones excluded', () => {
+    const s = computeTripStats({
+      ...base,
+      startDate: null,
+      endDate: null,
+      expenses: [e(600, '2026-11-01T05:00:00Z'), e(900, '2026-11-09T05:00:00Z')],
+    });
+    expect(s.daysElapsed).toBe(3);
+    expect(s.averagedTotal).toBe(600);
+    expect(s.dailyAverage).toBe(200);
+    expect(s.afterAverage).toBe(900);
+  });
+
   it('works without dates or budget', () => {
     const s = computeTripStats({ ...base, startDate: null, endDate: null, totalBudget: null, dailyBudget: null, expenses: [e(500, '2026-11-02T05:00:00Z')] });
     expect(s.daysElapsed).toBe(2);
@@ -119,3 +158,35 @@ describe('lastNDays', () => {
     expect(lastNDays(3, new Date('2026-11-03T05:00:00Z'), TZ)).toEqual(['2026-11-01', '2026-11-02', '2026-11-03']);
   });
 });
+
+describe('periods for the statistics filter', () => {
+  it('day, week (Sunday or Monday start) and month around a day, stepping back and forth', () => {
+    // 2026-11-10 is a Tuesday
+    expect(periodRange('day', '2026-11-10', -1, 0)).toEqual({ from: '2026-11-09', to: '2026-11-09' });
+    expect(periodRange('week', '2026-11-10', 0, 0)).toEqual({ from: '2026-11-08', to: '2026-11-14' });
+    expect(periodRange('week', '2026-11-10', 0, 1)).toEqual({ from: '2026-11-09', to: '2026-11-15' });
+    expect(periodRange('week', '2026-11-08', -1, 0)).toEqual({ from: '2026-11-01', to: '2026-11-07' });
+    expect(periodRange('month', '2026-11-10', 0, 0)).toEqual({ from: '2026-11-01', to: '2026-11-30' });
+    expect(periodRange('month', '2026-01-31', -1, 0)).toEqual({ from: '2025-12-01', to: '2025-12-31' });
+    expect(periodRange('month', '2026-02-10', 0, 0)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+  });
+
+  it('sums categories between two days in the trip timezone, settlements left out', () => {
+    const list = [
+      e(100, '2026-11-01T20:00:00Z', 'food'), // Nov 2 in Bangkok
+      e(300, '2026-11-02T05:00:00Z', 'hotel'),
+      e(50, '2026-11-03T05:00:00Z', 'food'),
+      e(999, '2026-11-02T05:00:00Z', null, 'settlement'),
+    ];
+    expect(byCategoryBetween(list, TZ, '2026-11-02', '2026-11-02')).toEqual({
+      total: 400,
+      rows: [
+        { categoryId: 'hotel', total: 300, pct: 75 },
+        { categoryId: 'food', total: 100, pct: 25 },
+      ],
+    });
+    expect(byCategoryBetween(list, TZ, '2026-11-05', '2026-11-09')).toEqual({ total: 0, rows: [] });
+  });
+});
+

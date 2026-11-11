@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/i18n';
+import { clearLaunchSnapshot } from '@/lib/launchSnapshot';
 import { supabase } from '@/lib/supabase';
 import { useOutbox } from '@/store/outbox';
 import { usePrefs } from '@/store/prefs';
@@ -14,6 +15,7 @@ export function useSignOut() {
     const body = pending > 0 ? t('settings.signOutPending', { count: pending }) : undefined;
     if (!(await confirmDialog(t('settings.signOutConfirm'), body, t('settings.signOut'), t('common.cancel'), true))) return;
     usePrefs.getState().setActiveTrip(null);
+    clearLaunchSnapshot();
     await supabase.auth.signOut();
     useOutbox.setState({ items: [] });
     usePrefs.setState({ homeOrderDirty: false });

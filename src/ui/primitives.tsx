@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, type ComponentProps, type ReactNode, type Ref } from 'react';
 import {
@@ -646,10 +646,10 @@ export function ErrorView({ error, onRetry }: { error: unknown; onRetry?: () => 
   );
 }
 
-export function Banner({ text, color, icon = 'alert-circle' }: { text: string; color: string; icon?: IconName }) {
+export function Banner({ text, color, icon = 'alert-circle', onPress }: { text: string; color: string; icon?: IconName; onPress?: () => void }) {
   const c = useColors();
   // The colour marks the icon; the words stay in the main text colour so they read on any tint
-  return (
+  const body = (
     <Row
       style={{
         backgroundColor: color + '1A',
@@ -662,7 +662,14 @@ export function Banner({ text, color, icon = 'alert-circle' }: { text: string; c
       <Text variant="label" color={c.text} style={{ flex: 1 }}>
         {text}
       </Text>
+      {onPress ? <Ionicons name="refresh" size={18} color={color} /> : null}
     </Row>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
+      {body}
+    </Pressable>
   );
 }
 

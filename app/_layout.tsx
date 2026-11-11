@@ -1,17 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import { focusManager, MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { focusManager, hydrate, MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { persistQueryClientSubscribe, PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { AppState, Platform, Pressable, Text, View } from 'react-native';
 import type { ErrorBoundaryProps } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { applyDirection, deviceLang, initI18n } from '@/i18n';
 import { installGlobalErrorLogging, logError } from '@/lib/log';
 import { startConnectivity } from '@/lib/connectivity';
+import { startAppUpdateChecks } from '@/lib/appUpdate';
+import { webStorage } from '@/lib/deviceStorage';
+import { dropLaunchSnapshotStyles, startLaunchSnapshots } from '@/lib/launchSnapshot';
 import { promptSignUp } from '@/lib/demoPrompt';
 import { errorCode, isSupabaseConfigured } from '@/lib/supabase';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
@@ -19,6 +21,7 @@ import { useIsDemo, usePrefs } from '@/store/prefs';
 import { seedDemo } from '@/lib/demoSeed';
 import i18n from '@/i18n';
 import { DialogHost } from '@/ui/Dialog';
+import { GestureRoot } from '@/ui/GestureRoot';
 import { ConfettiHost } from '@/ui/Confetti';
 import { Loading } from '@/ui/primitives';
 import { useColors } from '@/theme';
@@ -51,8 +54,50 @@ const queryClient: QueryClient = new QueryClient({
 installGlobalErrorLogging();
 // Offline detection: the browser's flag at launch, failed requests, and a probe until the server answers
 startConnectivity();
+// Web: look for a newer version when the app comes back to the foreground
+startAppUpdateChecks();
+// Web: keep a copy of Home for the next launch when the app goes to the background
+startLaunchSnapshots();
 
-const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: 'travelspend-cache', throttleTime: 2000 });
+const CACHE_KEY = 'travelspend-cache';
+const BUSTER = 'v1';
+const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: CACHE_KEY, throttleTime: 2000 });
+
+/**
+ * Web: put the saved copy of the data back before the first render, so Home
+ * draws the trip at once (with or without signal) instead of first drawing a
+ * placeholder while it is read. Same checks as React Query's own restore: a
+ * copy older than a month or from an older format is dropped. Returns false on
+ * the phone app, which restores through PersistQueryClientProvider.
+ */
+function restoreSavedDataNow() {
+  const ls = webStorage();
+  if (!ls) return false;
+  try {
+    const raw = ls.getItem(CACHE_KEY);
+    const saved = raw ? JSON.parse(raw) : null;
+    if (saved?.timestamp && Date.now() - saved.timestamp <= MONTH && saved.buster === BUSTER) hydrate(queryClient, saved.clientState);
+    else if (raw) ls.removeItem(CACHE_KEY);
+  } catch {
+    try {
+      ls.removeItem(CACHE_KEY);
+    } catch {
+      // storage blocked: start empty
+    }
+  }
+  return true;
+}
+const restoredNow = restoreSavedDataNow();
+
+/** Web: keeps saving the data (it was already restored above). */
+function SaveDataCache() {
+  useEffect(() => {
+    // The demo trip is never sent anywhere; put it back after a reload
+    if (usePrefs.getState().demo) seedDemo(queryClient, i18n.t);
+    return persistQueryClientSubscribe({ queryClient, persister, buster: BUSTER });
+  }, []);
+  return null;
+}
 
 // Refetch when the app returns to the foreground
 if (Platform.OS !== 'web') {
@@ -100,30 +145,43 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const hydrated = usePrefsHydrated();
+  // The live app has replaced the saved copy of Home shown at launch
+  useEffect(() => dropLaunchSnapshotStyles(), []);
   const lang = usePrefs((s) => s.lang) ?? deviceLang();
   if (hydrated) {
     initI18n(lang);
     applyDirection(lang);
   }
 
+  const app = (
+    <AuthProvider>
+      <StatusBar style="auto" />
+      {hydrated ? <RootNavigator /> : <Loading />}
+      <DialogHost />
+      <ConfettiHost />
+    </AuthProvider>
+  );
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureRoot>
       <SafeAreaProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{ persister, maxAge: MONTH, buster: 'v1' }}
-          // Restoring the saved cache must not replace the demo trip
-          onSuccess={() => usePrefs.getState().demo && seedDemo(queryClient, i18n.t)}
-        >
-          <AuthProvider>
-            <StatusBar style="auto" />
-            {hydrated ? <RootNavigator /> : <Loading />}
-            <DialogHost />
-            <ConfettiHost />
-          </AuthProvider>
-        </PersistQueryClientProvider>
+        {restoredNow ? (
+          <QueryClientProvider client={queryClient}>
+            <SaveDataCache />
+            {app}
+          </QueryClientProvider>
+        ) : (
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{ persister, maxAge: MONTH, buster: BUSTER }}
+            // Restoring the saved cache must not replace the demo trip
+            onSuccess={() => usePrefs.getState().demo && seedDemo(queryClient, i18n.t)}
+          >
+            {app}
+          </PersistQueryClientProvider>
+        )}
       </SafeAreaProvider>
-    </GestureHandlerRootView>
+    </GestureRoot>
   );
 }
 

@@ -1,8 +1,8 @@
 import { onlineManager } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, Pressable, RefreshControl, View, type ScrollViewInstance } from 'react-native';
+import { Image, Pressable, RefreshControl, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { HERO_GLOW_OPACITY } from '@/palette';
 import { claimFeedbackPrompt, useHomeLayout, useInviteCode } from '@/api/queries';
@@ -21,6 +21,9 @@ import { SortableList } from '@/ui/SortableList';
 import { SyncStatus } from '@/ui/SyncStatus';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
+import { InfoTip } from '@/ui/InfoTip';
+import { scheduleLaunchSnapshot } from '@/lib/launchSnapshot';
+import { sessionStorageKey } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTripLook } from '@/store/tripLook';
 import { useFeedback } from '@/store/feedback';
@@ -95,6 +98,10 @@ export default function Home() {
     }, 1200);
     return () => clearTimeout(id);
   }, [canFeedback, trip?.id, userId, feedbackChecked, feedbackPrompted]);
+  // Web: keep a copy of this screen so the next launch can show it at once
+  useEffect(() => {
+    if (canFeedback && trip) scheduleLaunchSnapshot(sessionStorageKey());
+  });
   // The panel lives at the top of the page: bring it into view when it opens
   const feedbackOpen = useFeedback((s) => s.open);
   useEffect(() => {
@@ -204,38 +211,67 @@ export default function Home() {
             </>
           ) : null}
         </Card>
-        {/* Tap: how the average is worked out, per category */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('home.avgOpen')}
-          onPress={() => setAvgOpen(true)}
-          style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
-        >
-          <Card style={{ flex: 1, gap: 6 }}>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Text variant="label" muted>
-                {t('home.dailyAvg')}
+        {/* Tap the card: the average per category. The card's surface is its own
+            layer under the words, so the ⓘ can be a separate button (a button
+            inside a button isn't allowed on the web). */}
+        <View style={{ flex: 1 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.avgOpen')}
+            onPress={() => setAvgOpen(true)}
+            style={({ pressed }) => [
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: c.card,
+                borderRadius: radius.lg,
+                shadowColor: '#11142D',
+                shadowOpacity: 0.05,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 1,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          />
+          <View pointerEvents="box-none" style={{ flex: 1, padding: space.lg, gap: 6 }}>
+            <View pointerEvents="box-none" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+              {/* The label, then ⓘ at its end: how the figure is worked out */}
+              <View pointerEvents="box-none" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 }}>
+                <View pointerEvents="none" style={{ flexShrink: 1 }}>
+                  <Text variant="label" muted numberOfLines={1}>
+                    {t('home.dailyAvg')}
+                  </Text>
+                </View>
+                <InfoTip label={t('home.avgInfo')}>
+                  <Text variant="label">
+                    {stats.daysElapsed ? t('home.avgMath', { amount: ils(stats.averagedTotal), count: stats.daysElapsed }) : t('home.avgNotStarted')}
+                  </Text>
+                  {stats.preTrip > 0 ? (
+                    <Text variant="caption" muted>
+                      {t('home.avgExcludesPre', { amount: ils(stats.preTrip) })}
+                    </Text>
+                  ) : null}
+                  {stats.projected != null ? (
+                    <Text variant="caption" muted>
+                      {t('home.projected')}: {ils(stats.projected)}
+                    </Text>
+                  ) : null}
+                  <Text variant="caption" faint style={{ marginTop: 4 }}>
+                    {t('home.avgTapHint')}
+                  </Text>
+                </InfoTip>
+              </View>
+              <View pointerEvents="none">
+                <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} />
+              </View>
+            </View>
+            <View pointerEvents="none">
+              <Text variant="h2" style={{ fontSize: 20 }}>
+                {ils(stats.dailyAverage)}
               </Text>
-              <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} />
-            </Row>
-            <Text variant="h2" style={{ fontSize: 20 }}>
-              {ils(stats.dailyAverage)}
-            </Text>
-            <Text variant="caption" muted>
-              {stats.daysElapsed ? t('home.avgMath', { amount: ils(stats.averagedTotal), count: stats.daysElapsed }) : t('home.avgNotStarted')}
-            </Text>
-            {stats.preTrip > 0 ? (
-              <Text variant="caption" faint>
-                {t('home.avgExcludesPre', { amount: ils(stats.preTrip) })}
-              </Text>
-            ) : null}
-            {stats.projected != null ? (
-              <Text variant="caption" muted>
-                {t('home.projected')}: {ils(stats.projected)}
-              </Text>
-            ) : null}
-          </Card>
-        </Pressable>
+            </View>
+          </View>
+        </View>
       </Row>
     ),
     // Also shown after a partner was removed while money is still open between you
@@ -468,7 +504,7 @@ export default function Home() {
         </Pressable>
       ) : null}
 
-      <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false}>
+      <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false} dragContent={false}>
         <View style={{ padding: space.lg, gap: space.md }}>
           <Text variant="caption" muted center>
             {t('home.arrangeHint')}

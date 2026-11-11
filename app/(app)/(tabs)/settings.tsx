@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { SyncStatus } from '@/ui/SyncStatus';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';

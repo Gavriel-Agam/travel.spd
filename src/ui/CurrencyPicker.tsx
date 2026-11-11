@@ -1,13 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState } from 'react';
-import { Pressable, SectionList, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { useCurrencyList } from '@/api/queries';
 import { allCurrencies, currencyName, orderForPicker, searchCurrencies, type Currency } from '@/lib/currencies';
 import { useT } from '@/i18n';
 import { usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import { Text, tap } from './primitives';
-import { Sheet } from './Sheet';
+import { Sheet, SheetSectionList } from './Sheet';
 
 export function CurrencyPicker({
   visible,
@@ -72,7 +72,7 @@ export function CurrencyPicker({
           />
         </View>
       </View>
-      <SectionList
+      <SheetSectionList
         sections={sections}
         keyExtractor={(item, i) => `${item.code}-${i}`}
         keyboardShouldPersistTaps="handled"

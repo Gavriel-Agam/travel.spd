@@ -1,5 +1,5 @@
 // Per-device preferences and caches (not shared between partners).
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persistStorage } from '@/lib/deviceStorage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { RatesSnapshot } from '@/types/db';
@@ -77,7 +77,7 @@ export const usePrefs = create<PrefsState>()(
     }),
     {
       name: 'travelspend-prefs',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(persistStorage),
       version: 1,
       // v1: rate snapshots carry a date and source per currency; drop older caches
       migrate: (state) => ({ ...(state as PrefsState), rates: {} }),

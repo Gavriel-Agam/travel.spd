@@ -6,6 +6,7 @@
 // - at launch the browser's own flag is used (React Query assumes online);
 // - any request that fails at network level marks the app offline at once,
 //   so queries pause and show their saved data instead of retrying forever;
+// - any request the server answers marks it online again at once;
 // - while offline, a tiny request to the server every 10 seconds checks when
 //   it is reachable again, then everything resumes (and queued changes sync).
 import { onlineManager } from '@tanstack/react-query';
@@ -55,6 +56,11 @@ function startProbing() {
 export function noteNetworkFailure() {
   if (onlineManager.isOnline()) onlineManager.setOnline(false);
   startProbing();
+}
+
+/** The server answered a request: back online now (no need to wait for the next check). */
+export function noteServerReached() {
+  if (!onlineManager.isOnline()) onlineManager.setOnline(true);
 }
 
 /** Call once at start-up. */

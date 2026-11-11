@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { usePrefs } from '@/store/prefs';
-import { isNetworkError, noteNetworkFailure } from './connectivity';
+import { isNetworkError, noteNetworkFailure, noteServerReached } from './connectivity';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -49,7 +49,8 @@ const UPLOAD_TIMEOUT = 90_000;
 
 // The guest demo never talks to the server: any request (read or write) is refused.
 // A request that fails at network level (or times out) switches the app to
-// offline mode right away: saved data shows and changes are queued.
+// offline mode right away: saved data shows and changes are queued. Any answer
+// from the server switches it back.
 const guardedFetch: typeof fetch = (input, init) => {
   if (usePrefs.getState().demo) return Promise.reject(new Error('demo_readonly'));
   const href = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
@@ -59,6 +60,10 @@ const guardedFetch: typeof fetch = (input, init) => {
   // Keep the caller's own cancel signal working too
   init?.signal?.addEventListener('abort', () => ctrl.abort());
   return fetch(input, { ...init, signal: ctrl.signal })
+    .then((res) => {
+      noteServerReached();
+      return res;
+    })
     .catch((e) => {
       const timedOut = ctrl.signal.aborted && !init?.signal?.aborted;
       const err = timedOut ? new TypeError('Network request timed out') : e;
@@ -121,13 +126,30 @@ export function errorCode(e: unknown): string {
  * as soon as the server is reachable.
  */
 export async function readStoredSession() {
+  if (Platform.OS === 'web') return readStoredSessionNow();
   try {
-    const key = (supabase.auth as unknown as { storageKey?: string }).storageKey;
-    const storage = Platform.OS === 'web' ? webStorage : secureChunked;
-    const raw = key ? await storage.getItem(key) : null;
-    const s = raw ? JSON.parse(raw) : null;
-    return s?.user?.id && s?.access_token ? (s as import('@supabase/supabase-js').Session) : null;
+    return parseSession(await secureChunked.getItem(sessionStorageKey()));
   } catch {
     return null;
   }
+}
+
+/** Web: the saved session, read synchronously (null on the phone app or when there is none). */
+export function readStoredSessionNow() {
+  if (Platform.OS !== 'web') return null;
+  try {
+    return parseSession(typeof localStorage === 'undefined' ? null : localStorage.getItem(sessionStorageKey()));
+  } catch {
+    return null;
+  }
+}
+
+/** The key the login is saved under on this device. */
+export function sessionStorageKey() {
+  return (supabase.auth as unknown as { storageKey: string }).storageKey;
+}
+
+function parseSession(raw: string | null) {
+  const s = raw ? JSON.parse(raw) : null;
+  return s?.user?.id && s?.access_token ? (s as import('@supabase/supabase-js').Session) : null;
 }

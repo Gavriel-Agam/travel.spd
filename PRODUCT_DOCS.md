@@ -28,22 +28,33 @@ Last updated: 2026-11-10
 
 | Area | What exists |
 |---|---|
-| Accounts | Email + password, Google OAuth, guest demo (read-only local mock trip). Anonymous-identity phones migrate via account transfer (migration 0010). |
+| Accounts | Email + password, Google OAuth, Facebook OAuth (its button appears only once Facebook is turned on in Supabase), guest demo (read-only local mock trip). Anonymous-identity phones migrate via account transfer (migration 0010). |
 | Trips | Private trips; partner joins by invite code (Settings / `join/[code]`). Trip colour + cover photo (0013). Creator can remove a partner (soft, 0014): access gone, history + balances kept, can rejoin as same member. |
 | Expenses | Add / edit / view. Swipe any expense row (Expenses tab and Home › Recent, one shared row) → Edit / Delete. Any currency, auto rate (ECB, then market dataset) or manual rate either direction. Receipt photos. Form: amount → category → divider → payment method → divider → description → **More details** (folded by default, one-line summary: who paid, date, 📝/🧾) holding who paid, split, date/time, notes, receipt. |
-| Payment methods | Built-in: card, cash, **Bit**, transfer (legacy "other" still shown on old expenses). Each trip can add its own names (max 20, ≤30 chars, shared with the partner; 0017) via the "+ Add" chip, which also selects it. Removing one never changes saved expenses. |
+| Payment methods | Built-in: card, cash, **Bit**. Bank transfer was removed from the list (2026-11-11); older expenses and settle-ups still show it, and legacy "other". All on **one line**: as many chips as fit, then a round **+** (a small number on it = how many didn't fit). **+** opens a sheet: the methods that didn't fit (tap to pick), add the trip's own (max 20, ≤30 chars, shared with the partner; 0017; adds and selects), remove one (saved expenses unchanged). The chosen method always stays on the line. |
 | Paid by | Defaults to joint money (`paid_by_member_id = null`, 0012); or a specific partner. |
 | Splits & settle-up | Server-side splits that sum exactly; Settle screen. |
 | Budget | One **trip budget** (total, ₪), set in Settings › Trip details; Home shows used / left and alerts. The Budget tab was removed (2026-11-10): daily, per-category and per-member limits can no longer be edited (existing ones still count in Home, alerts and Stats; a daily limit can still be entered when creating a trip). |
 | Stats | Trend, category and payment pie charts, pace / projection. Category pie has a range selector: All / Day / Week (Sun-Sat in Hebrew, Mon-Sun in English) / Month, with ‹ › to step back and forward (not past today or the trip end), or Custom (from / to dates). |
-| Home | Cards (default order): hero (total + budget), today + daily avg, recent, categories, 7 days, who paid. Daily average = spending from the trip start (or first expense) to today ÷ those days; spending before the trip and expenses dated later are left out and the card says so ("X ₪ over N days · excludes Y ₪ from before the trip"). Tap the card → breakdown: the math, then per category ₪/day, total, share and today's spend. Long-press to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
+| Home | Cards (default order): hero (total + budget), today + daily avg, recent, categories, 7 days, who paid. Daily average = spending from the trip start (or first expense) to today ÷ those days; spending before the trip and expenses dated later are left out. The card shows only the label with an **ⓘ** at its end, and the figure; ⓘ opens a small popover with the math ("X ₪ over N days", "excludes Y ₪ from before the trip", projection). Tap the card → breakdown: the math, then per category ₪/day, total, share and today's spend. Long-press to reorder; order synced per user (0011). No expenses yet → one large "Tap to add an expense" (+) button. Solo trip → small invite icon in the header (opens Settings). |
 | Categories | Editable per trip (0009 overrides). Settings › Categories: swipe a row (right in Hebrew) → Edit / Delete (built-ins are hidden for the trip, restorable from the hidden section); hold ~0.5 s and drag to reorder. Same hold-and-drag on the category chips in the expense form. Order is per trip, shared (`trips.category_order`, 0017). Icon: emoji grid, own emoji (kept whole, colour form), or an uploaded PNG / SVG / JPG turned into a 128 px icon (data URL in the row, works offline; 0017). Uploads (category pictures and profile photos) open a crop screen in the browser: drag to move, two-finger pinch / mouse wheel / − + to zoom, live preview at final size; photos start filling the frame, logos start whole. Phone app: the system cropper. Broken picture → emoji → 🏷️ fallback. |
 | Sync | Supabase Realtime between partners. Offline-first: data saved on the device (30 days) shows instantly with no signal; new expenses, edits and deletes are queued (outbox, idempotent creates 0005, versioned edits/deletes), shown immediately, and sent automatically when the server is reachable again (probe every 10s). Conflicts with a partner's edit are flagged, never overwritten. Banner: offline (showing saved data) → syncing → all synced. |
+| Launch speed | Web app opens instantly, with or without signal: the service worker serves the stored app at once and fetches the latest version in the background with all its files (used from the next launch; banner "new version ready · tap to reload"). One script file (2.1 MB, was 3.6 MB in ~20 files loaded one after another). Saved data, settings and login are read before the first screen is drawn. The Home screen as last shown is kept on the device and put on screen from the page itself before the script starts (only on Home, same login, same screen size, removed after a month, deleted on sign-out), then the live Home replaces it. Bench (desktop Chrome, cold start): Home visible ~0.12 s, live ~0.4 s, online, weak signal and offline alike (before: 1.2 s online; never opened on a hanging network or offline). |
+| Sheets | Every bottom sheet closes by dragging it down: a quick flick (over 0.5 pt/ms) or pulling it past about a third of its height closes it with a short slide; a slow or short drag springs back. The handle and title always drag; the content drags only when its list is at the top (so scrolling stays scrolling). Home › Arrange: handle only (its cards are dragged). |
 | Reliability | Every client error logged to `public.client_errors`; expired sessions recover automatically. |
 | Feedback | Floating panel ("the app is in beta…") with text + Send; X shrinks it into a bell (top left of Home header in Hebrew), bell reopens it. Opens by itself **once per account, ever** (first Home with a trip after signing up, any device): server claim `claim_feedback_prompt()` (0017; accounts that existed before were marked as already asked) plus a per-device flag. Afterwards only from the bell. Saved to `app_feedback` (0015, write-only); ntfy.sh push/email to the developer via Vault secrets. |
 
 ### Screens
 `sign-in`, `setup`, `reset-password`, `onboarding` (create / join), tabs: **Home**, **Expenses**, **Stats**, **Settings**; plus `expense/new`, `expense/[id]`, `expense/[id]/edit`, `categories`, `settle`.
+
+### Facebook sign-in setup
+The Facebook button stays hidden until Facebook is turned on in Supabase. To turn it on:
+1. developers.facebook.com → **My Apps** → **Create App** → use case **Authenticate and request data from users with Facebook Login** → name **SmartTrip** → create.
+2. **Use cases** → Facebook Login → **Customize** → **Permissions**: add **email** (public_profile is there by default). → **Settings**: Valid OAuth Redirect URIs = the Callback URL shown in Supabase (step 4) → Save.
+3. **App settings** → **Basic**: Privacy Policy URL `https://gavriel-agam.github.io/travel.spd/privacy.html`, Terms of Service URL `…/terms.html`, User data deletion: instructions URL `…/privacy.html#delete`, app icon, category → Save. Copy **App ID** and **App Secret**.
+4. Supabase dashboard → project → **Authentication** → **Sign In / Providers** → **Facebook** → enable → paste App ID (Client ID) and App Secret → Save.
+5. Back in Meta: **Publish** the app (Live). Until then only the app's own admins/testers can sign in.
+The button appears in the app within 10 minutes (or on the next launch).
 
 ### Google sign-in test users
 The Google OAuth app is in **Testing** mode, so only accounts on its Test users list can use "Continue with Google". Email + password sign-up is open to everyone and needs no list. Access to a trip still requires its invite code.
@@ -59,11 +70,11 @@ Test users' email addresses are kept only in the console, never in this public r
 
 ## 3. Core UX flows
 
-**First run:** open link → sign in: big white "Continue with Google"; text link "More sign-in options" reveals email + password and the demo → onboarding: create trip or join with code → Home.
+**First run:** open link → sign in: big white "Continue with Google" (full-colour G), blue "Continue with Facebook" (once enabled); text link "More sign-in options" reveals email + password and the demo → onboarding: create trip or join with code → Home.
 
 **Create trip:** trip name → your name → Dates toggle (off by default; on = start/end pickers fade in) → main currency → optional budgets → Create. A trip without dates has no start or end.
 
-**Add expense:** Home or Expenses → New → amount + currency → (rate auto or manual) → category (full-width grid of tiles, 3 per row, 4 on wide screens; hold a tile to drag it) → payment method → optional description → (More details: paid by, default joint → split → date → notes / receipt) → save. Offline: saved as "waiting to sync". An invalid split opens More details.
+**Add expense:** Home or Expenses → New → amount + currency → (rate auto or manual) → category (full-width grid of tiles, 3 per row, 4 on wide screens; hold a tile to drag it) → payment method (one line; **+** for the rest or your own) → optional description → (More details: paid by, default joint → split → date → notes / receipt) → save. Offline: saved as "waiting to sync". An invalid split opens More details.
 
 **Partner join:** partner A shares invite code from Settings → partner B signs in → onboarding/join → enters code → shared trip, live sync.
 
@@ -96,6 +107,10 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 
 | Date | Decision |
 |---|---|
+| 2026-11-11 | Bank transfer removed from the payment list; payment methods on one line with a "+" for the rest. |
+| 2026-11-11 | Facebook sign-in added next to Google; the button shows only once the provider is enabled (no broken button while Meta setup is pending). |
+| 2026-11-11 | The web app opens from its stored copy instead of waiting for the network; a new version is fetched in the background and used from the next launch (plus a "tap to reload" banner). |
+| 2026-11-11 | Launch snapshot: a copy of Home is shown straight from the page while the app starts (target was under 300 ms). |
 | 2026-11-05 | New Google sign-in test user added in Google Cloud Console (Google Auth Platform → Audience → Test users). OAuth app stays in Testing mode; test users' emails are not stored in the repo. |
 | 2026-11-10 | Budget tab removed; the only budget is the trip budget in Settings › Trip details (per Gabriel: "remove the budget tab, add only trip budget"). |
 | 2026-11-10 | Daily average = trip days so far only; pre-trip and later-dated spending excluded and shown as such (Gabriel chose this over dividing the full total). |

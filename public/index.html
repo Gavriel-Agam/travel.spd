@@ -47,18 +47,41 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <script>
-      // Offline support: cache the app so it opens without signal
+      // Instant launch (src/lib/launchSnapshot.ts): the Home screen as it was last
+      // shown goes on screen right away; the app replaces it with the live one
+      // as soon as it has started. Only on Home, only while still signed in.
+      (function () {
+        try {
+          if (location.pathname !== '/travel.spd/') return;
+          var s = JSON.parse(localStorage.getItem('smarttrip-launch') || 'null');
+          if (!s || s.v !== 1 || !s.html) return;
+          if (Date.now() - s.at > 30 * 864e5) return localStorage.removeItem('smarttrip-launch');
+          if (!s.session || !localStorage.getItem(s.session)) return;
+          if (!!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) !== s.dark) return;
+          if (s.w !== window.innerWidth || Math.abs(s.h - window.innerHeight) > 120) return;
+          var css = document.createElement('style');
+          css.id = 'launch-snapshot-css';
+          css.textContent = s.css;
+          document.head.appendChild(css);
+          if (s.dir) document.documentElement.dir = s.dir;
+          if (s.lang) document.documentElement.lang = s.lang;
+          document.getElementById('root').innerHTML = s.html;
+        } catch (e) {}
+      })();
+    </script>
+    <script>
+      // Offline support (public/sw.js): the app opens from the cache at once, with
+      // or without signal. When a newer version has been downloaded in the
+      // background, the app offers to reload (src/lib/appUpdate.ts).
       if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
+        navigator.serviceWorker.addEventListener('message', function (e) {
+          if (e.data && e.data.type === 'APP_UPDATED') {
+            window.__appUpdateReady = true;
+            window.dispatchEvent(new Event('app-update-ready'));
+          }
+        });
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/travel.spd/sw.js', { scope: '/travel.spd/' }).then(function () {
-            return navigator.serviceWorker.ready;
-          }).then(function (reg) {
-            var urls = [location.pathname];
-            document.querySelectorAll('script[src], link[rel="stylesheet"][href], link[rel="preload"][href]').forEach(function (el) {
-              urls.push(el.getAttribute('src') || el.getAttribute('href'));
-            });
-            if (reg.active) reg.active.postMessage({ type: 'CACHE_URLS', urls: urls });
-          }).catch(function () {});
+          navigator.serviceWorker.register('/travel.spd/sw.js', { scope: '/travel.spd/' }).catch(function () {});
         });
       }
     </script>

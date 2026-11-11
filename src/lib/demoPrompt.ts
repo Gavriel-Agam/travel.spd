@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 import i18n from '@/i18n';
 import { usePrefs } from '@/store/prefs';
 import { showDialog } from '@/ui/Dialog';
-import { signInWithGoogle } from './auth';
+import { signInWithProvider } from './auth';
 
 /** Leaves the guest demo: forgets the sample trip and returns to sign-in. */
 export function leaveDemo(qc: QueryClient) {
@@ -28,7 +28,7 @@ export function promptSignUp(qc: QueryClient) {
             label: t('auth.google'),
             onPress: () => {
               leaveDemo(qc);
-              signInWithGoogle().catch(() => {});
+              signInWithProvider('google').catch(() => {});
             },
           },
         ]

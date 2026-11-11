@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOnline } from '@/hooks/useOutboxSync';
 import { useT } from '@/i18n';
+import { applyAppUpdate, useAppUpdateReady } from '@/lib/appUpdate';
 import { useOutbox, useSyncFlash } from '@/store/outbox';
 import { useColors } from '@/theme';
 import { Banner } from './primitives';
@@ -12,7 +13,8 @@ const FLASH_MS = 3000;
  * - offline: "showing saved data", plus how many changes are waiting;
  * - back online: "syncing…" while queued changes are sent;
  * - then "all synced" for a few seconds;
- * - a change the server refused: asks to open it.
+ * - a change the server refused: asks to open it;
+ * - a newer version of the app was downloaded: tap to reload.
  * Nothing at all when everything is normal.
  */
 export function SyncStatus({ tripId }: { tripId: string }) {
@@ -28,6 +30,7 @@ export function SyncStatus({ tripId }: { tripId: string }) {
 
   // "All synced" for a moment after a sync or a reconnect
   const flashedAt = useSyncFlash((s) => s.at);
+  const updateReady = useAppUpdateReady();
   const [, tick] = useState(0);
   const flashing = flashedAt > 0 && Date.now() - flashedAt < FLASH_MS;
   useEffect(() => {
@@ -47,6 +50,7 @@ export function SyncStatus({ tripId }: { tripId: string }) {
     );
   }
   if (waiting > 0) return <Banner text={t('sync.syncing', { count: waiting })} color={c.primary} icon="sync" />;
+  if (updateReady) return <Banner text={t('sync.updateReady')} color={c.primary} icon="sparkles-outline" onPress={applyAppUpdate} />;
   if (flashing) return <Banner text={t('sync.allSynced')} color={c.success} icon="checkmark-circle" />;
   return null;
 }

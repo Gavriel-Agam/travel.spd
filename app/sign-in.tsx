@@ -1,10 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Image, Platform, Pressable, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useT } from '@/i18n';
-import { fetchAuthProviders, sendPasswordReset, signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth';
+import { fetchAuthProviders, sendPasswordReset, signInWithPassword, signInWithProvider, signUpWithPassword } from '@/lib/auth';
 import { seedDemo } from '@/lib/demoSeed';
 import { errorCode } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
@@ -12,14 +10,18 @@ import { usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import { AuthForm, submitAuthForm } from '@/ui/AuthForm';
 import { Banner, Button, Divider, Field, Loading, Row, Screen, Segmented, Text } from '@/ui/primitives';
+import { FacebookLogo, GoogleLogo } from '@/ui/BrandLogos';
+import { FadeIn } from '@/ui/FadeIn';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Mode = 'signin' | 'signup';
 
 /**
- * Sign in: Google first. Email + password and the read-only demo sit behind
- * "More sign-in options" (shown open when Google sign-in is not available).
- * A phone still on the old no-login identity keeps its trip when it signs in.
+ * Sign in: Google and Facebook first (each only when it is turned on for the
+ * project, so a button never leads to an error). Email + password and the
+ * read-only demo sit behind "More sign-in options" (shown open when neither is
+ * available). A phone still on the old no-login identity keeps its trip when
+ * it signs in.
  */
 export default function SignIn() {
   const { t } = useT();
@@ -31,15 +33,17 @@ export default function SignIn() {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState<null | 'email' | 'google' | 'reset'>(null);
+  const [busy, setBusy] = useState<null | 'email' | 'google' | 'facebook' | 'reset'>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const upgrading = !!session?.user.is_anonymous;
-  const googleOn = Platform.OS === 'web' && providers.data?.google;
+  const googleOn = Platform.OS === 'web' && !!providers.data?.google;
+  const facebookOn = Platform.OS === 'web' && !!providers.data?.facebook;
+  const socialOn = googleOn || facebookOn;
   const [more, setMore] = useState(false);
-  // Until we know whether Google is on, show neither layout (no flash of the email form)
+  // Until we know which sign-in methods are on, show neither layout (no flash of the email form)
   const checking = Platform.OS === 'web' && providers.isLoading;
-  const showMore = !googleOn || more;
+  const showMore = !socialOn || more;
 
   const fail = (e: unknown) => setError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
 
@@ -67,11 +71,11 @@ export default function SignIn() {
     }
   }
 
-  async function google() {
+  async function social(provider: 'google' | 'facebook') {
     setError(null);
-    setBusy('google');
+    setBusy(provider);
     try {
-      await signInWithGoogle(); // leaves for Google and comes back signed in
+      await signInWithProvider(provider); // leaves for Google / Facebook and comes back signed in
     } catch (e) {
       fail(e);
       setBusy(null);
@@ -113,30 +117,32 @@ export default function SignIn() {
 
       {upgrading ? <Banner text={t('auth.keepTrip')} color={c.primary} icon="shield-checkmark-outline" /> : null}
 
-      {googleOn ? (
+      {socialOn ? (
         <>
-          <Pressable
-            accessibilityRole="button"
-            onPress={google}
-            disabled={!!busy}
-            style={({ pressed }) => ({
-              height: 52,
-              borderRadius: radius.md,
-              backgroundColor: '#fff',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: space.sm,
-              borderWidth: 1,
-              borderColor: '#DADCE0',
-              opacity: busy ? 0.6 : pressed ? 0.85 : 1,
-            })}
-          >
-            <Ionicons name="logo-google" size={20} color="#4285F4" />
-            <Text variant="h2" color="#1F1F1F" style={{ fontSize: 16 }}>
-              {busy === 'google' ? t('common.loading') : t('auth.google')}
-            </Text>
-          </Pressable>
+          <View style={{ gap: space.md }}>
+            {googleOn ? (
+              <SocialButton
+                label={busy === 'google' ? t('common.loading') : t('auth.google')}
+                logo={<GoogleLogo size={20} />}
+                background="#FFFFFF"
+                border="#DADCE0"
+                text="#1F1F1F"
+                disabled={!!busy}
+                onPress={() => social('google')}
+              />
+            ) : null}
+            {facebookOn ? (
+              <SocialButton
+                label={busy === 'facebook' ? t('common.loading') : t('auth.facebook')}
+                logo={<FacebookLogo size={22} />}
+                background="#1877F2"
+                border="#1877F2"
+                text="#FFFFFF"
+                disabled={!!busy}
+                onPress={() => social('facebook')}
+              />
+            ) : null}
+          </View>
           {!more ? (
             // A quiet text link, not a button: email + password and the demo are secondary
             <Pressable accessibilityRole="button" onPress={() => setMore(true)} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: space.xs }}>
@@ -151,8 +157,8 @@ export default function SignIn() {
       {checking ? <Loading /> : null}
 
       {!checking && showMore ? (
-        <Animated.View entering={googleOn ? FadeIn.duration(220) : undefined} style={{ gap: space.xl }}>
-          {googleOn ? (
+        <FadeIn duration={socialOn ? 220 : 0} style={{ gap: space.xl }}>
+          {socialOn ? (
           <Row gap={space.md}>
             <View style={{ flex: 1 }}>
               <Divider />
@@ -229,8 +235,45 @@ export default function SignIn() {
           </Text>
         </View>
       ) : null}
-        </Animated.View>
+        </FadeIn>
       ) : null}
     </Screen>
+  );
+}
+
+/** A brand sign-in button (Google white, Facebook blue), logo before the words. */
+function SocialButton({ label, logo, background, border, text, disabled, onPress }: {
+  label: string;
+  logo: ReactNode;
+  background: string;
+  border: string;
+  text: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => ({
+        height: 52,
+        borderRadius: radius.md,
+        backgroundColor: background,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: space.sm,
+        borderWidth: 1,
+        borderColor: border,
+        opacity: disabled ? 0.6 : pressed ? 0.85 : 1,
+      })}
+    >
+      {logo}
+      <Text variant="h2" color={text} style={{ fontSize: 16 }}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }

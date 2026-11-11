@@ -4,7 +4,7 @@
 //   instead of adding it twice.
 // - update / delete: an existing expense, with the version it was changed
 //   from, so a partner's edit made in the meantime is detected, not overwritten.
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persistStorage } from '@/lib/deviceStorage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { SaveExpenseInput } from '@/api/queries';
@@ -60,7 +60,7 @@ export const useOutbox = create<OutboxState>()(
       remove: (clientId) => set((s) => ({ items: s.items.filter((i) => i.clientId !== clientId) })),
       fail: (clientId, error) => set((s) => ({ items: s.items.map((i) => (i.clientId === clientId ? { ...i, error } : i)) })),
     }),
-    { name: 'travelspend-outbox', storage: createJSONStorage(() => AsyncStorage) },
+    { name: 'travelspend-outbox', storage: createJSONStorage(persistStorage) },
   ),
 );
 

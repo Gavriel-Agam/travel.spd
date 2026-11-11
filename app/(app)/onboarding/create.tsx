@@ -3,7 +3,6 @@ import { goBack } from '@/lib/nav';
 import { getCalendars } from 'expo-localization';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useCreateTrip } from '@/api/queries';
 import { useT } from '@/i18n';
 import { currencyName, getCurrency } from '@/lib/currencies';
@@ -13,6 +12,7 @@ import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { Button, Card, Divider, Field, IconButton, Row, Screen, Text, Toggle } from '@/ui/primitives';
+import { FadeIn } from '@/ui/FadeIn';
 
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -88,7 +88,7 @@ export default function CreateTrip() {
         </Row>
         {/* Fade in only: an exit animation on web keeps a ghost copy of the fields until it ends */}
         {withDates ? (
-          <Animated.View entering={FadeIn.duration(200)} style={{ gap: space.md }}>
+          <FadeIn duration={200} style={{ gap: space.md }}>
             <Row style={{ justifyContent: 'space-between' }}>
               <Text muted>{t('onboarding.startDate')}</Text>
               <DateField value={start} onChange={setStart} />
@@ -98,7 +98,7 @@ export default function CreateTrip() {
               <Text muted>{t('onboarding.endDate')}</Text>
               <DateField value={end} onChange={setEnd} minimumDate={start} />
             </Row>
-          </Animated.View>
+          </FadeIn>
         ) : null}
       </Card>
 

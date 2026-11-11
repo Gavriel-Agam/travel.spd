@@ -93,6 +93,18 @@ type FormatOpts = { lang?: string; compact?: boolean; withSymbol?: boolean; forc
  * 125050 THB -> "1,250.50 ฿". Decimals are hidden when they are zero
  * (unless forceDecimals), which keeps lists calm: "1,250 ฿".
  */
+// Intl formatters are slow to build and Home formats many amounts: one per setting is kept
+const numberFormats = new Map<string, Intl.NumberFormat>();
+function numberFormat(locale: string, options: Intl.NumberFormatOptions) {
+  const key = locale + JSON.stringify(options);
+  let f = numberFormats.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(locale, options);
+    numberFormats.set(key, f);
+  }
+  return f;
+}
+
 export function formatMoney(minor: number, code: string, opts: FormatOpts = {}): string {
   const c = getCurrency(code);
   const value = new Decimal(minor).div(new Decimal(10).pow(c.minor_units));
@@ -100,10 +112,10 @@ export function formatMoney(minor: number, code: string, opts: FormatOpts = {}):
   const locale = opts.lang === 'he' ? 'he-IL' : 'en-US';
   let text: string;
   if (opts.compact && value.abs().gte(10000)) {
-    text = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value.toNumber());
+    text = numberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value.toNumber());
   } else {
     const digits = hasFraction || opts.forceDecimals ? c.minor_units : 0;
-    text = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(
+    text = numberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(
       // toNumber is safe here: display only, values < 1e13
       value.toNumber(),
     );

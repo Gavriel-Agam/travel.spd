@@ -10,9 +10,20 @@ export type StatExpense = {
 };
 
 /** "YYYY-MM-DD" of an instant in a timezone. */
+// Building an Intl formatter is slow (Home calls dayKey for every expense), so one per time zone is kept
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+function dayFormat(timeZone: string) {
+  let f = dayFormats.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+    dayFormats.set(timeZone, f);
+  }
+  return f;
+}
+
 export function dayKey(date: Date | string, timeZone: string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+  const parts = dayFormat(timeZone).formatToParts(d);
   const get = (t: string) => parts.find((p) => p.type === t)!.value;
   return `${get('year')}-${get('month')}-${get('day')}`;
 }

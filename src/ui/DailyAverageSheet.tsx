@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
@@ -8,7 +8,7 @@ import { dayKey, type TripStats } from '@/lib/stats';
 import { radius, space, useColors } from '@/theme';
 import type { Category, Expense } from '@/types/db';
 import { CategoryIcon } from './CategoryIcon';
-import { Sheet } from './Sheet';
+import { Sheet, SheetScrollView } from './Sheet';
 import { ProgressBar, Row, Text } from './primitives';
 
 /**
@@ -50,7 +50,7 @@ export function DailyAverageSheet({ visible, onClose, stats, expenses, categoryB
 
   return (
     <Sheet visible={visible} onClose={onClose} title={t('home.avgTitle')} height="85%" scroll={false}>
-      <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xxl }}>
+      <SheetScrollView contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xxl }}>
         {/* The figure and how it is worked out */}
         <View style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md, gap: 4 }}>
           <Text variant="hero" style={{ fontSize: 30 }}>
@@ -104,7 +104,7 @@ export function DailyAverageSheet({ visible, onClose, stats, expenses, categoryB
             );
           })
         )}
-      </ScrollView>
+      </SheetScrollView>
     </Sheet>
   );
 }

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
@@ -7,13 +7,13 @@ import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type TextInputInstance } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useSetCategoryOrder, useSetPaymentMethods, type SaveExpenseInput } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, nextCategoryOrder } from '@/lib/categories';
 import { BUILTIN_PAYMENTS, cleanPaymentName, MAX_CUSTOM_PAYMENTS, PAYMENT_NAME_MAX, paymentIcon, paymentLabel } from '@/lib/payments';
+import { PaymentRow } from './PaymentRow';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import {
   convertToHomeMinor,
@@ -46,6 +46,7 @@ import { Sheet } from './Sheet';
 import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
 import { Button, Chip, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
+import { FadeIn } from './FadeIn';
 
 type RateMode = 'stored' | 'auto' | 'manual';
 
@@ -84,6 +85,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [draggingChip, setDraggingChip] = useState(false);
   // Adding the trip's own payment method
   const [addingPayment, setAddingPayment] = useState(false);
+  // The methods that didn't fit on the form's single line (offered in the sheet)
+  const [morePayments, setMorePayments] = useState<string[]>([]);
   const [newPayment, setNewPayment] = useState('');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [pickCurrency, setPickCurrency] = useState(false);
@@ -508,26 +511,17 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         {/* Payment method */}
         <View style={{ gap: space.sm }}>
           <SectionTitle icon="card-outline" title={t('form.paymentMethod')} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-            {paymentKeys.map((key) => (
-              <Chip
-                key={key}
-                icon={paymentIcon(key)}
-                label={paymentLabel(key, t)}
-                selected={paymentMethod === key}
-                onPress={() => setPaymentMethod(paymentMethod === key ? null : key)}
-              />
-            ))}
-            <Chip
-              icon={<Ionicons name="add" size={16} color={c.primary} />}
-              label={t('payment.add')}
-              onPress={() => {
-                setPaymentError(null);
-                setNewPayment('');
-                setAddingPayment(true);
-              }}
-            />
-          </View>
+          <PaymentRow
+            keys={paymentKeys}
+            selected={paymentMethod}
+            onSelect={setPaymentMethod}
+            onMore={(hidden) => {
+              setMorePayments(hidden);
+              setPaymentError(null);
+              setNewPayment('');
+              setAddingPayment(true);
+            }}
+          />
         </View>
 
         <SectionBreak />
@@ -570,7 +564,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </Pressable>
 
           {detailsOpen ? (
-            <Animated.View entering={FadeIn.duration(180)} style={{ gap: space.lg }}>
+            <FadeIn duration={180} style={{ gap: space.lg }}>
               {/* Who paid */}
               {members.length > 1 ? (
                 <View style={{ gap: space.sm }}>
@@ -722,7 +716,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                   </Row>
                 )}
               </View>
-            </Animated.View>
+            </FadeIn>
           ) : null}
         </View>
       </ScrollView>
@@ -737,8 +731,29 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       </View>
 
       {/* The trip's own payment methods: add one (and pick it), or remove one */}
-      <Sheet visible={addingPayment} onClose={() => setAddingPayment(false)} title={t('payment.addTitle')}>
+      <Sheet visible={addingPayment} onClose={() => setAddingPayment(false)} title={morePayments.length ? t('payment.moreTitle') : t('payment.addTitle')}>
         <View style={{ padding: space.lg, gap: space.md }}>
+          {morePayments.length ? (
+            <View style={{ gap: space.sm }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+                {morePayments.map((key) => (
+                  <Chip
+                    key={key}
+                    icon={paymentIcon(key)}
+                    label={paymentLabel(key, t)}
+                    selected={paymentMethod === key}
+                    onPress={() => {
+                      setPaymentMethod(key);
+                      setAddingPayment(false);
+                    }}
+                  />
+                ))}
+              </View>
+              <Text variant="label" muted style={{ marginTop: space.sm }}>
+                {t('payment.addNew')}
+              </Text>
+            </View>
+          ) : null}
           <Field
             label={t('payment.addLabel')}
             value={newPayment}
@@ -748,7 +763,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
             }}
             placeholder={t('payment.addPlaceholder')}
             maxLength={PAYMENT_NAME_MAX}
-            autoFocus
+            autoFocus={!morePayments.length}
             returnKeyType="done"
             onSubmitEditing={addPayment}
             error={paymentError}

@@ -3,11 +3,11 @@ import { SyncStatus } from '@/ui/SyncStatus';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Platform, Pressable, Share, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useInviteCode, useRemoveMember, useSetBudget, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useSetBudget, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
 import { TRIP_THEMES, type TripTheme } from '@/palette';
 import { useTripLook } from '@/store/tripLook';
@@ -31,6 +31,9 @@ import { DateField } from '@/ui/DateField';
 import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
+import { UploadZone } from '@/ui/UploadZone';
+import { SwipeRow } from '@/ui/SwipeRow';
+import type { Trip } from '@/types/db';
 
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -48,6 +51,7 @@ export default function Settings() {
   const updateMe = useUpdateMyMember(trip?.id ?? '');
   const removeMember = useRemoveMember(trip?.id ?? '');
   const userId = useUserId();
+  const deleteTrip = useDeleteTrip();
   const setLang = usePrefs((s) => s.setLang);
   const setActiveTrip = usePrefs((s) => s.setActiveTrip);
   const queryClient = useQueryClient();
@@ -74,16 +78,45 @@ export default function Settings() {
   const [pickCurrency, setPickCurrency] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  /**
+   * Swipe › Delete on a trip. Its creator is asked to confirm, then the trip
+   * and everything in it is deleted for everyone. Anyone else is told that
+   * only the creator can delete it.
+   */
+  async function askDeleteTrip(tr: Trip) {
+    if (blockedInDemo(queryClient)) return;
+    if (tr.created_by !== userId) {
+      showDialog(t('settings.deleteTripOnlyCreator'), t('settings.deleteTripOnlyCreatorBody'));
+      return;
+    }
+    if (!onlineManager.isOnline()) {
+      showDialog(t('settings.deleteTrip'), t('settings.deleteTripOffline'));
+      return;
+    }
+    const yes = await confirmDialog(t('settings.deleteTripConfirm'), t('settings.deleteTripBody', { name: tr.name }), t('common.delete'), t('common.cancel'), true);
+    if (!yes) return;
+    try {
+      await deleteTrip.mutateAsync(tr.id);
+    } catch (e) {
+      showDialog(t('errors.title'), t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    }
+  }
+
   if (!trip) return null;
 
   async function pickCover() {
     if (!trip || blockedInDemo(queryClient)) return;
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (res.canceled || !res.assets[0]) return;
+    await saveCover(res.assets[0].uri);
+  }
+
+  async function saveCover(uri: string) {
+    if (!trip || blockedInDemo(queryClient)) return;
     setCoverBusy(true);
     setFormError(null);
     try {
-      await uploadTripCover(trip.id, res.assets[0].uri, trip.cover_path);
+      await uploadTripCover(trip.id, uri, trip.cover_path);
       await queryClient.invalidateQueries({ queryKey: ['trips'] });
     } catch (e) {
       setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
@@ -189,13 +222,34 @@ export default function Settings() {
           <Text variant="label" muted>
             {t('settings.trips')}
           </Text>
+          <Text variant="caption" faint style={{ marginTop: 2, marginBottom: space.xs }}>
+            {t('settings.tripsHint')}
+          </Text>
+          {/* Swipe a trip (right in Hebrew) for Delete: the creator confirms, anyone else is told only the creator can */}
           {(trips.data ?? []).map((tr) => (
-            <ListRow
+            <SwipeRow
               key={tr.id}
-              icon={<Ionicons name={tr.id === trip.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={c.primary} />}
-              title={tr.name}
-              onPress={() => setActiveTrip(tr.id)}
-            />
+              background={c.card}
+              style={{ borderRadius: radius.md }}
+              actions={[
+                {
+                  key: 'delete',
+                  icon: 'trash-outline',
+                  color: tr.created_by === userId ? c.danger : c.textFaint,
+                  label: t('common.delete'),
+                  onPress: () => void askDeleteTrip(tr),
+                },
+              ]}
+            >
+              {(guardTap) => (
+                <ListRow
+                  icon={<Ionicons name={tr.id === trip.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={c.primary} />}
+                  title={tr.name}
+                  subtitle={deleteTrip.isPending && deleteTrip.variables === tr.id ? t('common.loading') : undefined}
+                  onPress={guardTap(() => setActiveTrip(tr.id))}
+                />
+              )}
+            </SwipeRow>
           ))}
           <Divider />
           <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/create')} />
@@ -403,19 +457,16 @@ export default function Settings() {
                 <Text variant="label" muted>
                   {t('settings.tripPhoto')}
                 </Text>
-                <Row gap={space.sm}>
-                  <Button
-                    title={trip.cover_path ? t('settings.changePhoto') : t('settings.addPhoto')}
-                    icon="image-outline"
-                    variant="secondary"
-                    loading={coverBusy}
-                    style={{ flex: 1 }}
-                    onPress={pickCover}
-                  />
-                  {trip.cover_path ? (
-                    <Button title={t('settings.removePhoto')} icon="trash-outline" variant="danger" disabled={coverBusy} onPress={dropCover} />
-                  ) : null}
-                </Row>
+                <UploadZone
+                  title={trip.cover_path ? t('settings.changePhoto') : t('settings.addPhoto')}
+                  onPress={pickCover}
+                  onDropFile={(uri) => void saveCover(uri)}
+                  busy={coverBusy}
+                  compact
+                />
+                {trip.cover_path ? (
+                  <Button title={t('settings.removePhoto')} icon="trash-outline" variant="danger" disabled={coverBusy} onPress={dropCover} />
+                ) : null}
                 {coverUrl ? <Image source={{ uri: coverUrl }} resizeMode="cover" style={{ width: '100%', height: 100, borderRadius: radius.md }} /> : null}
               </View>
               {formError ? <Text color={c.danger}>{formError}</Text> : null}
@@ -430,8 +481,14 @@ export default function Settings() {
                   <Ionicons name="camera" size={13} color={c.primaryText} />
                 </View>
               </Pressable>
-              <View style={{ gap: space.xs }}>
-                <Button title={me.photo_path ? t('settings.changePhoto') : t('settings.addPhoto')} icon="image-outline" variant="secondary" loading={photoBusy} onPress={pickMemberPhoto} />
+              <View style={{ gap: space.xs, flexShrink: 1 }}>
+                <UploadZone
+                  title={me.photo_path ? t('settings.changePhoto') : t('settings.addPhoto')}
+                  onPress={pickMemberPhoto}
+                  onDropFile={(uri) => !blockedInDemo(queryClient) && setCropUri(uri)}
+                  busy={photoBusy}
+                  compact
+                />
                 {me.photo_path ? <Button title={t('settings.removePhoto')} icon="trash-outline" variant="ghost" disabled={photoBusy} onPress={dropMemberPhoto} /> : null}
               </View>
             </Row>

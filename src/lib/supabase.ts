@@ -109,6 +109,7 @@ export function errorCode(e: unknown): string {
     'weak_password',
     'signup_disabled',
     'provider_disabled',
+    'not_trip_creator',
     'over_email_send_rate_limit',
   ];
   // Supabase Auth reports these as codes rather than in the message

@@ -1,6 +1,7 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState, type ReactNode } from 'react';
 import { SyncStatus } from '@/ui/SyncStatus';
-import { RefreshControl, View } from 'react-native';
+import { Pressable, RefreshControl, View } from 'react-native';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { byPaymentMethod, dailySeries, sizeDistribution } from '@/lib/budget';
@@ -9,15 +10,17 @@ import { paymentColor, paymentLabel } from '@/lib/payments';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, percent } from '@/lib/money';
 import { byCategoryBetween, dayKey, periodRange, spendByCurrency, type Period } from '@/lib/stats';
-import { alertColor, space, useColors } from '@/theme';
-import { BarChart, DonutChart, LegendRow, PaceChart } from '@/ui/charts';
+import { space, useColors } from '@/theme';
+import { BarChart, DonutChart, LegendRow } from '@/ui/charts';
 import { CategoryIcon } from '@/ui/CategoryIcon';
+import { CurrencySheet } from '@/ui/CurrencySheet';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 import { DateField } from '@/ui/DateField';
-import { Avatar, Card, Dot, EmptyState, ErrorView, IconButton, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Segmented, Text } from '@/ui/primitives';
+import { Avatar, Card, EmptyState, ErrorView, IconButton, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Segmented, Text } from '@/ui/primitives';
 
-const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'budget', 'partners', 'payment', 'distribution', 'currency'] as const;
+// The "budget vs actual" card was removed (2026-11-12): the trip budget lives in Settings › Trip details and on Home
+const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'partners', 'payment', 'distribution', 'currency'] as const;
 type StatsSection = (typeof STATS_SECTIONS)[number];
 
 const NO_PAYMENT_COLOR = '#A3A7B9';
@@ -34,7 +37,7 @@ export default function Stats() {
   const { t, lang } = useT();
   const c = useColors();
   const data = useTripData();
-  const { trip, stats, expenses, categoryById, memberById, balances, budgetStatuses, isLoading } = data;
+  const { trip, stats, expenses, categoryById, memberById, balances, isLoading } = data;
   const [selCategory, setSelCategory] = useState<string | null>(null);
   const [selPayment, setSelPayment] = useState<string | null>(null);
   const [selDay, setSelDay] = useState<string | null>(null);
@@ -44,6 +47,8 @@ export default function Stats() {
   const [customFrom, setCustomFrom] = useState(() => new Date(Date.now() - 6 * 86_400_000));
   const [customTo, setCustomTo] = useState(() => new Date());
   const layout = useCardOrder('stats', STATS_SECTIONS);
+  // The currency breakdown: null = closed, '' = open with nothing expanded, a code = that currency opened
+  const [currencyOpen, setCurrencyOpen] = useState<string | null>(null);
   const drag = useDragScroll();
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
   const ilsShort = (m: number) => formatMoney(m, HOME_CURRENCY, { lang, compact: true });
@@ -109,13 +114,10 @@ export default function Stats() {
   });
   const sel = slices.find((s) => s.key === selCategory);
   const selDayRow = series.find((d) => d.day === selDay);
-  const last = series[series.length - 1];
-  const notStarted = !!trip.start_date && dayKey(new Date(), trip.timezone) < trip.start_date;
   const payments = byPaymentMethod(expenses);
   const selPay = payments.find((p) => p.key === selPayment);
   const sizes = sizeDistribution(expenses);
   const maxSizeCount = Math.max(1, ...sizes.map((s) => s.count));
-  const categoryBudgets = budgetStatuses.filter((s) => s.scope === 'category');
 
   // Cards in the order chosen on this device (hold a card to move it)
   const sections: Record<StatsSection, ReactNode> = {
@@ -271,62 +273,6 @@ export default function Stats() {
           </Card>
 
     ),
-    budget: stats.budget ? (
-            <Card>
-              <SectionHeader title={t('stats.budgetVsActual')} />
-              {series.some((p) => p.pace != null) ? (
-                <>
-                  <PaceChart points={series} />
-                  <Row gap={space.lg}>
-                    <Row gap={6}>
-                      <Dot color={c.primary} />
-                      <Text variant="caption" muted>
-                        {t('stats.actual')}
-                      </Text>
-                    </Row>
-                    <Row gap={6}>
-                      <Dot color={c.textFaint} />
-                      <Text variant="caption" muted>
-                        {t('stats.plannedPace')}
-                      </Text>
-                    </Row>
-                  </Row>
-                  {notStarted ? (
-                    <Text variant="caption" muted>
-                      {t('budget.notStarted', { date: fmtDay(trip.start_date!, { day: 'numeric', month: 'long' }), amount: ils(stats.total) })}
-                    </Text>
-                  ) : last?.pace != null ? (
-                    <Text variant="caption" muted>
-                      {t('stats.paceSoFar', { actual: ils(last.cumulative), planned: ils(last.pace) })}
-                    </Text>
-                  ) : null}
-                </>
-              ) : (
-                <Text variant="caption" muted>
-                  {t('budget.projectionNeedsDates')}
-                </Text>
-              )}
-              {categoryBudgets.map((s) => {
-                const cat = categoryById.get(s.key);
-                return (
-                  <View key={s.key} style={{ gap: 4 }}>
-                    <Row style={{ justifyContent: 'space-between' }}>
-                      <Row gap={6} style={{ flexShrink: 1 }}>
-                        <CategoryIcon category={cat} size={13} />
-                        <Text variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
-                          {categoryLabel(cat, t)}
-                        </Text>
-                      </Row>
-                      <Text variant="caption" muted>
-                        {ils(s.spent)} / {ils(s.limit)}
-                      </Text>
-                    </Row>
-                    <ProgressBar value={s.pct} color={alertColor(c, s.alert)} height={6} />
-                  </View>
-                );
-              })}
-            </Card>
-          ) : null,
     partners: balances.length > 1 ? (
             <Card>
               <SectionHeader title={t('stats.byPartner')} />
@@ -428,11 +374,19 @@ export default function Stats() {
     ),
     currency: (
           <Card>
-            <SectionHeader title={t('stats.byCurrency')} />
+            <SectionHeader title={t('stats.byCurrency')} action={t('stats.currencyDetails')} onAction={() => setCurrencyOpen('')} />
             {spendByCurrency(expenses).map((row) => {
               const cur = getCurrency(row.currency);
               return (
-                <Row key={row.currency} gap={12}>
+                // Tap a currency: its totals and expenses in the breakdown sheet
+                <Pressable
+                  key={row.currency}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${cur.code} · ${t('stats.currencyDetails')}`}
+                  onPress={() => setCurrencyOpen(row.currency)}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                >
+                <Row gap={12}>
                   <Text style={{ fontSize: 22 }}>{cur.flag}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontWeight: '600' }}>{formatMoney(row.originalMinor, row.currency, { lang })}</Text>
@@ -442,7 +396,9 @@ export default function Stats() {
                   </View>
                   {/* Shekel rows would show the same amount twice */}
                   {row.currency !== HOME_CURRENCY ? <Text variant="mono">{ils(row.ilsMinor)}</Text> : null}
+                  <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} />
                 </Row>
+                </Pressable>
               );
             })}
           </Card>
@@ -467,6 +423,14 @@ export default function Stats() {
           onDragging={drag.setDragging}
         />
       )}
+      <CurrencySheet
+        visible={currencyOpen !== null}
+        open={currencyOpen || null}
+        onClose={() => setCurrencyOpen(null)}
+        expenses={expenses}
+        categoryById={categoryById}
+        timeZone={trip.timezone}
+      />
     </Screen>
   );
 }

@@ -19,6 +19,7 @@ export function SwipeableExpenseRow({
   onEdit,
   onDelete,
   inset = true,
+  holdToDrag = false,
 }: {
   expense: Expense;
   first: boolean;
@@ -31,6 +32,8 @@ export function SwipeableExpenseRow({
   onDelete: () => void;
   /** Own side padding (the Expenses list); false inside a card that has its own (Home › Recent). */
   inset?: boolean;
+  /** The row sits in a list that can be rearranged by holding a row. */
+  holdToDrag?: boolean;
 }) {
   const c = useColors();
   const { t } = useT();
@@ -53,7 +56,9 @@ export function SwipeableExpenseRow({
         { key: 'delete', icon: 'trash-outline', color: c.danger, label: t('common.delete'), onPress: onDelete },
       ]}
     >
-      {(guardTap) => <ExpenseRow expense={expense} category={category} payer={payer} recipient={recipient} onPress={guardTap(onOpen)} />}
+      {(guardTap) => (
+        <ExpenseRow expense={expense} category={category} payer={payer} recipient={recipient} onPress={guardTap(onOpen)} onLongPress={holdToDrag ? () => {} : undefined} />
+      )}
     </SwipeRow>
   );
 }

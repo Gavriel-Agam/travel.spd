@@ -6,8 +6,9 @@ import { fitInRow, paymentIcon, paymentLabel } from '@/lib/payments';
 import { space, useColors } from '@/theme';
 import { Chip, Text, tap } from './primitives';
 
-const GAP = space.sm;
-const PLUS = 36;
+const GAP = space.sm + 2;
+// Big enough to tap without hitting the neighbour (Apple's minimum touch target is 44 pt)
+const PLUS = 44;
 
 /**
  * Payment methods on a single line: as many chips as fit, then a round "+".
@@ -32,7 +33,7 @@ export function PaymentRow({ keys, selected, onSelect, onMore }: {
   );
   const hidden = keys.filter((k) => !shown.includes(k));
   const chip = (key: string) => (
-    <Chip icon={paymentIcon(key)} label={paymentLabel(key, t)} selected={selected === key} onPress={() => onSelect(selected === key ? null : key)} />
+    <Chip size="lg" icon={paymentIcon(key)} label={paymentLabel(key, t)} selected={selected === key} onPress={() => onSelect(selected === key ? null : key)} />
   );
 
   return (
@@ -81,7 +82,7 @@ export function PaymentRow({ keys, selected, onSelect, onMore }: {
             opacity: pressed ? 0.75 : 1,
           })}
         >
-          <Ionicons name="add" size={20} color={c.primary} />
+          <Ionicons name="add" size={24} color={c.primary} />
           {hidden.length ? (
             <View
               style={{

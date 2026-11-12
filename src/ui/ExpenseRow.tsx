@@ -19,6 +19,7 @@ export function ExpenseRow({
   payer,
   recipient,
   onPress,
+  onLongPress,
 }: {
   expense: Expense;
   category?: Category;
@@ -26,6 +27,8 @@ export function ExpenseRow({
   /** For settlement payments: who received the money. */
   recipient?: Member;
   onPress?: () => void;
+  /** Set when the row can be held to drag it (so the hold doesn't also open it). */
+  onLongPress?: () => void;
 }) {
   const c = useColors();
   const { t, lang } = useT();
@@ -35,7 +38,7 @@ export function ExpenseRow({
       ? t('settle.rowTitle', { name: recipient?.display_name ?? '' })
       : expense.description || categoryLabel(category, t);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <Row gap={space.md} style={{ paddingVertical: 10 }}>
         <View
           style={{

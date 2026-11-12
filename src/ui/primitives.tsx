@@ -295,8 +295,10 @@ export function IconButton({ name, onPress, size = 22, color, label }: {
   );
 }
 
-export function Chip({ label, selected, onPress, onLongPress, icon, color }: {
+export function Chip({ label, selected, onPress, onLongPress, icon, color, size = 'md' }: {
   label: string;
+  /** "lg": a bigger touch target (44 pt high) for the main choices of a form. */
+  size?: 'md' | 'lg';
   selected?: boolean;
   onPress?: () => void;
   /** Also stops a long hold from counting as a tap (chips that can be dragged). */
@@ -320,8 +322,9 @@ export function Chip({ label, selected, onPress, onLongPress, icon, color }: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+        // Taller, not wider: the payment line still fits card, cash and Bit on a phone
         paddingHorizontal: 14,
-        height: 36,
+        height: size === 'lg' ? 44 : 36,
         borderRadius: radius.pill,
         // A tint of the colour with an outline: some category colours can't carry readable text
         backgroundColor: selected ? flatten(accent + '2E', c.card) : c.cardAlt,
@@ -330,7 +333,7 @@ export function Chip({ label, selected, onPress, onLongPress, icon, color }: {
         opacity: pressed ? 0.8 : 1,
       })}
     >
-      {typeof icon === 'string' ? <RNText style={{ fontSize: 15 }}>{icon}</RNText> : icon ?? null}
+      {typeof icon === 'string' ? <RNText style={{ fontSize: size === 'lg' ? 17 : 15 }}>{icon}</RNText> : icon ?? null}
       <Text variant="label" color={c.text} style={selected ? { fontWeight: '700' } : undefined}>
         {label}
       </Text>

@@ -1,8 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, SectionList, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
+import { useDragScroll } from '@/hooks/useCardOrder';
+import { nextDayOrder, orderDay } from '@/lib/expenseOrder';
+import { usePrefs } from '@/store/prefs';
+import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useTripData } from '@/hooks/useTripData';
 import { SyncStatus } from '@/ui/SyncStatus';
 import { useT } from '@/i18n';
@@ -23,6 +27,10 @@ export default function Expenses() {
   const data = useTripData();
   const { trip, expenses, categories, members, memberById, categoryById } = data;
   const actions = useExpenseActions(trip?.id ?? '');
+  // Hold an expense and drag it within its day; the order is kept on this device
+  const drag = useDragScroll();
+  const savedOrder = usePrefs((s) => s.expenseOrder[trip?.id ?? '']);
+  const setExpenseOrder = usePrefs((s) => s.setExpenseOrder);
 
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -53,18 +61,24 @@ export default function Expenses() {
       }
       return true;
     });
-    const groups = new Map<string, Expense[]>();
-    for (const e of filtered) {
-      const d = dayKey(e.occurred_at, tz);
-      if (!groups.has(d)) groups.set(d, []);
-      groups.get(d)!.push(e);
-    }
-    return [...groups.entries()].map(([day, data]) => ({
+    const byDay = (list: Expense[]) => {
+      const groups = new Map<string, Expense[]>();
+      for (const e of list) {
+        const d = dayKey(e.occurred_at, tz);
+        if (!groups.has(d)) groups.set(d, []);
+        groups.get(d)!.push(e);
+      }
+      return groups;
+    };
+    const all = byDay(expenses);
+    return [...byDay(filtered).entries()].map(([day, data]) => ({
       day,
-      data,
+      data: orderDay(data, savedOrder?.[day]),
+      // The whole day in its current order, including expenses a search or filter hides
+      fullDay: orderDay(all.get(day) ?? [], savedOrder?.[day]).map((e) => e.id),
       total: data.filter((e) => e.kind === 'expense').reduce((s, e) => s + e.amount_ils_minor, 0),
     }));
-  }, [expenses, query, categoryId, payerId, from, to, tz, categoryById, t]);
+  }, [expenses, query, categoryId, payerId, from, to, tz, categoryById, t, savedOrder]);
 
   if (!trip) return null;
 
@@ -166,43 +180,60 @@ export default function Expenses() {
       ) : data.error ? (
         <ErrorView error={data.error} onRetry={data.refetch} />
       ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(e) => e.id}
-          stickySectionHeadersEnabled
+        <ScrollView
+          {...drag.scrollProps}
           refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
           contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}
-          ListEmptyComponent={
-            expenses.length === 0 ? (
-              <EmptyState emoji="🧾" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
-            ) : (
-              <EmptyState emoji="🔍" title={t('expenses.empty')} body={t('expenses.emptyBody')} />
-            )
-          }
-          renderSectionHeader={({ section }) => (
-            <Row style={{ justifyContent: 'space-between', paddingVertical: space.sm, backgroundColor: c.bg }}>
+          // Each day's heading stays at the top while its expenses scroll under it
+          stickyHeaderIndices={sections.map((_, i) => i * 2 + 1)}
+        >
+          {sections.length ? (
+            <Text variant="caption" faint style={{ marginBottom: space.xs }}>
+              {t('expenses.dragHint')}
+            </Text>
+          ) : expenses.length === 0 ? (
+            <EmptyState emoji="🧾" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
+          ) : (
+            <EmptyState emoji="🔍" title={t('expenses.empty')} body={t('expenses.emptyBody')} />
+          )}
+          {sections.flatMap((section) => [
+            <Row key={`h-${section.day}`} style={{ justifyContent: 'space-between', paddingVertical: space.sm, backgroundColor: c.bg }}>
               <Text variant="label" muted>
                 {dayTitle(section.day)}
               </Text>
               <Text variant="label" muted>
                 {formatMoney(section.total, HOME_CURRENCY, { lang })}
               </Text>
-            </Row>
-          )}
-          renderItem={({ item, index, section }) => (
-            <SwipeableExpenseRow
-              expense={item}
-              first={index === 0}
-              last={index === section.data.length - 1}
-              category={item.category_id ? categoryById.get(item.category_id) : undefined}
-              payer={memberById.get(item.paid_by_member_id ?? '')}
-              recipient={memberById.get(item.expense_splits[0]?.member_id)}
-              onOpen={() => actions.open(item)}
-              onEdit={() => actions.edit(item)}
-              onDelete={() => actions.remove(item)}
-            />
-          )}
-        />
+            </Row>,
+            <DraggableGrid
+              key={`g-${section.day}`}
+              columns={1}
+              gap={0}
+              items={section.data.map((item, index) => ({
+                key: item.id,
+                radius: radius.lg,
+                node: (
+                  <SwipeableExpenseRow
+                    expense={item}
+                    first={index === 0}
+                    last={index === section.data.length - 1}
+                    category={item.category_id ? categoryById.get(item.category_id) : undefined}
+                    payer={memberById.get(item.paid_by_member_id ?? '')}
+                    recipient={memberById.get(item.expense_splits[0]?.member_id)}
+                    onOpen={() => actions.open(item)}
+                    onEdit={() => actions.edit(item)}
+                    onDelete={() => actions.remove(item)}
+                    holdToDrag
+                  />
+                ),
+              }))}
+              onReorder={(ids) => setExpenseOrder(trip.id, section.day, nextDayOrder(section.fullDay, ids))}
+              scrollRef={drag.scrollRef}
+              scroll={drag.scroll}
+              onDragging={drag.setDragging}
+            />,
+          ])}
+        </ScrollView>
       )}
     </SafeAreaView>
   );

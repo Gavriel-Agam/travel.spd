@@ -20,6 +20,9 @@ type PrefsState = {
   homeOrderDirty: boolean;
   /** Card order on other screens that can be rearranged (Statistics, Budget), on this device. */
   screenOrders: Record<string, string[]>;
+  /** Expenses tab: a day's expenses in the order set by hand, per trip (trip id → day → expense ids). This device only. */
+  expenseOrder: Record<string, Record<string, string[]>>;
+  setExpenseOrder: (tripId: string, day: string, ids: string[]) => void;
   /** Accounts on this device that were already offered the feedback panel (it opens by itself once per account). */
   feedbackPrompted: string[];
   markFeedbackPrompted: (userId: string) => void;
@@ -47,6 +50,9 @@ export const usePrefs = create<PrefsState>()(
       homeOrderDirty: false,
       screenOrders: {},
       feedbackPrompted: [],
+      expenseOrder: {},
+      setExpenseOrder: (tripId, day, ids) =>
+        set((s) => ({ expenseOrder: { ...s.expenseOrder, [tripId]: { ...s.expenseOrder[tripId], [day]: ids } } })),
       markFeedbackPrompted: (userId) =>
         set((s) => (s.feedbackPrompted.includes(userId) ? s : { feedbackPrompted: [...s.feedbackPrompted, userId].slice(-10) })),
       demo: false,
@@ -81,8 +87,13 @@ export const usePrefs = create<PrefsState>()(
       version: 1,
       // v1: rate snapshots carry a date and source per currency; drop older caches
       migrate: (state) => ({ ...(state as PrefsState), rates: {} }),
-      // Older saved state has no screenOrders yet
-      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<PrefsState>), screenOrders: (persisted as Partial<PrefsState>)?.screenOrders ?? {} }),
+      // Older saved state has no screenOrders / expenseOrder yet
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<PrefsState>),
+        screenOrders: (persisted as Partial<PrefsState>)?.screenOrders ?? {},
+        expenseOrder: (persisted as Partial<PrefsState>)?.expenseOrder ?? {},
+      }),
     },
   ),
 );

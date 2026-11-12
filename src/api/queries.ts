@@ -9,6 +9,7 @@ import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { supabase } from '@/lib/supabase';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import type { Budget, Category, CategoryOverride, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
+import { useOutbox } from '@/store/outbox';
 
 export const keys = {
   trips: ['trips'] as const,
@@ -174,6 +175,48 @@ export async function claimFeedbackPrompt() {
 }
 
 /** Trip creator only (checked by the server): the partner loses access; their history stays. */
+/** The storage folders that hold a trip's pictures (one folder per trip in each). */
+const TRIP_PHOTO_BUCKETS = ['receipts', 'trip-covers', 'member-photos'] as const;
+
+/**
+ * Deletes a trip (its creator only): first its pictures in storage, while
+ * the user is still a member and allowed to remove them, then the trip itself
+ * with everything in it (delete_trip, 0018). Needs a connection.
+ */
+async function deleteTripEverywhere(tripId: string) {
+  for (const bucket of TRIP_PHOTO_BUCKETS) {
+    for (;;) {
+      const { data, error } = await supabase.storage.from(bucket).list(tripId, { limit: 100 });
+      if (error) throw error;
+      const files = (data ?? []).filter((f) => f.name && f.id);
+      if (!files.length) break;
+      const { error: removeError } = await supabase.storage.from(bucket).remove(files.map((f) => `${tripId}/${f.name}`));
+      if (removeError) throw removeError;
+      if (files.length < 100) break;
+    }
+  }
+  unwrap(await supabase.rpc('delete_trip', { p_trip_id: tripId }));
+}
+
+export function useDeleteTrip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['delete-trip'],
+    // Never queued offline: it removes data for everyone in the trip
+    networkMode: 'always',
+    mutationFn: deleteTripEverywhere,
+    onSuccess: (_data, tripId) => {
+      // Forget the trip on this device: its data, its queued changes, and (if it was open) switch to another one
+      const left = (qc.getQueryData<Trip[]>(keys.trips) ?? []).filter((tr) => tr.id !== tripId);
+      qc.setQueryData(keys.trips, left);
+      qc.removeQueries({ predicate: (q) => q.queryKey.includes(tripId) });
+      useOutbox.setState((s) => ({ items: s.items.filter((i) => i.tripId !== tripId) }));
+      if (usePrefs.getState().activeTripId === tripId) usePrefs.getState().setActiveTrip(left[0]?.id ?? null);
+      void qc.invalidateQueries({ queryKey: keys.trips });
+    },
+  });
+}
+
 export function useRemoveMember(tripId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -485,4 +485,32 @@ await rejects(as(A, 'select * from feedback_prompts'), /permission denied/);
 await rejects(as(A, `insert into feedback_prompts (user_id) values ($1)`, [B]), /permission denied/);
 ok('feedback prompt: true once per account, then false; table not reachable');
 
+// Deleting a trip (0018): creator only; everything in it goes too
+const [{ create_trip: doomed }] = await as(B, `select create_trip('Short trip', 'B', null, null, 'EUR', 'Europe/Paris', null, null)`);
+const [{ create_invite: doomedCode }] = await as(B, `select create_invite($1)`, [doomed]);
+await as(A, `select join_trip($1, 'A')`, [doomedCode]);
+const doomedMembers = await as(B, 'select id, user_id from trip_members where trip_id = $1', [doomed]);
+const dB = doomedMembers.find((m) => m.user_id === B).id;
+const dA = doomedMembers.find((m) => m.user_id === A).id;
+await as(A, `select * from save_expense($1::jsonb)`, [
+  JSON.stringify({ trip_id: doomed, paid_by_member_id: dA, amount_minor: 1000, currency: 'EUR', fx_rate: '4', fx_is_manual: true, category_id: catStreet, description: 'Croissant', split_type: 'equal', splits: [{ member_id: dA }, { member_id: dB }] }),
+]);
+await as(A, `insert into expense_categories (trip_id, name, icon) values ($1, 'Museums', '🏛️')`, [doomed]);
+await as(A, `insert into app_feedback (trip_id, message) values ($1, 'nice')`, [doomed]);
+await rejects(as(A, 'select delete_trip($1)', [doomed]), /not_trip_creator/); // a partner can't
+await rejects(as(C, 'select delete_trip($1)', [doomed]), /not_found/); // an outsider learns nothing
+await rejects(asAnon(`select delete_trip('${doomed}')`), /permission denied/);
+assert.equal((await as(A, 'select count(*)::int n from expenses where trip_id = $1', [doomed]))[0].n, 1);
+await as(B, 'select delete_trip($1)', [doomed]);
+const left = (await db.query(
+  `select (select count(*) from trips where id = $1) + (select count(*) from trip_members where trip_id = $1)
+        + (select count(*) from expenses where trip_id = $1) + (select count(*) from trip_invites where trip_id = $1)
+        + (select count(*) from expense_categories where trip_id = $1) + (select count(*) from budgets where trip_id = $1) as n`,
+  [doomed],
+)).rows[0].n;
+assert.equal(Number(left), 0);
+assert.equal((await db.query(`select count(*)::int n from app_feedback where message = 'nice' and trip_id is null`)).rows[0].n, 1);
+assert.equal((await as(A, 'select count(*)::int n from trips where id = $1', [trip]))[0].n, 1); // other trips untouched
+ok('delete_trip: creator only (partner refused, outsider sees nothing); trip and everything in it removed');
+
 console.log(`\n${passed} SQL checks passed`);

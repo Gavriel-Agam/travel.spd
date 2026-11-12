@@ -47,6 +47,7 @@ import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
 import { Button, Chip, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
 import { FadeIn } from './FadeIn';
+import { UploadZone } from './UploadZone';
 
 type RateMode = 'stored' | 'auto' | 'manual';
 
@@ -712,7 +713,14 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                     {Platform.OS !== 'web' ? (
                       <Button title={t('form.takePhoto')} icon="camera-outline" variant="secondary" onPress={() => pickReceipt('camera')} style={{ flex: 1 }} />
                     ) : null}
-                    <Button title={t('form.choosePhoto')} icon="image-outline" variant="secondary" onPress={() => pickReceipt('library')} style={{ flex: 1 }} />
+                    <UploadZone
+                      title={t('form.choosePhoto')}
+                      icon="receipt-outline"
+                      onPress={() => pickReceipt('library')}
+                      onDropFile={(uri, mime) => setLocalReceipt({ uri, mime })}
+                      compact
+                      style={{ flex: 1 }}
+                    />
                   </Row>
                 )}
               </View>
@@ -739,6 +747,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 {morePayments.map((key) => (
                   <Chip
                     key={key}
+                    size="lg"
                     icon={paymentIcon(key)}
                     label={paymentLabel(key, t)}
                     selected={paymentMethod === key}

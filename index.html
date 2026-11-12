@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SmartTrip</title>
+
+    <!-- Home-screen app (iPhone: Safari > Share > Add to Home Screen) -->
+    <link rel="manifest" href="/travel.spd/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/travel.spd/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="SmartTrip" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#F4F5F9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E1020" media="(prefers-color-scheme: dark)" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        background: #f4f5f9;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #0e1020;
+        }
+      }
+      body {
+        overflow: hidden;
+        /* No rubber-band scrolling of the whole page or long-press text selection on buttons */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  <link rel="icon" href="/travel.spd/favicon.ico"/></head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script>
+      // Instant launch (src/lib/launchSnapshot.ts): the Home screen as it was last
+      // shown goes on screen right away; the app replaces it with the live one
+      // as soon as it has started. Only on Home, only while still signed in.
+      (function () {
+        try {
+          if (location.pathname !== '/travel.spd/') return;
+          var s = JSON.parse(localStorage.getItem('smarttrip-launch') || 'null');
+          if (!s || s.v !== 1 || !s.html) return;
+          if (Date.now() - s.at > 30 * 864e5) return localStorage.removeItem('smarttrip-launch');
+          if (!s.session || !localStorage.getItem(s.session)) return;
+          if (!!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) !== s.dark) return;
+          if (s.w !== window.innerWidth || Math.abs(s.h - window.innerHeight) > 120) return;
+          var css = document.createElement('style');
+          css.id = 'launch-snapshot-css';
+          css.textContent = s.css;
+          document.head.appendChild(css);
+          if (s.dir) document.documentElement.dir = s.dir;
+          if (s.lang) document.documentElement.lang = s.lang;
+          document.getElementById('root').innerHTML = s.html;
+        } catch (e) {}
+      })();
+    </script>
+    <script>
+      // Offline support (public/sw.js): the app opens from the cache at once, with
+      // or without signal. When a newer version has been downloaded in the
+      // background, the app offers to reload (src/lib/appUpdate.ts).
+      if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
+        navigator.serviceWorker.addEventListener('message', function (e) {
+          if (e.data && e.data.type === 'APP_UPDATED') {
+            window.__appUpdateReady = true;
+            window.dispatchEvent(new Event('app-update-ready'));
+          }
+        });
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/travel.spd/sw.js', { scope: '/travel.spd/' }).catch(function () {});
+        });
+      }
+    </script>
+  <script src="/travel.spd/_expo/static/js/web/entry-1a5b9456aa8c0f61f4d2eef6314eee1d.js" defer></script>
+</body>
+</html>

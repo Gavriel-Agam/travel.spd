@@ -409,9 +409,9 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         scrollEnabled={!draggingChip}
         contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: space.xs, gap: space.md, paddingBottom: space.xxl }}
       >
-        {/* Currency and amount on one line, the rate right under them */}
+        {/* Currency on top, the amount under it, then the rate */}
         <View style={{ gap: 6 }}>
-          <Row gap={space.sm}>
+          <View style={{ alignItems: 'center' }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('form.currency')}
@@ -420,7 +420,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 6,
-                height: 48,
+                height: 44,
                 backgroundColor: c.cardAlt,
                 borderRadius: radius.md,
                 paddingHorizontal: 12,
@@ -433,7 +433,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
               </Text>
               <Ionicons name="chevron-down" size={14} color={c.textMuted} />
             </Pressable>
-            <View style={{ flex: 1, position: 'relative', justifyContent: 'center' }}>
+          </View>
+          <View style={{ position: 'relative', justifyContent: 'center' }}>
               <TextInput
                 ref={amountTyping.ref}
                 value={amountText}
@@ -447,8 +448,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 style={{ height: 56, fontSize: amountFontSize(amountText), fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -1, paddingHorizontal: 36 }}
               />
               {amountText ? <ClearButton rtl={lang === 'he'} inset={0} onPress={() => setAmountText('')} /> : null}
-            </View>
-          </Row>
+          </View>
           {currency !== HOME_CURRENCY ? (
             <Pressable accessibilityRole="button" accessibilityLabel={t('form.rateEdit')} onPress={() => setEditingRate((v) => !v)} hitSlop={6}>
               <Row gap={6} style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -874,7 +874,7 @@ function SectionBreak() {
 
 /** The amount gets smaller as it grows, so a long one (19,234,567.89) still fits on the line. */
 function amountFontSize(text: string) {
-  return text.length <= 7 ? 40 : text.length <= 10 ? 32 : 26;
+  return text.length <= 9 ? 44 : text.length <= 12 ? 36 : 30;
 }
 
 // Long one-word names ("Accommodation") break at a syllable with a hyphen, not at a random letter

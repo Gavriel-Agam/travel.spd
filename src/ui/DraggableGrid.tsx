@@ -17,7 +17,16 @@ import {
 import { radius as radii, space, useColors } from '@/theme';
 import { tap } from './primitives';
 
-export type GridItem = { key: string; node: ReactNode; /** Corner radius of the card, for the lifted shadow. */ radius?: number };
+export type GridItem = {
+  key: string;
+  node: ReactNode;
+  /** Corner radius of the card, for the lifted shadow. */
+  radius?: number;
+  /** Can't be picked up (a heading); cards can still be dropped before or after it. */
+  fixed?: boolean;
+  /** Browser: stays at the top of the page while the items under it scroll (a day heading). */
+  sticky?: boolean;
+};
 
 /** `to`: new index if dropped now (-1: no change); the line goes on `lineKey`'s `side`. */
 type Drag = { key: string; from: number; dx: number; dy: number; to: number; lineKey: string | null; side: 'before' | 'after' | null };
@@ -200,9 +209,9 @@ export function DraggableGrid({
         onPanResponderRelease: () => end(true),
         onPanResponderTerminate: () => end(false),
       });
-    return new Map(keys.map((k) => [k, make(k)]));
+    return new Map(items.filter((i) => !i.fixed).map((i) => [i.key, make(i.key)]));
     // One responder per card; the callbacks read the latest values from refs
-  }, [keys.join('|')]);
+  }, [items.map((i) => (i.fixed ? `!${i.key}` : i.key)).join('|')]);
 
   // Browser: a release anywhere ends a pending long-press, and while a card is
   // lifted the page must not scroll under the finger (iOS Safari ignores
@@ -279,6 +288,7 @@ export function DraggableGrid({
                 onTouchCancel={release}
                 style={[
                   { position: 'relative', borderRadius: item.radius ?? radii.lg },
+                  item.sticky && web ? ({ position: 'sticky', top: 0, zIndex: 5 } as object) : null,
                   // No text selection or iOS callout on a long-press
                   web ? ({ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', cursor: lifted ? 'grabbing' : undefined } as object) : null,
                   lifted

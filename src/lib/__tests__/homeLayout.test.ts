@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  HIDDEN_MARK,
+  homeLayoutValue,
+  resolveHomeLayout,
   autoScrollArmed,
   autoScrollSpeed,
   columnCount,
@@ -142,5 +145,31 @@ describe('dropPlacement', () => {
 describe('default Home order', () => {
   it('totals, today, recent, categories, 7 days, who paid', () => {
     expect(resolveHomeOrder(null)).toEqual(['hero', 'today', 'recent', 'categories', 'trend', 'couple']);
+  });
+});
+
+describe('hiding Home cards', () => {
+  it('keeps the cards after the marker hidden, the rest in their order', () => {
+    const r = resolveHomeLayout(['recent', 'hero', HIDDEN_MARK, 'couple', 'trend']);
+    expect(r.hidden).toEqual(['couple', 'trend']);
+    expect(r.visible).toEqual(['recent', 'hero', 'today', 'categories']);
+  });
+
+  it('without a marker every card shows (older layouts, or none saved)', () => {
+    expect(resolveHomeLayout(null)).toEqual({ visible: [...HOME_SECTIONS], hidden: [] });
+    expect(resolveHomeLayout(['trend', 'hero']).hidden).toEqual([]);
+  });
+
+  it('drops unknown and repeated keys on both sides', () => {
+    const r = resolveHomeLayout(['hero', 'old', HIDDEN_MARK, 'trend', 'trend', 'nope']);
+    expect(r.hidden).toEqual(['trend']);
+    expect(r.visible).not.toContain('trend');
+  });
+
+  it('saves one list; an older app version just ignores the marker', () => {
+    const saved = homeLayoutValue(['hero', 'today'], ['couple']);
+    expect(saved).toEqual(['hero', 'today', HIDDEN_MARK, 'couple']);
+    expect(homeLayoutValue(['hero'], [])).toEqual(['hero']);
+    expect(resolveHomeOrder(saved)).toContain('couple');
   });
 });

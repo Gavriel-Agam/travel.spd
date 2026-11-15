@@ -7,6 +7,7 @@ import { useSaveExpense } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { HOME_CURRENCY } from '@/lib/currencies';
+import { groupThousands } from '@/lib/amountInput';
 import { formatMoney, minorToInput, parseAmount } from '@/lib/money';
 import type { Transfer } from '@/lib/settlement';
 import { errorCode } from '@/lib/supabase';
@@ -40,7 +41,7 @@ export default function SettleUp() {
 
   function open(tr: Transfer) {
     setRecording(tr);
-    setAmount(minorToInput(tr.amount, HOME_CURRENCY));
+    setAmount(groupThousands(minorToInput(tr.amount, HOME_CURRENCY)));
     setError(null);
   }
 
@@ -161,7 +162,8 @@ export default function SettleUp() {
             </Text>
             <Field
               value={amount}
-              onChangeText={(v) => setAmount(v.replace(',', '.').replace(/[^\d.]/g, ''))}
+              onChangeText={setAmount}
+              amountDecimals={2}
               keyboardType="decimal-pad"
               style={{ fontSize: 28, fontWeight: '700', textAlign: 'center', borderRadius: radius.md }}
               error={error}

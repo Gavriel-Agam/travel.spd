@@ -54,6 +54,8 @@ export function SwipeRow({
   background,
   style,
   contentStyle,
+  yieldToInner = false,
+  clipWhenClosed = true,
 }: {
   actions: SwipeAction[];
   children: (guardTap: (onTap: () => void) => () => void) => ReactNode;
@@ -63,6 +65,13 @@ export function SwipeRow({
   style?: ViewStyle;
   /** The sliding part: padding. */
   contentStyle?: ViewStyle;
+  /**
+   * Rows inside it that swipe too (Home's Recent card holds expense rows): they
+   * get the swipe first; only a swipe elsewhere on it moves this one.
+   */
+  yieldToInner?: boolean;
+  /** False: nothing is clipped while closed, so a shadow around the content shows in full. */
+  clipWhenClosed?: boolean;
 }) {
   const { lang } = useT();
   const rtl = lang === 'he';
@@ -108,7 +117,9 @@ export function SwipeRow({
     () =>
       PanResponder.create({
         // Take over from the row's tap as soon as the finger clearly moves sideways
-        onMoveShouldSetPanResponderCapture: (_e, g) => isHorizontalSwipe(g.dx, g.dy),
+        // (after any swipeable row inside it had its chance, with yieldToInner)
+        [yieldToInner ? 'onMoveShouldSetPanResponder' : 'onMoveShouldSetPanResponderCapture']: (_e: unknown, g: { dx: number; dy: number }) =>
+          isHorizontalSwipe(g.dx, g.dy),
         onPanResponderGrant: () => {
           x.stopAnimation();
           setRevealed(true);
@@ -138,7 +149,7 @@ export function SwipeRow({
   };
 
   return (
-    <View style={[{ overflow: 'hidden', backgroundColor: background }, style]}>
+    <View style={[{ overflow: clipWhenClosed || revealed ? 'hidden' : 'visible', backgroundColor: background }, style]}>
       {/* Always mounted so screen readers can reach them; only visible while the row is open */}
       <Row
         gap={0}

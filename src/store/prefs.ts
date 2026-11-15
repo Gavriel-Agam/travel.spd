@@ -10,6 +10,10 @@ type PrefsState = {
   lang: Lang | null; // null = follow the device
   activeTripId: string | null;
   lastCurrency: Record<string, string>; // tripId -> code
+  /** Payment method used last, per trip (trip id -> method), and in any trip. New expenses start with it. */
+  lastPayment: Record<string, string>;
+  lastPaymentAny: string | null;
+  notePaymentUsed: (tripId: string, method: string) => void;
   recentCurrencies: string[];
   currencyUsage: Record<string, number>;
   /** Latest rate snapshots by requested date, for offline conversion previews. */
@@ -43,6 +47,9 @@ export const usePrefs = create<PrefsState>()(
       lang: null,
       activeTripId: null,
       lastCurrency: {},
+      lastPayment: {},
+      lastPaymentAny: null,
+      notePaymentUsed: (tripId, method) => set((s) => ({ lastPayment: { ...s.lastPayment, [tripId]: method }, lastPaymentAny: method })),
       recentCurrencies: [],
       currencyUsage: {},
       rates: {},
@@ -93,6 +100,8 @@ export const usePrefs = create<PrefsState>()(
         ...(persisted as Partial<PrefsState>),
         screenOrders: (persisted as Partial<PrefsState>)?.screenOrders ?? {},
         expenseOrder: (persisted as Partial<PrefsState>)?.expenseOrder ?? {},
+        lastPayment: (persisted as Partial<PrefsState>)?.lastPayment ?? {},
+        lastPaymentAny: (persisted as Partial<PrefsState>)?.lastPaymentAny ?? null,
       }),
     },
   ),

@@ -6,7 +6,7 @@ import { allCurrencies, currencyName, orderForPicker, searchCurrencies, type Cur
 import { useT } from '@/i18n';
 import { usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
-import { Text, tap } from './primitives';
+import { Text, tap, useTextFieldDirection } from './primitives';
 import { Sheet, SheetSectionList } from './Sheet';
 
 export function CurrencyPicker({
@@ -26,6 +26,7 @@ export function CurrencyPicker({
   const c = useColors();
   const { t, lang } = useT();
   const [query, setQuery] = useState('');
+  const searchDir = useTextFieldDirection(query);
   const remote = useCurrencyList(); // registers server-side currencies when online
   const recent = usePrefs((s) => s.recentCurrencies);
   const usage = usePrefs((s) => s.currencyUsage);
@@ -68,8 +69,14 @@ export function CurrencyPicker({
             placeholderTextColor={c.textFaint}
             autoCorrect={false}
             autoCapitalize="none"
-            style={{ flex: 1, height: 44, fontSize: 16, color: c.text, textAlign: 'auto' }}
+            {...(searchDir.dir ? ({ dir: searchDir.dir } as object) : null)}
+            style={[{ flex: 1, height: 44, fontSize: 16, color: c.text }, searchDir.align]}
           />
+          {query ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={t('common.clearText')} hitSlop={8} onPress={() => setQuery('')}>
+              <Ionicons name="close-circle" size={18} color={c.textFaint} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
       <SheetSectionList

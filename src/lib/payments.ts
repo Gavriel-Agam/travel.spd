@@ -78,3 +78,16 @@ export function fitInRow(keys: readonly string[], widths: Record<string, number>
   }
   return out;
 }
+
+/**
+ * The payment method a new expense starts with: the one used last in this
+ * trip, else the one used last anywhere, as long as this trip offers it (a
+ * built-in or one of the trip's own). Null: nothing chosen yet.
+ */
+export function lastPaymentFor(byTrip: Record<string, string>, lastAnywhere: string | null, tripId: string, custom: readonly string[]): string | null {
+  const offered = (key: string | null | undefined): key is string =>
+    !!key && (BUILTIN_PAYMENTS.some((p) => p.key === key) || custom.includes(key));
+  const own = byTrip[tripId];
+  if (offered(own)) return own;
+  return offered(lastAnywhere) ? lastAnywhere : null;
+}

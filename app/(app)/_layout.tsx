@@ -1,5 +1,7 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
 import { useEffect } from 'react';
+import { View } from 'react-native';
+import { SyncBar } from '@/ui/SyncStatus';
 import { useActiveTrip, useCurrencyList, useRates, useTripCoverUrl, useTripRealtime } from '@/api/queries';
 import { useTripLook } from '@/store/tripLook';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
@@ -45,6 +47,9 @@ export default function AppLayout() {
   // router falls back to whichever onboarding screen it finds first.
   if (!hasTrip && !pathname.startsWith('/onboarding') && !pathname.startsWith('/join/')) return <Redirect href="/onboarding" />;
   return (
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      {/* Offline / syncing / all synced: pinned to the top, above every screen's own header */}
+      {trip ? <SyncBar tripId={trip.id} /> : null}
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
       <Stack.Protected guard={hasTrip}>
         <Stack.Screen name="(tabs)" />
@@ -59,5 +64,6 @@ export default function AppLayout() {
       <Stack.Screen name="onboarding/join" />
       <Stack.Screen name="join/[code]" />
     </Stack>
+    </View>
   );
 }

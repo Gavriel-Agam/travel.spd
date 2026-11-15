@@ -1,5 +1,4 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SyncStatus } from '@/ui/SyncStatus';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
@@ -7,7 +6,7 @@ import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Platform, Pressable, Share, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useSetBudget, useTrips, useUpdateMyMember, useUpdateTrip } from '@/api/queries';
+import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useTripChanges, useTrips } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
 import { TRIP_THEMES, type TripTheme } from '@/palette';
 import { useTripLook } from '@/store/tripLook';
@@ -15,6 +14,7 @@ import { useTripData } from '@/hooks/useTripData';
 import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
 import { currencyName, getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { canvasToJpegUrl } from '@/lib/image';
+import { groupThousands } from '@/lib/amountInput';
 import { minorToInput, parseAmount } from '@/lib/money';
 import { useAuth, useUserId } from '@/providers/AuthProvider';
 import { useExitDemo } from '@/hooks/useExitDemo';
@@ -45,10 +45,9 @@ export default function Settings() {
   const { trip, members, me, budgets } = useTripData();
   const trips = useTrips();
   const invite = useInviteCode(trip && !trip.shared ? trip.id : undefined);
-  const updateTrip = useUpdateTrip(trip?.id ?? '');
-  const setBudget = useSetBudget(trip?.id ?? '');
+  // Trip details, colour, budget and your name: shown at once, sent when there is a connection (also offline)
+  const changes = useTripChanges(trip?.id ?? '');
   const totalBudget = budgets.find((b) => b.scope === 'total')?.amount_ils_minor ?? null;
-  const updateMe = useUpdateMyMember(trip?.id ?? '');
   const removeMember = useRemoveMember(trip?.id ?? '');
   const userId = useUserId();
   const deleteTrip = useDeleteTrip();
@@ -214,7 +213,6 @@ export default function Settings() {
   return (
     <Screen>
       <Text variant="title">{t('settings.title')}</Text>
-      <SyncStatus tripId={trip.id} />
 
       {/* Trips (not in the shared MVP trip: a separate trip would be invisible to the partner) */}
       {!trip.shared ? (
@@ -281,7 +279,7 @@ export default function Settings() {
             setEnd(trip.end_date ? new Date(trip.end_date + 'T12:00:00') : new Date(Date.now() + 14 * 86_400_000));
             setCurrency(trip.default_currency);
             setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
-            setBudgetText(totalBudget ? minorToInput(totalBudget, HOME_CURRENCY) : '');
+            setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
             setFormError(null);
             setEdit('trip');
           }}
@@ -406,7 +404,8 @@ export default function Settings() {
               <Field
                 label={t('settings.tripBudget')}
                 value={budgetText}
-                onChangeText={(v) => setBudgetText(v.replace(',', '.').replace(/[^\d.]/g, ''))}
+                onChangeText={setBudgetText}
+                amountDecimals={2}
                 keyboardType="decimal-pad"
                 placeholder={t('settings.tripBudgetPlaceholder')}
                 hint={t('settings.tripBudgetHint')}
@@ -496,7 +495,7 @@ export default function Settings() {
           {edit === 'me' ? (
             <Row style={{ justifyContent: 'center' }} gap={space.md}>
               {MEMBER_COLORS.map((col) => (
-                <Pressable key={col} onPress={() => me && !blockedInDemo(queryClient) && updateMe.mutate({ memberId: me.id, color: col })}>
+                <Pressable key={col} onPress={() => me && !blockedInDemo(queryClient) && changes.updateMyMember(me.id, { color: col })}>
                   <View
                     style={{
                       width: 34,
@@ -513,9 +512,8 @@ export default function Settings() {
           ) : null}
           <Button
             title={t('common.save')}
-            loading={updateTrip.isPending || updateMe.isPending || setBudget.isPending}
             disabled={!text.trim()}
-            onPress={async () => {
+            onPress={() => {
               if (blockedInDemo(queryClient)) return setEdit(null);
               if (edit === 'trip') {
                 const s = hasDates ? isoDate(start) : null;
@@ -523,8 +521,8 @@ export default function Settings() {
                 if (s && e && e < s) return setFormError(t('settings.datesInvalid'));
                 const budget = budgetText.trim() ? parseAmount(budgetText, HOME_CURRENCY) : null;
                 if (budgetText.trim() && (budget == null || budget <= 0)) return setFormError(t('errors.invalid_amount'));
-                if (budget !== totalBudget) await setBudget.mutateAsync({ scope: 'total', amount: budget });
-                await updateTrip.mutateAsync({
+                if (budget !== totalBudget) changes.setBudget('total', budget);
+                changes.updateTrip({
                   name: text.trim(),
                   start_date: s,
                   end_date: e,
@@ -532,7 +530,7 @@ export default function Settings() {
                   theme_color: themeColor === 'blue' ? null : themeColor,
                 });
               }
-              else if (me) await updateMe.mutateAsync({ memberId: me.id, display_name: text.trim() });
+              else if (me) changes.updateMyMember(me.id, { display_name: text.trim() });
               setEdit(null);
             }}
           />

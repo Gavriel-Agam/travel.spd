@@ -4,7 +4,8 @@ import { useDeleteExpense } from '@/api/queries';
 import { useT } from '@/i18n';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode } from '@/lib/supabase';
-import { deleteKey, editKey, useOutbox } from '@/store/outbox';
+import { inputFromExpense, moveToDay as sameTimeOnDay } from '@/lib/expenseOrder';
+import { deleteKey, editKey, useOutbox, type UpdateItem } from '@/store/outbox';
 import { onlineManager } from '@tanstack/react-query';
 import { useUserId } from '@/providers/AuthProvider';
 import type { Expense } from '@/types/db';
@@ -63,5 +64,22 @@ export function useExpenseActions(tripId: string) {
     );
   };
 
-  return { open, edit, remove, removing: del.isPending };
+  /**
+   * Moves an expense to another day (dragged under that day's heading): same time
+   * of day, same amounts and rate. Shows at once and is sent like any edit
+   * (queued while offline; a partner's change meanwhile is caught, not overwritten).
+   */
+  const moveToDay = (e: Expense, day: string, timeZone: string) => {
+    if (blockedInDemo(qc) || e.pending_op === 'delete') return;
+    const occurred_at = sameTimeOnDay(e.occurred_at, day, timeZone);
+    const outbox = useOutbox.getState();
+    // A new expense still waiting to be sent: change it in the queue
+    if (e.pending_op === 'create') return outbox.patchCreate(e.id, { occurred_at });
+    // Already edited on this phone: keep that edit and add the new date to it
+    const queued = outbox.items.find((i) => i.clientId === editKey(e.id)) as UpdateItem | undefined;
+    const payload = { ...(queued?.payload ?? inputFromExpense(e)), occurred_at };
+    outbox.queueUpdate({ expenseId: e.id, expectedVersion: e.version, tripId: e.trip_id, createdBy: userId ?? '', queuedAt: new Date().toISOString(), payload });
+  };
+
+  return { open, edit, remove, moveToDay, removing: del.isPending };
 }

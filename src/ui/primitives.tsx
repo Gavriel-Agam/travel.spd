@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, type ComponentProps, type ReactNode, type Ref } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ComponentProps, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -16,12 +16,14 @@ import {
   type ScrollViewInstance,
   type ScrollViewProps,
   type StyleProp,
+  type TextInputInstance,
   type TextInputProps,
   type TextProps,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { caretAfterUnits, formatAmountTyping, unitsBefore } from '@/lib/amountInput';
 import { flatten, readableOn } from '@/lib/contrast';
 import { errorCode } from '@/lib/supabase';
 import { useT } from '@/i18n';
@@ -421,8 +423,100 @@ export function Segmented<T extends string>({ options, value, onChange }: {
   );
 }
 
-export function Field({ label, error, hint, style, ...input }: TextInputProps & { label?: string; error?: string | null; hint?: string }) {
+/**
+ * Text fields follow the language, also while empty: in Hebrew the placeholder
+ * and the text sit on the right, in English on the left. (A browser field
+ * decides its direction from what is typed, so an empty one, showing its
+ * placeholder, used to fall back to the left.) Once something is typed the
+ * browser lays it out by its own letters, so an English word or an email in a
+ * Hebrew screen still reads left to right.
+ */
+export function useTextFieldDirection(value: string | undefined) {
+  const { lang } = useT();
+  const rtl = lang === 'he';
+  return {
+    rtl,
+    align: { textAlign: rtl ? 'right' : 'left' } as TextStyle,
+    ...(Platform.OS === 'web' ? { dir: value ? 'auto' : rtl ? 'rtl' : 'ltr' } : null),
+  };
+}
+
+/**
+ * Money fields: 1,234.5 as you type (digits, one decimal point, the currency's
+ * decimals). In the browser the caret stays after the same digit when a
+ * separator appears or moves.
+ */
+export function useAmountTyping(decimals: number, onChange: ((text: string) => void) | undefined, ref?: Ref<TextInputInstance>) {
+  const own = useRef<TextInputInstance>(null);
+  const caret = useRef<number | null>(null);
+  const node = () => own.current as unknown as { selectionStart?: number | null; setSelectionRange?: (a: number, b: number) => void } | null;
+  useLayoutEffect(() => {
+    if (caret.current == null) return;
+    node()?.setSelectionRange?.(caret.current, caret.current);
+    caret.current = null;
+  });
+  return {
+    ref: (v: TextInputInstance | null) => {
+      own.current = v;
+      if (typeof ref === 'function') ref(v);
+      else if (ref) (ref as { current: TextInputInstance | null }).current = v;
+    },
+    onChangeText: (raw: string) => {
+      const next = formatAmountTyping(raw, decimals);
+      const at = Platform.OS === 'web' ? node()?.selectionStart : null;
+      if (typeof at === 'number') caret.current = caretAfterUnits(next, unitsBefore(raw, at));
+      onChange?.(next);
+    },
+  };
+}
+
+/** The round ✕ inside a field that empties it. Sits where the text ends (left in Hebrew, right in English). */
+export function ClearButton({ onPress, rtl, inset = space.sm }: { onPress: () => void; rtl: boolean; inset?: number }) {
   const c = useColors();
+  const { t } = useT();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('common.clearText')}
+      hitSlop={6}
+      onPress={() => {
+        tap();
+        onPress();
+      }}
+      style={{ position: 'absolute', top: 0, bottom: 0, width: 32, alignItems: 'center', justifyContent: 'center', ...(rtl ? { left: inset } : { right: inset }) }}
+    >
+      <Ionicons name="close-circle" size={18} color={c.textFaint} />
+    </Pressable>
+  );
+}
+
+export function Field({
+  label,
+  error,
+  hint,
+  style,
+  amountDecimals,
+  clearable = true,
+  inputRef,
+  ...input
+}: TextInputProps & {
+  label?: string;
+  error?: string | null;
+  hint?: string;
+  /** A money field: shown as 1,234.5 while typing, with this many decimals at most. */
+  amountDecimals?: number;
+  /** A ✕ that empties the field while it has text (single-line fields). */
+  clearable?: boolean;
+  inputRef?: Ref<TextInputInstance>;
+}) {
+  const c = useColors();
+  const value = typeof input.value === 'string' ? input.value : undefined;
+  const direction = useTextFieldDirection(value);
+  const amount = useAmountTyping(amountDecimals ?? 0, input.onChangeText, inputRef);
+  const showClear = clearable && !input.multiline && input.editable !== false && !!value && !!input.onChangeText;
+  // Room for the ✕ at the end of the text; centred text keeps its centre (room on both sides)
+  const centred = StyleSheet.flatten(style)?.textAlign === 'center';
+  const clearRoom = centred ? { paddingHorizontal: 44 } : { [direction.rtl ? 'paddingLeft' : 'paddingRight']: 44 };
   return (
     <View style={{ gap: 6 }}>
       {label ? (
@@ -430,25 +524,32 @@ export function Field({ label, error, hint, style, ...input }: TextInputProps & 
           {label}
         </Text>
       ) : null}
-      <TextInput
-        placeholderTextColor={c.textFaint}
-        {...input}
-        style={[
-          {
-            minHeight: 50,
-            borderRadius: radius.md,
-            backgroundColor: c.cardAlt,
-            paddingHorizontal: space.lg,
-            paddingVertical: 12,
-            fontSize: 16,
-            color: c.text,
-            textAlign: 'auto',
-            borderWidth: 1,
-            borderColor: error ? c.danger : 'transparent',
-          } as TextStyle,
-          style,
-        ]}
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          placeholderTextColor={c.textFaint}
+          {...input}
+          {...(Platform.OS === 'web' ? ({ dir: direction.dir } as object) : null)}
+          ref={amountDecimals != null ? amount.ref : inputRef}
+          onChangeText={amountDecimals != null ? amount.onChangeText : input.onChangeText}
+          style={[
+            {
+              minHeight: 50,
+              borderRadius: radius.md,
+              backgroundColor: c.cardAlt,
+              paddingHorizontal: space.lg,
+              paddingVertical: 12,
+              fontSize: 16,
+              color: c.text,
+              borderWidth: 1,
+              borderColor: error ? c.danger : 'transparent',
+            } as TextStyle,
+            direction.align,
+            showClear ? clearRoom : null,
+            style,
+          ]}
+        />
+        {showClear ? <ClearButton rtl={direction.rtl} onPress={() => input.onChangeText?.('')} /> : null}
+      </View>
       {error ? (
         <Text variant="caption" color={c.danger}>
           {error}

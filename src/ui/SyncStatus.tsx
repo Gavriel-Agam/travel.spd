@@ -1,15 +1,20 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnline } from '@/hooks/useOutboxSync';
 import { useT } from '@/i18n';
 import { applyAppUpdate, useAppUpdateReady } from '@/lib/appUpdate';
+import { readableOn } from '@/lib/contrast';
 import { useOutbox, useSyncFlash } from '@/store/outbox';
-import { useColors } from '@/theme';
-import { Banner } from './primitives';
+import { space, useColors } from '@/theme';
+import { Text, type IconName } from './primitives';
 
 const FLASH_MS = 3000;
 
 /**
- * Slim banner at the top of each tab:
+ * A full-width strip pinned to the very top of the screen, above every screen's
+ * own header (the trip name on Home), flush with the top edge:
  * - offline: "showing saved data", plus how many changes are waiting;
  * - back online: "syncing…" while queued changes are sent;
  * - then "all synced" for a few seconds;
@@ -17,7 +22,7 @@ const FLASH_MS = 3000;
  * - a newer version of the app was downloaded: tap to reload.
  * Nothing at all when everything is normal.
  */
-export function SyncStatus({ tripId }: { tripId: string }) {
+export function SyncBar({ tripId }: { tripId: string }) {
   const { t } = useT();
   const c = useColors();
   const online = useOnline();
@@ -39,18 +44,44 @@ export function SyncStatus({ tripId }: { tripId: string }) {
     return () => clearTimeout(id);
   }, [flashedAt, flashing]);
 
-  if (failed > 0) return <Banner text={t('sync.failed', { count: failed })} color={c.danger} icon="alert-circle" />;
+  if (failed > 0) return <Strip text={t('sync.failed', { count: failed })} color={c.danger} icon="alert-circle" />;
   if (!online) {
-    return (
-      <Banner
-        text={waiting > 0 ? t('sync.offlineWaiting', { count: waiting }) : t('sync.offline')}
-        color={c.warning}
-        icon="cloud-offline-outline"
-      />
-    );
+    return <Strip text={waiting > 0 ? t('sync.offlineWaiting', { count: waiting }) : t('sync.offline')} color={c.warning} icon="cloud-offline-outline" />;
   }
-  if (waiting > 0) return <Banner text={t('sync.syncing', { count: waiting })} color={c.primary} icon="sync" />;
-  if (updateReady) return <Banner text={t('sync.updateReady')} color={c.primary} icon="sparkles-outline" onPress={applyAppUpdate} />;
-  if (flashing) return <Banner text={t('sync.allSynced')} color={c.success} icon="checkmark-circle" />;
+  if (waiting > 0) return <Strip text={t('sync.syncing', { count: waiting })} color={c.primary} icon="sync" />;
+  if (updateReady) return <Strip text={t('sync.updateReady')} color={c.primary} icon="sparkles-outline" onPress={applyAppUpdate} />;
+  if (flashing) return <Strip text={t('sync.allSynced')} color={c.success} icon="checkmark-circle" />;
   return null;
+}
+
+/** The strip itself: the state's colour edge to edge, from the top of the screen (under the status bar on a phone). */
+function Strip({ text, color, icon, onPress }: { text: string; color: string; icon: IconName; onPress?: () => void }) {
+  const insets = useSafeAreaInsets();
+  const ink = readableOn(color);
+  const body = (
+    <View
+      accessibilityRole="alert"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.sm,
+        backgroundColor: color,
+        paddingTop: insets.top + 6,
+        paddingBottom: 6,
+        paddingHorizontal: space.lg,
+      }}
+    >
+      <Ionicons name={icon} size={15} color={ink} />
+      <Text variant="caption" color={ink} style={{ flex: 1, fontWeight: '700' }} numberOfLines={2}>
+        {text}
+      </Text>
+      {onPress ? <Ionicons name="refresh" size={15} color={ink} /> : null}
+    </View>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+      {body}
+    </Pressable>
+  );
 }

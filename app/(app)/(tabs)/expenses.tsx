@@ -4,11 +4,10 @@ import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useDragScroll } from '@/hooks/useCardOrder';
-import { nextDayOrder, orderDay } from '@/lib/expenseOrder';
+import { dayHeadingKey, dropAcrossDays, orderDay } from '@/lib/expenseOrder';
 import { usePrefs } from '@/store/prefs';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useTripData } from '@/hooks/useTripData';
-import { SyncStatus } from '@/ui/SyncStatus';
 import { useT } from '@/i18n';
 import { categoryLabel } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
@@ -18,7 +17,7 @@ import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
-import { Chip, EmptyState, ErrorView, Row, ScreenSkeleton, Text, TripBackdrop } from '@/ui/primitives';
+import { Chip, EmptyState, ErrorView, Row, ScreenSkeleton, Text, TripBackdrop, useTextFieldDirection } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
 
 export default function Expenses() {
@@ -27,12 +26,14 @@ export default function Expenses() {
   const data = useTripData();
   const { trip, expenses, categories, members, memberById, categoryById } = data;
   const actions = useExpenseActions(trip?.id ?? '');
-  // Hold an expense and drag it within its day; the order is kept on this device
+  // Hold an expense and drag it to another place in its day or onto another day.
+  // The order within a day is kept on this device; a new day changes the date.
   const drag = useDragScroll();
   const savedOrder = usePrefs((s) => s.expenseOrder[trip?.id ?? '']);
   const setExpenseOrder = usePrefs((s) => s.setExpenseOrder);
 
   const [query, setQuery] = useState('');
+  const searchDir = useTextFieldDirection(query);
   const [showFilters, setShowFilters] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [payerId, setPayerId] = useState<string | null>(null);
@@ -96,7 +97,6 @@ export default function Expenses() {
       <TripBackdrop />
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
         <Text variant="title">{t('expenses.title')}</Text>
-        <SyncStatus tripId={trip.id} />
         <Row gap={space.sm}>
           <Row gap={space.sm} style={{ flex: 1, backgroundColor: c.card, borderRadius: radius.md, paddingHorizontal: space.md }}>
             <Ionicons name="search" size={18} color={c.textMuted} />
@@ -105,9 +105,14 @@ export default function Expenses() {
               onChangeText={setQuery}
               placeholder={t('expenses.searchPlaceholder')}
               placeholderTextColor={c.textFaint}
-              style={{ flex: 1, height: 44, fontSize: 16, color: c.text, textAlign: 'auto' }}
+              {...(searchDir.dir ? ({ dir: searchDir.dir } as object) : null)}
+              style={[{ flex: 1, height: 44, fontSize: 16, color: c.text }, searchDir.align]}
             />
-            {query ? <Ionicons name="close-circle" size={18} color={c.textFaint} onPress={() => setQuery('')} /> : null}
+            {query ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={t('common.clearText')} hitSlop={8} onPress={() => setQuery('')}>
+                <Ionicons name="close-circle" size={18} color={c.textFaint} />
+              </Pressable>
+            ) : null}
           </Row>
           <Pressable
             onPress={() => setShowFilters((v) => !v)}
@@ -184,8 +189,6 @@ export default function Expenses() {
           {...drag.scrollProps}
           refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
           contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}
-          // Each day's heading stays at the top while its expenses scroll under it
-          stickyHeaderIndices={sections.map((_, i) => i * 2 + 1)}
         >
           {sections.length ? (
             <Text variant="caption" faint style={{ marginBottom: space.xs }}>
@@ -196,20 +199,30 @@ export default function Expenses() {
           ) : (
             <EmptyState emoji="🔍" title={t('expenses.empty')} body={t('expenses.emptyBody')} />
           )}
-          {sections.flatMap((section) => [
-            <Row key={`h-${section.day}`} style={{ justifyContent: 'space-between', paddingVertical: space.sm, backgroundColor: c.bg }}>
-              <Text variant="label" muted>
-                {dayTitle(section.day)}
-              </Text>
-              <Text variant="label" muted>
-                {formatMoney(section.total, HOME_CURRENCY, { lang })}
-              </Text>
-            </Row>,
-            <DraggableGrid
-              key={`g-${section.day}`}
-              columns={1}
-              gap={0}
-              items={section.data.map((item, index) => ({
+          {/* One list for every day, headings included, so an expense can be
+              dropped under another day's heading. Headings can't be picked up and
+              stay at the top while their day scrolls under them. */}
+          <DraggableGrid
+            columns={1}
+            gap={0}
+            items={sections.flatMap((section) => [
+              {
+                key: dayHeadingKey(section.day),
+                fixed: true,
+                sticky: true,
+                radius: 0,
+                node: (
+                  <Row style={{ justifyContent: 'space-between', paddingVertical: space.sm, backgroundColor: c.bg }}>
+                    <Text variant="label" muted>
+                      {dayTitle(section.day)}
+                    </Text>
+                    <Text variant="label" muted>
+                      {formatMoney(section.total, HOME_CURRENCY, { lang })}
+                    </Text>
+                  </Row>
+                ),
+              },
+              ...section.data.map((item, index) => ({
                 key: item.id,
                 radius: radius.lg,
                 node: (
@@ -226,13 +239,23 @@ export default function Expenses() {
                     holdToDrag
                   />
                 ),
-              }))}
-              onReorder={(ids) => setExpenseOrder(trip.id, section.day, nextDayOrder(section.fullDay, ids))}
-              scrollRef={drag.scrollRef}
-              scroll={drag.scroll}
-              onDragging={drag.setDragging}
-            />,
-          ])}
+              })),
+            ])}
+            onReorder={(keys) => {
+              const { orders, moved } = dropAcrossDays(
+                keys,
+                sections.map((section) => ({ day: section.day, visible: section.data.map((e) => e.id), fullDay: section.fullDay })),
+              );
+              for (const [day, ids] of Object.entries(orders)) setExpenseOrder(trip.id, day, ids);
+              if (moved) {
+                const expense = expenses.find((e) => e.id === moved.id);
+                if (expense) actions.moveToDay(expense, moved.to, tz);
+              }
+            }}
+            scrollRef={drag.scrollRef}
+            scroll={drag.scroll}
+            onDragging={drag.setDragging}
+          />
         </ScrollView>
       )}
     </SafeAreaView>

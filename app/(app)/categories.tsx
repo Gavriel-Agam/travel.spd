@@ -1,15 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
-import { useAddCategory, useResetCategory, useSetCategoryHidden, useSetCategoryOrder, useUpdateCategory } from '@/api/queries';
+import { useTripChanges } from '@/api/queries';
 import { useDragScroll } from '@/hooks/useCardOrder';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, EMOJI_CHOICES, isSelectable, nextCategoryOrder, normalizeEmoji } from '@/lib/categories';
 import { categoryIconFromPick, encodeIcon } from '@/lib/image';
+import { blockedInDemo } from '@/lib/demoPrompt';
 import { goBack } from '@/lib/nav';
-import { errorCode } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
 import type { Category } from '@/types/db';
 import { CategoryIcon } from '@/ui/CategoryIcon';
@@ -30,11 +31,9 @@ export default function Categories() {
   const { t, lang } = useT();
   const c = useColors();
   const { trip, allCategories } = useTripData();
-  const add = useAddCategory(trip?.id ?? '');
-  const update = useUpdateCategory(trip?.id ?? '');
-  const setHidden = useSetCategoryHidden(trip?.id ?? '');
-  const reset = useResetCategory(trip?.id ?? '');
-  const setOrder = useSetCategoryOrder(trip?.id ?? '');
+  // Every change shows at once and is sent when there is a connection (also offline)
+  const changes = useTripChanges(trip?.id ?? '');
+  const qc = useQueryClient();
   const drag = useDragScroll();
   const [editing, setEditing] = useState<Editing>(null);
   const [name, setName] = useState('');
@@ -49,7 +48,6 @@ export default function Categories() {
   const active = allCategories.filter(isSelectable);
   const hidden = allCategories.filter((x) => !isSelectable(x));
   const current = editing && editing !== 'new' ? editing : null;
-  const busy = add.isPending || update.isPending || setHidden.isPending || reset.isPending;
 
   function open(target: Editing) {
     setEditing(target);
@@ -67,16 +65,12 @@ export default function Categories() {
     }
   }
 
-  async function save() {
-    if (!name.trim()) return;
-    try {
-      const fields = { name: name.trim(), icon: normalizeEmoji(icon) || '🏷️', color, image };
-      if (current) await update.mutateAsync({ category: current, ...fields });
-      else await add.mutateAsync(fields);
-      setEditing(null);
-    } catch (e) {
-      setError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
-    }
+  function save() {
+    if (!name.trim() || blockedInDemo(qc)) return;
+    const fields = { name: name.trim(), icon: normalizeEmoji(icon) || '🏷️', color, image };
+    if (current) changes.updateCategory(current, fields);
+    else changes.addCategory(fields);
+    setEditing(null);
   }
 
   /**
@@ -92,15 +86,26 @@ export default function Categories() {
       t('common.cancel'),
       true,
     );
-    if (!ok) return false;
-    setHidden.mutate({ category: cat, hidden: true });
+    if (!ok || blockedInDemo(qc)) return false;
+    changes.setCategoryHidden(cat, true);
     return true;
   }
 
-  async function restoreDefault() {
-    if (!current) return;
-    await reset.mutateAsync(current.id);
+  function restoreDefault() {
+    if (!current || blockedInDemo(qc)) return;
+    changes.resetCategory(current.id);
     setEditing(null);
+  }
+
+  /**
+   * All categories as they come with the app: built-ins back to their name,
+   * icon and colour (hidden ones shown again), default order; the trip's own
+   * categories move to Hidden (past expenses keep them; each can be restored).
+   */
+  async function resetAll() {
+    const ok = await confirmDialog(t('categories.resetAllConfirm'), t('categories.resetAllBody'), t('categories.resetAllAction'), t('common.cancel'), true);
+    if (!ok || blockedInDemo(qc)) return;
+    changes.resetAllCategories(allCategories);
   }
 
   async function pickImage() {
@@ -168,7 +173,7 @@ export default function Categories() {
             </SwipeRow>
           ),
         }))}
-        onReorder={(keys) => setOrder.mutate(nextCategoryOrder(allCategories, keys))}
+        onReorder={(keys) => !blockedInDemo(qc) && changes.setCategoryOrder(nextCategoryOrder(allCategories, keys))}
         scrollRef={drag.scrollRef}
         scroll={drag.scroll}
         onDragging={drag.setDragging}
@@ -189,7 +194,7 @@ export default function Categories() {
               right={
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setHidden.mutate({ category: cat, hidden: false })}
+                  onPress={() => !blockedInDemo(qc) && changes.setCategoryHidden(cat, false)}
                   hitSlop={8}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 >
@@ -203,6 +208,9 @@ export default function Categories() {
           ))}
         </Card>
       ) : null}
+
+      {/* Everything back to how the app ships it (asks first) */}
+      <Button title={t('categories.resetAll')} icon="refresh" variant="ghost" onPress={resetAll} />
 
       <Sheet visible={!!editing} onClose={() => setEditing(null)} title={current ? t('categories.edit') : t('categories.add')} height="88%">
         <View style={{ padding: space.lg, gap: space.md }}>
@@ -298,9 +306,9 @@ export default function Categories() {
               {error}
             </Text>
           ) : null}
-          <Button title={t('common.save')} onPress={save} loading={busy} disabled={!name.trim() || picking} />
+          <Button title={t('common.save')} onPress={save} disabled={!name.trim() || picking} />
           {current && !current.trip_id && current.edited ? (
-            <Button title={t('categories.resetDefault')} variant="ghost" icon="refresh" onPress={restoreDefault} disabled={busy} />
+            <Button title={t('categories.resetDefault')} variant="ghost" icon="refresh" onPress={restoreDefault} />
           ) : null}
           {current ? (
             <Button
@@ -310,7 +318,6 @@ export default function Categories() {
               onPress={async () => {
                 if (await remove(current)) setEditing(null);
               }}
-              disabled={busy}
             />
           ) : null}
         </View>

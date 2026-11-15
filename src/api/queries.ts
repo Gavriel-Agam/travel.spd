@@ -9,7 +9,19 @@ import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { supabase } from '@/lib/supabase';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import type { Budget, Category, CategoryOverride, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
-import { useOutbox } from '@/store/outbox';
+import * as Crypto from 'expo-crypto';
+import {
+  applyBudgetChanges,
+  applyCategoryChanges,
+  applyMemberChanges,
+  applyTripChanges,
+  budgetChangeKey,
+  categoryChangeKey,
+  memberChangeKey,
+  overrideChangeKey,
+  tripChangeKey,
+} from '@/lib/pendingChanges';
+import { useOutbox, type ChangeItem, type TripPatch } from '@/store/outbox';
 
 export const keys = {
   trips: ['trips'] as const,
@@ -34,7 +46,12 @@ export function useTrips(enabled = true) {
   const demo = useIsDemo();
   const { t, i18n } = useTranslation();
   // Re-created when the language changes so placeholder names follow it
-  const select = useCallback((list: Trip[]) => list.map((tr) => ({ ...tr, name: displayTripName(tr.name, t) })), [t, i18n.language]);
+  // Changes queued on this device (offline or still being sent) show at once
+  const changes = useOutbox((s) => s.items);
+  const select = useCallback(
+    (list: Trip[]) => applyTripChanges(list, changes).map((tr) => ({ ...tr, name: displayTripName(tr.name, t) })),
+    [t, i18n.language, changes],
+  );
   return useQuery({
     queryKey: keys.trips,
     enabled: enabled && !demo,
@@ -114,23 +131,15 @@ export function useInviteCode(tripId: string | undefined) {
   });
 }
 
-export function useUpdateTrip(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (patch: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'default_currency' | 'theme_color' | 'cover_path'>>) =>
-      unwrap(await supabase.from('trips').update(patch).eq('id', tripId).select().single()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.trips }),
-  });
-}
-
 // ---------------------------------------------------------------- members & categories
 
 export function useMembers(tripId: string | undefined) {
   const demo = useIsDemo();
   const { t, i18n } = useTranslation();
+  const changes = useOutbox((s) => s.items);
   const select = useCallback(
-    (list: Member[]) => list.map((m) => ({ ...m, display_name: displayMemberName(m.display_name, t) })),
-    [t, i18n.language],
+    (list: Member[]) => applyMemberChanges(list, changes).map((m) => ({ ...m, display_name: displayMemberName(m.display_name, t) })),
+    [t, i18n.language, changes],
   );
   return useQuery({
     queryKey: keys.members(tripId ?? ''),
@@ -138,22 +147,6 @@ export function useMembers(tripId: string | undefined) {
     queryFn: async () =>
       unwrap(await supabase.from('trip_members').select('*').eq('trip_id', tripId!).order('joined_at')) as Member[],
     select,
-  });
-}
-
-export function useUpdateMyMember(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (p: { memberId: string; display_name?: string; color?: string }) =>
-      unwrap(
-        await supabase
-          .from('trip_members')
-          .update({ display_name: p.display_name, color: p.color })
-          .eq('id', p.memberId)
-          .select()
-          .single(),
-      ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.members(tripId) }),
   });
 }
 
@@ -227,7 +220,10 @@ export function useRemoveMember(tripId: string) {
 
 export function useCategories(tripId: string | undefined) {
   const demo = useIsDemo();
+  const changes = useOutbox((s) => s.items);
+  const select = useCallback((list: Category[]) => applyCategoryChanges(list, changes, tripId ?? ''), [changes, tripId]);
   return useQuery({
+    select,
     queryKey: keys.categories(tripId ?? ''),
     enabled: !!tripId && !demo,
     staleTime: 10 * 60_000,
@@ -243,113 +239,69 @@ export function useCategories(tripId: string | undefined) {
   });
 }
 
-/** Edit a category: custom ones in place, built-ins through this trip's override. */
-export function useUpdateCategory(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationKey: ['update_category'],
-    mutationFn: async (p: { category: Category; name: string; icon: string; color: string; image: string | null }) => {
-      if (p.category.trip_id) {
-        unwrap(
-          await supabase
-            .from('expense_categories')
-            .update({ name: p.name, icon: p.icon, color: p.color, image: p.image })
-            .eq('id', p.category.id)
-            .select('id')
-            .single(),
-        );
-        return;
-      }
-      unwrap(
-        await supabase
-          .from('category_overrides')
-          .upsert({ trip_id: tripId, category_id: p.category.id, name: p.name, icon: p.icon, color: p.color, image: p.image, hidden: false }),
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
-  });
-}
+// ---------------------------------------------------------------- settings changes (work offline)
 
-/** Hide (built-in) or delete (custom) a category, or bring it back. Past expenses are unaffected. */
-export function useSetCategoryHidden(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationKey: ['hide_category'],
-    mutationFn: async (p: { category: Category; hidden: boolean }) => {
-      if (p.category.trip_id) {
-        unwrap(await supabase.from('expense_categories').update({ archived: p.hidden }).eq('id', p.category.id).select().single());
-        return;
-      }
-      unwrap(await supabase.from('category_overrides').upsert({ trip_id: tripId, category_id: p.category.id, hidden: p.hidden }));
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
-  });
-}
-
-/** Undo all of this trip's edits to a built-in category. */
-export function useResetCategory(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationKey: ['reset_category'],
-    mutationFn: async (categoryId: string) =>
-      unwrap(await supabase.from('category_overrides').delete().eq('trip_id', tripId).eq('category_id', categoryId)),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
-  });
-}
-
-export function useAddCategory(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (p: { name: string; icon: string; color: string; image: string | null }) =>
-      unwrap(
-        await supabase
-          .from('expense_categories')
-          .insert({ trip_id: tripId, name: p.name, icon: p.icon, color: p.color, image: p.image, sort_order: 500 })
-          .select()
-          .single(),
-      ) as Category,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
-  });
-}
-
-/** Change a field of the cached trip right away (the server copy follows). */
-function patchCachedTrip(qc: ReturnType<typeof useQueryClient>, tripId: string, patch: Partial<Trip>) {
-  qc.setQueryData<Trip[]>(keys.trips, (list) => list?.map((tr) => (tr.id === tripId ? { ...tr, ...patch } : tr)));
-}
+type CategoryFields = { name: string; icon: string; color: string; image: string | null };
 
 /**
- * The trip's category order (shared by everyone on the trip). Shows at once;
- * without a connection it is sent when the app is back online.
+ * Changes to a trip's settings: details, colour, category order, own payment
+ * methods, categories (add, edit, hide or delete, restore, reset), the trip
+ * budget and your own name or colour. Each one shows at once and is queued on
+ * this device; it is sent right away when there is a connection, otherwise as
+ * soon as there is one (also after a restart). See lib/pendingChanges.
+ * The guest demo can't change anything (callers show the sign-up prompt).
  */
-export function useSetCategoryOrder(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationKey: ['category_order', tripId],
-    scope: { id: `category_order:${tripId}` },
-    onMutate: async (order: string[]) => {
-      await qc.cancelQueries({ queryKey: keys.trips });
-      patchCachedTrip(qc, tripId, { category_order: order });
-    },
-    mutationFn: async (order: string[]) =>
-      unwrap(await supabase.from('trips').update({ category_order: order }).eq('id', tripId).select('id').single()),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.trips }),
-  });
-}
-
-/** The trip's own payment methods (names), shared by everyone on the trip. */
-export function useSetPaymentMethods(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationKey: ['payment_methods', tripId],
-    scope: { id: `payment_methods:${tripId}` },
-    onMutate: async (methods: string[]) => {
-      await qc.cancelQueries({ queryKey: keys.trips });
-      patchCachedTrip(qc, tripId, { payment_methods: methods });
-    },
-    mutationFn: async (methods: string[]) =>
-      unwrap(await supabase.from('trips').update({ payment_methods: methods }).eq('id', tripId).select('id').single()),
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.trips }),
-  });
+export function useTripChanges(tripId: string) {
+  return useMemo(() => {
+    const queue = (item: ChangeItem) => {
+      if (!tripId || usePrefs.getState().demo) return false;
+      useOutbox.getState().queueChange(item);
+      return true;
+    };
+    const base = () => ({ tripId, createdBy: '', queuedAt: new Date().toISOString() });
+    const updateTrip = (patch: TripPatch) => queue({ ...base(), kind: 'trip', clientId: tripChangeKey(tripId), patch });
+    const category = (categoryId: string, fields: Extract<ChangeItem, { kind: 'category' }>['fields'], create = false) =>
+      queue({ ...base(), kind: 'category', clientId: categoryChangeKey(categoryId), categoryId, create, fields });
+    const override = (categoryId: string, fields: Extract<ChangeItem, { kind: 'override' }>['fields'], reset = false) =>
+      queue({ ...base(), kind: 'override', clientId: overrideChangeKey(tripId, categoryId), categoryId, reset, fields });
+    return {
+      updateTrip,
+      setCategoryOrder: (order: string[] | null) => updateTrip({ category_order: order }),
+      setPaymentMethods: (methods: string[]) => updateTrip({ payment_methods: methods }),
+      /** Adds one of the trip's own categories; returns its id (usable at once, also offline). */
+      addCategory: (fields: CategoryFields) => {
+        const id = Crypto.randomUUID();
+        return category(id, { ...fields, archived: false }, true) ? id : null;
+      },
+      /** Custom categories change in place; built-ins through this trip's override. */
+      updateCategory: (cat: Category, fields: CategoryFields) => (cat.trip_id ? category(cat.id, fields) : override(cat.id, { ...fields, hidden: false })),
+      /** Hide (built-in) or delete (custom, kept for past expenses) a category, or bring it back. */
+      setCategoryHidden: (cat: Category, hidden: boolean) => (cat.trip_id ? category(cat.id, { archived: hidden }) : override(cat.id, { hidden })),
+      /** Undo all of this trip's edits to a built-in category. */
+      resetCategory: (categoryId: string) => override(categoryId, {}, true),
+      /**
+       * Categories as they come with the app: every built-in back to its default
+       * (shown again if hidden), the trip's own ones out of the list (to Hidden,
+       * where each can be restored; past expenses keep them), default order.
+       */
+      resetAllCategories: (all: Category[]) => {
+        if (!tripId || usePrefs.getState().demo) return false;
+        for (const cat of all) {
+          if (cat.trip_id) {
+            if (!cat.archived) category(cat.id, { archived: true });
+          } else if (cat.edited || cat.hidden) override(cat.id, {}, true);
+        }
+        updateTrip({ category_order: null });
+        return true;
+      },
+      /** A budget in shekel minor units; null removes it. */
+      setBudget: (scope: Budget['scope'], amount: number | null, categoryId: string | null = null, memberId: string | null = null) =>
+        queue({ ...base(), kind: 'budget', clientId: budgetChangeKey(tripId, scope, categoryId, memberId), scope, categoryId, memberId, amount }),
+      /** Your own name or colour in the trip. */
+      updateMyMember: (memberId: string, patch: { display_name?: string; color?: string }) =>
+        queue({ ...base(), kind: 'member', clientId: memberChangeKey(memberId), memberId, patch }),
+    };
+  }, [tripId]);
 }
 
 // ---------------------------------------------------------------- expenses
@@ -498,38 +450,13 @@ export function useReceiptUrl(path: string | null | undefined) {
 
 export function useBudgets(tripId: string | undefined) {
   const demo = useIsDemo();
+  const changes = useOutbox((s) => s.items);
+  const select = useCallback((list: Budget[]) => applyBudgetChanges(list, changes, tripId ?? ''), [changes, tripId]);
   return useQuery({
+    select,
     queryKey: keys.budgets(tripId ?? ''),
     enabled: !!tripId && !demo,
     queryFn: async () => unwrap(await supabase.from('budgets').select('*').eq('trip_id', tripId!)) as Budget[],
-  });
-}
-
-export function useSetBudget(tripId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (p: { scope: Budget['scope']; amount: number | null; category_id?: string; member_id?: string }) => {
-      let q = supabase.from('budgets').select('id').eq('trip_id', tripId).eq('scope', p.scope);
-      q = p.category_id ? q.eq('category_id', p.category_id) : q.is('category_id', null);
-      q = p.member_id ? q.eq('member_id', p.member_id) : q.is('member_id', null);
-      const existing = unwrap(await q.maybeSingle()) as { id: string } | null;
-      if (p.amount == null) {
-        if (existing) unwrap(await supabase.from('budgets').delete().eq('id', existing.id));
-        return;
-      }
-      if (existing) unwrap(await supabase.from('budgets').update({ amount_ils_minor: p.amount }).eq('id', existing.id));
-      else
-        unwrap(
-          await supabase.from('budgets').insert({
-            trip_id: tripId,
-            scope: p.scope,
-            amount_ils_minor: p.amount,
-            category_id: p.category_id ?? null,
-            member_id: p.member_id ?? null,
-          }),
-        );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.budgets(tripId) }),
   });
 }
 

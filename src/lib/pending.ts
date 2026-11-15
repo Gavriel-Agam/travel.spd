@@ -4,6 +4,7 @@
 // - new expenses appear, edits replace the saved version, deletes hide it;
 // - a change the server rejected stays visible, marked, so it can be fixed.
 import { convertToHomeMinor } from './money';
+import { isExpenseItem } from './pendingChanges';
 import { sharesFromEntries, type SplitType } from './split';
 import type { SaveExpenseInput } from '@/api/queries';
 import type { Expense } from '@/types/db';
@@ -68,7 +69,8 @@ const byNewest = (a: Expense, b: Expense) => (a.occurred_at < b.occurred_at ? 1 
  * never counts twice.
  */
 export function mergePending(saved: Expense[], outbox: OutboxItem[], tripId: string): Expense[] {
-  const queue = outbox.filter((i) => i.tripId === tripId);
+  // Expense changes only; changes to the trip's settings are applied elsewhere (lib/pendingChanges)
+  const queue = outbox.filter((i) => i.tripId === tripId && isExpenseItem(i));
   if (queue.length === 0) return saved;
   const savedClientIds = new Set(saved.map((e) => e.client_id).filter(Boolean));
   const edits = new Map<string, UpdateItem>();
@@ -77,7 +79,7 @@ export function mergePending(saved: Expense[], outbox: OutboxItem[], tripId: str
   for (const i of queue) {
     if (i.kind === 'update') edits.set(i.expenseId, i);
     else if (i.kind === 'delete') deletes.set(i.expenseId, i);
-    else if (!savedClientIds.has(i.clientId)) created.push(pendingToExpense(i));
+    else if (!savedClientIds.has(i.clientId)) created.push(pendingToExpense(i as CreateItem));
   }
   const merged: Expense[] = [];
   for (const e of saved) {

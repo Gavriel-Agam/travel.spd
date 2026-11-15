@@ -10,7 +10,7 @@ import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { HOME_CURRENCY } from '@/lib/currencies';
-import { mergeVisibleOrder, resolveHomeOrder, type HomeSection } from '@/lib/homeLayout';
+import { homeLayoutValue, mergeVisibleOrder, resolveHomeLayout, type HomeSection } from '@/lib/homeLayout';
 import { formatMoney, percent } from '@/lib/money';
 import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
 import { readableOn } from '@/lib/contrast';
@@ -18,7 +18,7 @@ import { alertColor, radius, space, useColors } from '@/theme';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
 import { Sheet } from '@/ui/Sheet';
 import { SortableList } from '@/ui/SortableList';
-import { SyncStatus } from '@/ui/SyncStatus';
+import { SwipeRow } from '@/ui/SwipeRow';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
 import { InfoTip } from '@/ui/InfoTip';
@@ -59,8 +59,11 @@ export default function Home() {
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
   const { session } = useAuth();
   const layout = useHomeLayout(!!session && !session.user.is_anonymous);
-  const order = useMemo(() => resolveHomeOrder(layout.order), [layout.order]);
+  // Cards on show in their order, and cards hidden from Home (swipe a card › Hide; Arrange brings them back)
+  const { visible: order, hidden } = useMemo(() => resolveHomeLayout(layout.order), [layout.order]);
   const setHomeOrder = layout.setOrder;
+  const hideCard = (key: HomeSection) => setHomeOrder(homeLayoutValue(order.filter((k) => k !== key), [...hidden, key]));
+  const showCard = (key: HomeSection) => setHomeOrder(homeLayoutValue([...order, key], hidden.filter((k) => k !== key)));
   const [arranging, setArranging] = useState(false);
   // For dragging cards: the page scrolls along and stops scrolling by itself meanwhile
   const scrollRef = useRef<ScrollViewInstance>(null);
@@ -468,12 +471,28 @@ export default function Home() {
         {canFeedback ? <FeedbackBell /> : null}
       </Row>
 
-      <SyncStatus tripId={trip.id} />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
 
+      {/* Hold a card to drag it; swipe it (right in Hebrew) for Hide. Rows inside a card swipe on their own. */}
       <DraggableGrid
-        items={order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k], radius: k === 'hero' ? radius.xl : radius.lg }))}
-        onReorder={(visible) => setHomeOrder(mergeVisibleOrder(order, visible))}
+        items={order
+          .filter((k) => sections[k])
+          .map((k) => ({
+            key: k,
+            radius: k === 'hero' ? radius.xl : radius.lg,
+            node: (
+              <SwipeRow
+                background={c.bg}
+                style={{ borderRadius: k === 'hero' ? radius.xl : radius.lg }}
+                yieldToInner
+                clipWhenClosed={false}
+                actions={[{ key: 'hide', icon: 'eye-off-outline', color: c.textMuted, label: t('home.hideCard'), onPress: () => hideCard(k) }]}
+              >
+                {() => sections[k]}
+              </SwipeRow>
+            ),
+          }))}
+        onReorder={(visible) => setHomeOrder(homeLayoutValue(mergeVisibleOrder(order, visible), hidden))}
         scrollRef={scrollRef}
         scroll={scroll}
         onDragging={setDraggingCard}
@@ -511,8 +530,37 @@ export default function Home() {
           </Text>
           <SortableList
             items={order.map((k) => ({ key: k, label: t(`home.sections.${k}`), icon: SECTION_ICONS[k] }))}
-            onChange={(keys) => setHomeOrder(keys)}
+            onChange={(keys) => setHomeOrder(homeLayoutValue(keys, hidden))}
           />
+          {/* Cards hidden from Home, under a line (like hidden categories): Show puts one back at the end */}
+          {hidden.length > 0 ? (
+            <View style={{ gap: space.sm }}>
+              <View style={{ height: 1, backgroundColor: c.border, marginVertical: space.xs }} />
+              <Text variant="label" muted>
+                {t('home.hiddenCards')}
+              </Text>
+              {hidden.map((k) => (
+                <Row key={k} gap={space.md} style={{ minHeight: 56, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: c.cardAlt }}>
+                  <Text style={{ fontSize: 20, opacity: 0.6 }}>{SECTION_ICONS[k]}</Text>
+                  <Text muted style={{ flex: 1 }}>
+                    {t(`home.sections.${k}`)}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('home.showCard')}: ${t(`home.sections.${k}`)}`}
+                    onPress={() => showCard(k)}
+                    hitSlop={8}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: space.sm }}
+                  >
+                    <Ionicons name="eye-outline" size={18} color={c.primary} />
+                    <Text variant="label" color={c.primary}>
+                      {t('home.showCard')}
+                    </Text>
+                  </Pressable>
+                </Row>
+              ))}
+            </View>
+          ) : null}
           <Button title={t('common.done')} onPress={() => setArranging(false)} />
           <Button title={t('home.arrangeReset')} variant="ghost" icon="refresh" onPress={() => setHomeOrder(null)} />
         </View>

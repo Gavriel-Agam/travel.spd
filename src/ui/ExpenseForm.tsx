@@ -8,19 +8,19 @@ import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useSetCategoryOrder, useSetPaymentMethods, type SaveExpenseInput } from '@/api/queries';
+import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useTripChanges, type SaveExpenseInput } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, nextCategoryOrder } from '@/lib/categories';
-import { BUILTIN_PAYMENTS, cleanPaymentName, MAX_CUSTOM_PAYMENTS, PAYMENT_NAME_MAX, paymentIcon, paymentLabel } from '@/lib/payments';
+import { BUILTIN_PAYMENTS, cleanPaymentName, lastPaymentFor, MAX_CUSTOM_PAYMENTS, PAYMENT_NAME_MAX, paymentIcon, paymentLabel } from '@/lib/payments';
 import { PaymentRow } from './PaymentRow';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
+import { formatAmountTyping, groupThousands } from '@/lib/amountInput';
 import {
   convertToHomeMinor,
   formatMoney,
   formatRate,
   invertRate,
-  clampDecimals,
   isValidRate,
   minorToInput,
   parseAmount,
@@ -45,7 +45,7 @@ import { ReorderChips } from './ReorderChips';
 import { Sheet } from './Sheet';
 import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
-import { Button, Chip, Field, IconButton, Row, Segmented, Text, tap } from './primitives';
+import { Button, Chip, ClearButton, Field, IconButton, Row, Segmented, Text, tap, useAmountTyping } from './primitives';
 import { FadeIn } from './FadeIn';
 import { UploadZone } from './UploadZone';
 
@@ -60,24 +60,27 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const { width } = useWindowDimensions();
   const { trip, members, categories, allCategories, me, memberById } = useTripData();
   const save = useSaveExpense(trip?.id ?? '');
-  const setCategoryOrder = useSetCategoryOrder(trip?.id ?? '');
-  const setPaymentMethods = useSetPaymentMethods(trip?.id ?? '');
+  // Category order and the trip's own payment methods: shown at once, sent when there is a connection
+  const changes = useTripChanges(trip?.id ?? '');
   const customPayments = trip?.payment_methods ?? [];
   const queryClient = useQueryClient();
   const lastCurrency = usePrefs((s) => (trip ? s.lastCurrency[trip.id] : undefined));
   const noteCurrencyUsed = usePrefs((s) => s.noteCurrencyUsed);
+  const notePaymentUsed = usePrefs((s) => s.notePaymentUsed);
+  // A new expense starts with the payment method used last (in this trip, else the last one anywhere that this trip offers)
+  const lastPayment = usePrefs((s) => (trip ? lastPaymentFor(s.lastPayment, s.lastPaymentAny, trip.id, customPayments) : null));
   const cachedRates = usePrefs((s) => s.rates);
 
   // ---------------------------------------------------------------- state
   const [currency, setCurrency] = useState(existing?.currency ?? lastCurrency ?? trip?.default_currency ?? 'THB');
-  const [amountText, setAmountText] = useState(existing ? minorToInput(existing.amount_minor, existing.currency) : '');
+  const [amountText, setAmountText] = useState(existing ? groupThousands(minorToInput(existing.amount_minor, existing.currency)) : '');
   const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
   const [description, setDescription] = useState(existing?.description ?? '');
   // null = joint money (the default): no payer, so it never creates a debt
   const [payerId, setPayerId] = useState<string | null>(existing ? existing.paid_by_member_id : null);
   const [occurredAt, setOccurredAt] = useState(existing ? new Date(existing.occurred_at) : new Date());
   const [notes, setNotes] = useState(existing?.notes ?? '');
-  const [paymentMethod, setPaymentMethod] = useState<string | null>(existing?.payment_method ?? null);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(existing ? existing.payment_method : lastPayment);
   const [receiptPath, setReceiptPath] = useState<string | null>(existing?.receipt_path ?? null);
   const [localReceipt, setLocalReceipt] = useState<{ uri: string; mime: string } | null>(null);
   // Who paid, split, date, notes and receipt: folded away until opened
@@ -126,11 +129,12 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     Object.fromEntries(
       members.map((m) => {
         const s = existing?.split_type === 'amount' ? existing.expense_splits.find((x) => x.member_id === m.id) : undefined;
-        return [m.id, s?.share_original_minor ? minorToInput(s.share_original_minor, existing!.currency) : ''];
+        return [m.id, s?.share_original_minor ? groupThousands(minorToInput(s.share_original_minor, existing!.currency)) : ''];
       }),
     ),
   );
   const amountRef = useRef<TextInputInstance>(null);
+  const amountTyping = useAmountTyping(getCurrency(currency).minor_units, setAmountText, amountRef);
 
   // ---------------------------------------------------------------- rates
   const tz = trip?.timezone ?? 'UTC';
@@ -215,7 +219,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           if (value !== '' && n >= 0 && n <= 100) next[other] = String(Math.round((100 - n) * 100) / 100);
         } else if (amountMinor != null) {
           const v = parseAmount(value, currency);
-          if (v != null && v <= amountMinor) next[other] = minorToInput(amountMinor - v, currency) || '';
+          if (v != null && v <= amountMinor) next[other] = groupThousands(minorToInput(amountMinor - v, currency)) || '';
         }
       }
       return next;
@@ -280,8 +284,12 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       splits: toSplitEntries(effectiveSplit, payerId),
     });
 
-    const done = () => {
+    const remember = () => {
       noteCurrencyUsed(trip.id, currency);
+      if (paymentMethod) notePaymentUsed(trip.id, paymentMethod);
+    };
+    const done = () => {
+      remember();
       // Saved for real: an older offline edit of this expense must not be sent later
       if (existing) useOutbox.getState().remove(editKey(existing.id));
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -304,7 +312,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       if (localReceipt) return setError(t('form.receiptOffline'));
       const { version: _v, ...payload } = build(receiptPath);
       queueUpdate({ expenseId: existing!.id, expectedVersion: existing!.version, tripId: trip.id, createdBy: userId ?? '', queuedAt: new Date().toISOString(), payload });
-      noteCurrencyUsed(trip.id, currency);
+      remember();
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       goBack('/expenses');
     };
@@ -346,7 +354,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     if (!name) return setPaymentError(newPayment.trim() ? t('payment.addInvalid') : null);
     if (customPayments.length >= MAX_CUSTOM_PAYMENTS) return setPaymentError(t('payment.addLimit', { count: MAX_CUSTOM_PAYMENTS }));
     // Shared with the trip (shows at once; sent when there is a connection) and chosen for this expense
-    setPaymentMethods.mutate([...customPayments, name]);
+    changes.setPaymentMethods([...customPayments, name]);
     setPaymentMethod(name);
     setNewPayment('');
     setPaymentError(null);
@@ -355,7 +363,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   async function removePayment(name: string) {
     const ok = await confirmDialog(t('payment.removeConfirm', { name }), t('payment.removeBody'), t('common.delete'), t('common.cancel'), true);
     if (!ok) return;
-    setPaymentMethods.mutate(customPayments.filter((n) => n !== name));
+    changes.setPaymentMethods(customPayments.filter((n) => n !== name));
   }
 
   if (!trip) return null;
@@ -387,51 +395,72 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: c.card }}>
-      <Row style={{ justifyContent: 'space-between', paddingHorizontal: space.md, paddingVertical: space.sm }}>
+      <Row style={{ justifyContent: 'space-between', paddingHorizontal: space.md, paddingVertical: space.xs }}>
         <IconButton name="close" onPress={() => goBack('/expenses')} label={t('common.cancel')} />
         <Text variant="h2">{existing ? t('form.editTitle') : t('form.newTitle')}</Text>
         <View style={{ width: 40 }} />
       </Row>
 
+      {/* Everything a normal expense needs (currency, amount, rate, category,
+          payment method, description) fits on one iPhone screen without scrolling;
+          the rest waits under More details. */}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         scrollEnabled={!draggingChip}
-        contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl }}
+        contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: space.xs, gap: space.md, paddingBottom: space.xxl }}
       >
-        {/* Amount + currency */}
-        <View style={{ alignItems: 'center', gap: space.sm }}>
-          <Pressable
-            onPress={() => setPickCurrency(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.cardAlt, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 }}
-          >
-            <Text style={{ fontSize: 18 }}>{cur.flag}</Text>
-            <Text variant="label">
-              {cur.code} · {cur.symbol}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color={c.textMuted} />
-          </Pressable>
-          <TextInput
-            ref={amountRef}
-            value={amountText}
-            onChangeText={(v) => setAmountText(clampDecimals(v, cur.minor_units))}
-            placeholder="0"
-            placeholderTextColor={c.textFaint}
-            keyboardType={cur.minor_units > 0 ? 'decimal-pad' : 'number-pad'}
-            autoFocus={!existing}
-            style={{ fontSize: 52, fontWeight: '800', color: c.text, textAlign: 'center', minWidth: 120, letterSpacing: -1 }}
-          />
+        {/* Currency and amount on one line, the rate right under them */}
+        <View style={{ gap: 6 }}>
+          <Row gap={space.sm}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('form.currency')}
+              onPress={() => setPickCurrency(true)}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                height: 48,
+                backgroundColor: c.cardAlt,
+                borderRadius: radius.md,
+                paddingHorizontal: 12,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <Text style={{ fontSize: 20 }}>{cur.flag}</Text>
+              <Text variant="label" style={{ fontSize: 15 }}>
+                {cur.code}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={c.textMuted} />
+            </Pressable>
+            <View style={{ flex: 1, position: 'relative', justifyContent: 'center' }}>
+              <TextInput
+                ref={amountTyping.ref}
+                value={amountText}
+                onChangeText={amountTyping.onChangeText}
+                accessibilityLabel={t('form.amount')}
+                placeholder="0"
+                placeholderTextColor={c.textFaint}
+                keyboardType={cur.minor_units > 0 ? 'decimal-pad' : 'number-pad'}
+                autoFocus={!existing}
+                {...(Platform.OS === 'web' ? ({ dir: 'ltr' } as object) : null)}
+                style={{ height: 56, fontSize: amountFontSize(amountText), fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -1, paddingHorizontal: 36 }}
+              />
+              {amountText ? <ClearButton rtl={lang === 'he'} inset={0} onPress={() => setAmountText('')} /> : null}
+            </View>
+          </Row>
           {currency !== HOME_CURRENCY ? (
-            <Text variant="h2" color={homeMinor != null ? c.primary : c.textFaint} style={{ fontSize: 20 }}>
-              ≈ {formatMoney(homeMinor ?? 0, HOME_CURRENCY, { lang })}
-            </Text>
-          ) : null}
-          {rateInfo ? (
-            <Pressable onPress={() => setEditingRate((v) => !v)} hitSlop={8}>
-              <Row gap={6}>
-                <Text variant="caption" muted>
-                  {effectiveRate ? `${formatRate(effectiveRate, currency, cur.symbol)} · ` : ''}
-                  {rateInfo}
+            <Pressable accessibilityRole="button" accessibilityLabel={t('form.rateEdit')} onPress={() => setEditingRate((v) => !v)} hitSlop={6}>
+              <Row gap={6} style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Text variant="label" color={homeMinor != null ? c.primary : c.textFaint}>
+                  ≈ {formatMoney(homeMinor ?? 0, HOME_CURRENCY, { lang })}
                 </Text>
+                {rateInfo ? (
+                  <Text variant="caption" muted>
+                    · {effectiveRate ? `${formatRate(effectiveRate, currency, cur.symbol)} · ` : ''}
+                    {rateInfo}
+                  </Text>
+                ) : null}
                 <Ionicons name="pencil" size={12} color={c.textMuted} />
               </Row>
             </Pressable>
@@ -482,11 +511,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           ) : null}
         </View>
 
-        {/* Category: hold a chip to drag it to a new place (saved for the trip) */}
-        <View style={{ gap: space.sm }}>
-          <SectionTitle icon="pricetag-outline" title={t('form.category')} />
+        {/* Category: hold a tile to drag it to a new place (saved for the trip) */}
+        <View style={{ gap: 6 }}>
+          <SectionTitle icon="pricetag-outline" title={t('form.category')} hint={t('form.categoryDragHintShort')} />
           <ReorderChips
-            columns={width >= 520 ? 4 : 3}
+            columns={width >= 520 ? 5 : 4}
             items={categories.map((cat) => ({
               key: cat.id,
               node: (
@@ -498,19 +527,16 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 />
               ),
             }))}
-            onReorder={(keys) => setCategoryOrder.mutate(nextCategoryOrder(allCategories, keys))}
+            onReorder={(keys) => changes.setCategoryOrder(nextCategoryOrder(allCategories, keys))}
             onDragging={setDraggingChip}
           />
-          <Text variant="caption" faint>
-            {t('form.categoryDragHint')}
-          </Text>
         </View>
 
         {/* A clear break: categories above, how it was paid below */}
         <SectionBreak />
 
         {/* Payment method */}
-        <View style={{ gap: space.sm }}>
+        <View style={{ gap: 6 }}>
           <SectionTitle icon="card-outline" title={t('form.paymentMethod')} />
           <PaymentRow
             keys={paymentKeys}
@@ -527,8 +553,17 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
         <SectionBreak />
 
-
-        <Field label={t('form.description')} value={description} onChangeText={setDescription} placeholder={t('form.descriptionPlaceholder')} maxLength={120} />
+        <View style={{ gap: 6 }}>
+          <SectionTitle icon="create-outline" title={t('form.description')} />
+          <Field
+            accessibilityLabel={t('form.description')}
+            value={description}
+            onChangeText={setDescription}
+            placeholder={t('form.descriptionPlaceholder')}
+            maxLength={120}
+            style={{ minHeight: 46, paddingVertical: 10 }}
+          />
+        </View>
 
         {/* More details: who paid, split, date, notes, receipt. Folded until opened. */}
         <View style={{ gap: space.lg }}>
@@ -642,7 +677,9 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                           <Text style={{ flex: 1 }}>{m.display_name}</Text>
                           <TextInput
                             value={(splitType === 'percent' ? percents : amounts)[m.id] ?? ''}
-                            onChangeText={(v) => setComplement(splitType, m.id, v.replace(',', '.').replace(/[^\d.]/g, ''))}
+                            onChangeText={(v) =>
+                              setComplement(splitType, m.id, splitType === 'amount' ? formatAmountTyping(v, cur.minor_units) : v.replace(',', '.').replace(/[^\d.]/g, ''))
+                            }
                             keyboardType="decimal-pad"
                             placeholder="0"
                             placeholderTextColor={c.textFaint}
@@ -811,14 +848,20 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 }
 
 /** A section heading in the form: small icon and label. */
-function SectionTitle({ icon, title }: { icon: keyof typeof Ionicons.glyphMap; title: string }) {
+function SectionTitle({ icon, title, hint }: { icon: keyof typeof Ionicons.glyphMap; title: string; hint?: string }) {
   const c = useColors();
+  const { lang } = useT();
   return (
     <Row gap={6}>
       <Ionicons name={icon} size={15} color={c.textMuted} />
       <Text variant="label" muted>
         {title}
       </Text>
+      {hint ? (
+        <Text variant="caption" faint numberOfLines={1} style={{ flex: 1, textAlign: lang === 'he' ? 'left' : 'right' }}>
+          {hint}
+        </Text>
+      ) : null}
     </Row>
   );
 }
@@ -828,6 +871,14 @@ function SectionBreak() {
   const c = useColors();
   return <View accessibilityElementsHidden importantForAccessibility="no" style={{ height: 1, backgroundColor: c.border, marginHorizontal: -space.lg }} />;
 }
+
+/** The amount gets smaller as it grows, so a long one (19,234,567.89) still fits on the line. */
+function amountFontSize(text: string) {
+  return text.length <= 7 ? 40 : text.length <= 10 ? 32 : 26;
+}
+
+// Long one-word names ("Accommodation") break at a syllable with a hyphen, not at a random letter
+const WEB_HYPHENS = Platform.OS === 'web' ? ({ hyphens: 'auto', WebkitHyphens: 'auto' } as object) : null;
 
 /**
  * One category in the form's picker: an equal-width tile (icon over name) so
@@ -848,21 +899,21 @@ function CategoryTile({ category, label, selected, onPress }: { category: Catego
       onLongPress={() => {}}
       style={({ pressed }) => ({
         flex: 1,
-        minHeight: 72,
+        minHeight: 58,
         borderRadius: radius.md,
-        paddingHorizontal: 6,
-        paddingVertical: 8,
+        paddingHorizontal: 3,
+        paddingVertical: 6,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 4,
+        gap: 3,
         backgroundColor: selected ? flatten(category.color + '2E', c.card) : c.cardAlt,
         borderWidth: 1.5,
         borderColor: selected ? category.color : 'transparent',
         opacity: pressed ? 0.8 : 1,
       })}
     >
-      <CategoryIcon category={category} size={22} />
-      <Text variant="caption" color={c.text} center numberOfLines={2} style={selected ? { fontWeight: '700' } : undefined}>
+      <CategoryIcon category={category} size={20} />
+      <Text variant="caption" color={c.text} center numberOfLines={2} style={[{ fontSize: 11, lineHeight: 13 }, WEB_HYPHENS, selected ? { fontWeight: '700' } : null]}>
         {label}
       </Text>
     </Pressable>

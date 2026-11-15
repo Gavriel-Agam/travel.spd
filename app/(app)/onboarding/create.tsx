@@ -120,10 +120,10 @@ export default function CreateTrip() {
 
       <Row gap={space.md} align="flex-start">
         <View style={{ flex: 1 }}>
-          <Field label={t('onboarding.totalBudget')} value={total} onChangeText={setTotal} keyboardType="decimal-pad" placeholder={t('common.optional')} />
+          <Field label={t('onboarding.totalBudget')} value={total} onChangeText={setTotal} amountDecimals={2} keyboardType="decimal-pad" placeholder={t('common.optional')} />
         </View>
         <View style={{ flex: 1 }}>
-          <Field label={t('onboarding.dailyBudget')} value={daily} onChangeText={setDaily} keyboardType="decimal-pad" placeholder={t('common.optional')} />
+          <Field label={t('onboarding.dailyBudget')} value={daily} onChangeText={setDaily} amountDecimals={2} keyboardType="decimal-pad" placeholder={t('common.optional')} />
         </View>
       </Row>
 

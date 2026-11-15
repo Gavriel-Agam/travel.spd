@@ -1,6 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState, type ReactNode } from 'react';
-import { SyncStatus } from '@/ui/SyncStatus';
 import { Pressable, RefreshControl, View } from 'react-native';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -408,7 +407,6 @@ export default function Stats() {
   return (
     <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
       <Text variant="title">{t('stats.title')}</Text>
-      <SyncStatus tripId={trip.id} />
 
       {spendingCount === 0 ? (
         <Card>

@@ -14,6 +14,29 @@ export function resolveHomeOrder(saved: string[] | undefined | null): HomeSectio
   return [...kept, ...HOME_SECTIONS.filter((k) => !kept.includes(k))];
 }
 
+/**
+ * Cards can be hidden from Home (swipe a card, Hide). The saved layout lists the
+ * cards on show in their order, then this marker, then the hidden ones: one
+ * list, so it syncs to the account like the order always did. (An older
+ * version of the app ignores the marker and simply shows every card.)
+ */
+export const HIDDEN_MARK = '--hidden--';
+
+/** The saved layout as two lists: cards on show (in order, new cards appended) and hidden cards. */
+export function resolveHomeLayout(saved: string[] | undefined | null): { visible: HomeSection[]; hidden: HomeSection[] } {
+  const list = saved ?? [];
+  const mark = list.indexOf(HIDDEN_MARK);
+  const known = new Set<string>(HOME_SECTIONS);
+  const hidden = (mark < 0 ? [] : list.slice(mark + 1)).filter((k, i, a): k is HomeSection => known.has(k) && a.indexOf(k) === i);
+  const visible = resolveHomeOrder(mark < 0 ? list : list.slice(0, mark)).filter((k) => !hidden.includes(k));
+  return { visible, hidden };
+}
+
+/** The layout to save: cards on show, then (if any) the marker and the hidden cards. */
+export function homeLayoutValue(visible: readonly string[], hidden: readonly string[]): string[] {
+  return hidden.length ? [...visible, HIDDEN_MARK, ...hidden] : [...visible];
+}
+
 /** Same clean-up for any screen's cards: saved order first (unknown and repeated keys dropped), then new cards in default order. */
 export function resolveOrder<T extends string>(saved: readonly string[] | undefined | null, defaults: readonly T[]): T[] {
   const known = new Set<string>(defaults);

@@ -1,5 +1,8 @@
 # Minimal Supabase CLI config. `npx supabase link` fills in the project ref.
-project_id = "smarttrip"
+# Names the local Docker stack (containers and data volumes: supabase_db_travelspend-couple, ...).
+# Keep it: a different name makes the CLI look for other containers and start a new, empty
+# local database (scripts/qa-local.mjs). It has no effect on the live project (linked by ref).
+project_id = "travelspend-couple"
 
 [auth]
 site_url = "https://gavriel-agam.github.io/travel.spd/"

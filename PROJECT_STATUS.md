@@ -7,7 +7,7 @@ Last updated: 2026-11-15
 ## Current state
 - Live at https://gavriel-agam.github.io/travel.spd/ (deploys on push to `main`).
 - Shipped through Stage 4 (trip colour + photo). Migrations 0001-0018 (0017 applied to the live database 2026-11-10: 4 columns, 7 existing accounts marked as already asked; 0018 `delete_trip()` 2026-11-12).
-- Last deploy: `d0d90ca` (trip delete by its creator, currency breakdown sheet, expense drag within a day, dashed upload zones, 44 pt payment buttons, Budget vs actual removed), live 2026-11-12; both Actions runs green; migration 0018 (`delete_trip()`) applied to the live database first.
+- Last deploy: `f3b45d4` (session 5: offline settings changes, drag expenses across days, hide Home cards, one-screen expense form, clear ✕, 1,234 amounts, top sync strip, last payment method), live 2026-11-15; both Actions runs green; no database change.
 - Verified: backend, Supabase DB + RLS, Google OAuth.
 - Known: dev-only console warnings on the Stats tab (react-native-svg passes touch handlers of tappable pie slices to the DOM on web); harmless in production.
 - Pending: Facebook sign-in needs a Meta developer app + enabling the provider in Supabase (steps in PRODUCT_DOCS › Facebook sign-in setup); the button is hidden until then.

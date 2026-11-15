@@ -1,4 +1,4 @@
-# Travel.Spd: rules for Claude
+# SmartTrip (Travel.Spd): rules for Claude
 
 ## Keep the legal pages in sync (required)
 

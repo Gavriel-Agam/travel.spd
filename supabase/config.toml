@@ -1,5 +1,5 @@
 # Minimal Supabase CLI config. `npx supabase link` fills in the project ref.
-project_id = "travelspend-couple"
+project_id = "smarttrip"
 
 [auth]
 site_url = "https://gavriel-agam.github.io/travel.spd/"

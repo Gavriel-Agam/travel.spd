@@ -32,7 +32,7 @@ import { DateField } from '@/ui/DateField';
 import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Chip, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
-import { VAT_RULES } from '@/lib/taxFree';
+import { CountryPicker } from '@/ui/CountryPicker';
 import { countryFlag, countryName } from '@/lib/countries';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
@@ -75,6 +75,7 @@ export default function Settings() {
   // Card foreign-transaction fee (%) as typed, and the trip's destinations (VAT refund rules)
   const [feeText, setFeeText] = useState('');
   const [countries, setCountries] = useState<string[]>([]);
+  const [pickCountries, setPickCountries] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   // A picked profile photo waiting to be cropped (browser)
@@ -416,6 +417,7 @@ export default function Settings() {
                   </Row>
                 </>
               ) : null}
+              <Divider />
               {/* The whole trip's budget in shekels (Home shows progress against it); empty = none */}
               <Field
                 label={t('settings.tripBudget')}
@@ -434,24 +436,30 @@ export default function Settings() {
                 placeholder="2.5"
                 hint={t('taxFree.feeHint')}
               />
+              <Divider />
+              {/* Destinations: the expense's location is picked from these, and they set the VAT refund rules */}
               <View style={{ gap: space.sm }}>
                 <Text variant="label" muted>
                   {t('taxFree.countries')}
                 </Text>
-                <Row style={{ flexWrap: 'wrap' }} gap={6}>
-                  {VAT_RULES.map((rule) => (
-                    <Chip
-                      key={rule.country}
-                      label={`${countryFlag(rule.country)} ${countryName(rule.country, lang)}`}
-                      selected={countries.includes(rule.country)}
-                      onPress={() => setCountries((list) => (list.includes(rule.country) ? list.filter((x) => x !== rule.country) : [...list, rule.country]))}
-                    />
-                  ))}
-                </Row>
+                {countries.length ? (
+                  <Row style={{ flexWrap: 'wrap' }} gap={6}>
+                    {countries.map((code) => (
+                      <Chip
+                        key={code}
+                        label={`${countryFlag(code)} ${countryName(code, lang)}  ✕`}
+                        selected
+                        onPress={() => setCountries((list) => list.filter((x) => x !== code))}
+                      />
+                    ))}
+                  </Row>
+                ) : null}
+                <Button title={t('countries.add')} icon="add" variant="secondary" onPress={() => setPickCountries(true)} />
                 <Text variant="caption" muted>
                   {t('taxFree.countriesHint')}
                 </Text>
               </View>
+              <Divider />
               <Pressable
                 onPress={() => setPickCurrency(true)}
                 style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md }}
@@ -464,6 +472,7 @@ export default function Settings() {
                   {currencyName(getCurrency(currency), lang)} · {currency}
                 </Text>
               </Pressable>
+              <Divider />
               {/* Accent colour for this trip (both partners see it) */}
               <View style={{ gap: space.sm }}>
                 <Text variant="label" muted>
@@ -493,6 +502,7 @@ export default function Settings() {
                   ))}
                 </Row>
               </View>
+              <Divider />
               {/* Trip photo: saved right away (not with Save), shown on Home and behind every screen */}
               <View style={{ gap: space.sm }}>
                 <Text variant="label" muted>
@@ -583,6 +593,14 @@ export default function Settings() {
         </View>
       </Sheet>
       <CurrencyPicker visible={pickCurrency} value={currency} onSelect={setCurrency} onClose={() => setPickCurrency(false)} />
+      <CountryPicker
+        visible={pickCountries}
+        multi
+        title={t('taxFree.countries')}
+        selected={countries}
+        onPick={(code) => setCountries((list) => (list.includes(code) ? list.filter((x) => x !== code) : list.length >= 10 ? list : [...list, code]))}
+        onClose={() => setPickCountries(false)}
+      />
       <ImageCropper
         uri={cropUri}
         shape="circle"

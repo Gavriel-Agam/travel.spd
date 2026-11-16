@@ -28,7 +28,12 @@ describe('tax free refund estimate', () => {
     expect(estimateRefund({ amountMinor: 300000, currency: 'THB', minorUnits: 2, homeMinor: 30000, country: 'TH' })).toMatchObject({ status: 'eligible', refundHomeMinor: 1963 });
     expect(estimateRefund({ amountMinor: 150000, currency: 'THB', minorUnits: 2, homeMinor: 15000, country: 'TH' }).status).toBe('belowMin');
     expect(estimateRefund({ amountMinor: 100, currency: 'EUR', minorUnits: 2, homeMinor: 400, country: 'ES' }).status).toBe('eligible');
-    expect(estimateRefund({ amountMinor: 100, currency: 'EUR', minorUnits: 2, homeMinor: 400, country: 'AT' }).status).toBe('noRule');
+    expect(estimateRefund({ amountMinor: 100, currency: 'EUR', minorUnits: 2, homeMinor: 400, country: 'VN' }).status).toBe('noRule');
+    // Austria: 75.01 EUR per receipt; the UK: no tax free in stores since 2021
+    expect(estimateRefund({ amountMinor: 7500, currency: 'EUR', minorUnits: 2, homeMinor: 30000, country: 'AT' }).status).toBe('belowMin');
+    expect(estimateRefund({ amountMinor: 50000, currency: 'GBP', minorUnits: 2, homeMinor: 230000, country: 'GB' }).status).toBe('noRefund');
+    expect(countryForCurrency('GBP')).toBeNull();
+    expect(countryForCurrency('GBP', ['GB'])).toBe('GB');
   });
   it('Japan counts the minimum before tax; the card fee is not VAT', () => {
     expect(estimateRefund({ amountMinor: 5400, currency: 'JPY', minorUnits: 0, homeMinor: 13000, country: 'JP' }).status).toBe('belowMin');

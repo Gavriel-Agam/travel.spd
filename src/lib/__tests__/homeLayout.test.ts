@@ -38,8 +38,11 @@ describe('resolveHomeOrder', () => {
     const saved = ['recent', 'hero', 'trend', 'today', 'couple', 'categories', 'taxfree'];
     expect(resolveHomeOrder(saved)).toEqual(saved);
   });
-  it('drops unknown or repeated keys and appends cards added later', () => {
-    expect(resolveHomeOrder(['recent', 'old-card', 'recent', 'hero'])).toEqual(['recent', 'hero', 'today', 'categories', 'trend', 'couple', 'taxfree']);
+  it('drops unknown or repeated keys; a missing card goes after the card it follows by default', () => {
+    expect(resolveHomeOrder(['recent', 'old-card', 'recent', 'hero'])).toEqual(['recent', 'categories', 'taxfree', 'trend', 'couple', 'hero', 'today']);
+  });
+  it('a layout saved before the VAT refund card: it appears right after By category', () => {
+    expect(resolveHomeOrder(['couple', 'hero', 'categories', 'today', 'recent', 'trend'])).toEqual(['couple', 'hero', 'categories', 'taxfree', 'today', 'recent', 'trend']);
   });
 });
 
@@ -143,8 +146,8 @@ describe('dropPlacement', () => {
 });
 
 describe('default Home order', () => {
-  it('totals, today, recent, categories, 7 days, who paid, VAT refund', () => {
-    expect(resolveHomeOrder(null)).toEqual(['hero', 'today', 'recent', 'categories', 'trend', 'couple', 'taxfree']);
+  it('totals, today, recent, categories, VAT refund, 7 days, who paid', () => {
+    expect(resolveHomeOrder(null)).toEqual(['hero', 'today', 'recent', 'categories', 'taxfree', 'trend', 'couple']);
   });
 });
 
@@ -152,7 +155,7 @@ describe('hiding Home cards', () => {
   it('keeps the cards after the marker hidden, the rest in their order', () => {
     const r = resolveHomeLayout(['recent', 'hero', HIDDEN_MARK, 'couple', 'trend']);
     expect(r.hidden).toEqual(['couple', 'trend']);
-    expect(r.visible).toEqual(['recent', 'hero', 'today', 'categories', 'taxfree']);
+    expect(r.visible).toEqual(['recent', 'categories', 'taxfree', 'hero', 'today']);
   });
 
   it('without a marker every card shows (older layouts, or none saved)', () => {

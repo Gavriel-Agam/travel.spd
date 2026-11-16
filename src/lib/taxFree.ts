@@ -1,10 +1,16 @@
 // Tax free shopping (VAT refund) and the card's foreign-transaction fee.
 //
 // VAT refund rules per country: the standard VAT rate and the minimum spend
-// to qualify. Figures as published by Global Blue's country pages
-// (globalblue.com, "How to shop Tax Free", checked 16 Nov 2026); Thailand from
-// its own VAT refund scheme (7%, 2,000 THB per store per day). Countries whose
-// figures we couldn't confirm are left out (no estimate) rather than guessed.
+// to qualify. Sources, read 16-17 Nov 2026:
+// - Global Blue's country pages (globalblue.com › How to shop Tax Free ›
+//   destinations), every destination listed in its sitemap;
+// - Thailand: its own VAT refund scheme (7%, 2,000 THB per store per day);
+// - Australia: the ATO's Tourist Refund Scheme page (A$300 incl. GST from one
+//   business, GST 10%); UAE: AED 250 per receipt, VAT 5%; Mexico: MXN 1,200
+//   per shop incl. IVA (taxfree.com.mx), IVA 16%.
+// The UK ended tax free shopping in stores on 31 Dec 2020 (Global Blue's UK
+// page): listed with no refund. Countries whose figures we couldn't confirm
+// (e.g. Vietnam, Georgia, Taiwan) are left out rather than guessed.
 //
 // The estimate is the VAT inside the price: amount × rate / (100 + rate). The
 // refund actually paid is lower: refund companies keep a fee, and some goods or
@@ -17,27 +23,75 @@ export type VatRule = {
   vat: number;
   /** Minimum spend in the country's currency (major units); 0 = any amount */
   min: number;
-  /** The minimum is per store per day (receipts of one shop on one day add up) or per receipt */
-  per: 'storeDay' | 'receipt';
-  /** Japan: the minimum is counted before tax */
+  /** The minimum counts per store per day, per receipt, or per business (all its receipts) */
+  per: 'storeDay' | 'receipt' | 'business';
+  /** Japan, Turkey: the minimum is counted before tax */
   minBeforeTax?: boolean;
+  /** No tax free shopping in stores (UK since 2021) */
+  noRefund?: boolean;
 };
 
+const r = (country: string, currency: string, vat: number, min: number, per: VatRule['per'] = 'receipt', extra: Partial<VatRule> = {}): VatRule => ({
+  country,
+  currency,
+  vat,
+  min,
+  per,
+  ...extra,
+});
+
 export const VAT_RULES: VatRule[] = [
-  { country: 'TH', currency: 'THB', vat: 7, min: 2000, per: 'storeDay' },
-  { country: 'JP', currency: 'JPY', vat: 10, min: 5000, per: 'storeDay', minBeforeTax: true },
-  { country: 'KR', currency: 'KRW', vat: 10, min: 15000, per: 'receipt' },
-  { country: 'SG', currency: 'SGD', vat: 9, min: 100, per: 'receipt' },
-  { country: 'TR', currency: 'TRY', vat: 20, min: 1000, per: 'receipt' },
-  { country: 'CH', currency: 'CHF', vat: 8.1, min: 300, per: 'receipt' },
-  { country: 'CZ', currency: 'CZK', vat: 21, min: 2001, per: 'receipt' },
-  { country: 'FR', currency: 'EUR', vat: 20, min: 100, per: 'storeDay' },
-  { country: 'IT', currency: 'EUR', vat: 22, min: 70.01, per: 'receipt' },
-  { country: 'ES', currency: 'EUR', vat: 21, min: 0, per: 'receipt' },
-  { country: 'DE', currency: 'EUR', vat: 19, min: 50.01, per: 'receipt' },
-  { country: 'GR', currency: 'EUR', vat: 24, min: 50, per: 'receipt' },
-  { country: 'NL', currency: 'EUR', vat: 21, min: 50, per: 'receipt' },
-  { country: 'PT', currency: 'EUR', vat: 23, min: 61.5, per: 'receipt' },
+  // Asia, Middle East, Oceania
+  r('TH', 'THB', 7, 2000, 'storeDay'),
+  r('JP', 'JPY', 10, 5000, 'storeDay', { minBeforeTax: true }),
+  r('KR', 'KRW', 10, 15000),
+  r('CN', 'CNY', 13, 200),
+  r('SG', 'SGD', 9, 100),
+  r('KZ', 'KZT', 16, 43250),
+  r('SA', 'SAR', 15, 500),
+  r('AE', 'AED', 5, 250),
+  r('LB', 'USD', 11, 100),
+  r('AU', 'AUD', 10, 300, 'business'),
+  // Europe (euro)
+  r('FR', 'EUR', 20, 100, 'storeDay'),
+  r('IT', 'EUR', 22, 70.01),
+  r('ES', 'EUR', 21, 0),
+  r('DE', 'EUR', 19, 50.01),
+  r('GR', 'EUR', 24, 50),
+  r('NL', 'EUR', 21, 50),
+  r('PT', 'EUR', 23, 61.5),
+  r('AT', 'EUR', 20, 75.01),
+  r('BE', 'EUR', 21, 125.01),
+  r('IE', 'EUR', 23, 75),
+  r('LU', 'EUR', 17, 74),
+  r('FI', 'EUR', 25.5, 40),
+  r('EE', 'EUR', 24, 38.01),
+  r('LV', 'EUR', 21, 44),
+  r('LT', 'EUR', 21, 40),
+  r('SK', 'EUR', 23, 100.01),
+  r('HR', 'EUR', 25, 100.01),
+  r('CY', 'EUR', 19, 50),
+  // Europe (other currencies)
+  r('CH', 'CHF', 8.1, 300),
+  r('NO', 'NOK', 25, 315),
+  r('SE', 'SEK', 25, 200),
+  r('DK', 'DKK', 25, 300.01),
+  r('IS', 'ISK', 24, 12000),
+  r('CZ', 'CZK', 21, 2001),
+  r('HU', 'HUF', 27, 68001),
+  r('PL', 'PLN', 23, 200),
+  r('RS', 'RSD', 20, 6000),
+  r('TR', 'TRY', 20, 1000, 'receipt', { minBeforeTax: true }),
+  r('JE', 'GBP', 5, 100),
+  r('GB', 'GBP', 20, 0, 'receipt', { noRefund: true }),
+  // Africa, Americas
+  r('MA', 'MAD', 20, 2000),
+  r('MX', 'MXN', 16, 1200, 'business'),
+  r('BS', 'USD', 10, 25),
+  r('CO', 'COP', 19, 157122),
+  r('PE', 'PEN', 18, 100),
+  r('UY', 'UYU', 22, 600),
+  r('AR', 'ARS', 21, 70),
 ];
 
 const BY_COUNTRY = new Map(VAT_RULES.map((r) => [r.country, r]));
@@ -51,19 +105,21 @@ export const vatRule = (country: string | null | undefined) => (country ? BY_COU
 export function countryForCurrency(currency: string, tripCountries: readonly string[] = []): string | null {
   const own = tripCountries.find((c) => vatRule(c)?.currency === currency);
   if (own) return own;
-  const all = VAT_RULES.filter((r) => r.currency === currency);
+  // Only when one listed country uses it (pounds: the UK or Jersey, so no guess)
+  const all = VAT_RULES.filter((x) => x.currency === currency);
   return all.length === 1 ? all[0].country : null;
 }
 
 /** Countries a purchase in `currency` may belong to (for a picker when there's more than one). */
 export function countriesForCurrency(currency: string, tripCountries: readonly string[] = []): string[] {
   const own = tripCountries.filter((c) => vatRule(c)?.currency === currency);
-  return own.length ? own : VAT_RULES.filter((r) => r.currency === currency).map((r) => r.country);
+  return own.length ? own : VAT_RULES.filter((x) => x.currency === currency && !x.noRefund).map((x) => x.country);
 }
 
 export type TaxFreeEstimate =
   | { status: 'eligible'; refundHomeMinor: number; rule: VatRule }
   | { status: 'belowMin'; rule: VatRule }
+  | { status: 'noRefund'; rule: VatRule }
   | { status: 'noRule' };
 
 /**
@@ -81,6 +137,7 @@ export function estimateRefund(p: {
 }): TaxFreeEstimate {
   const rule = vatRule(p.country);
   if (!rule) return { status: 'noRule' };
+  if (rule.noRefund) return { status: 'noRefund', rule };
   // The minimum can only be checked in the country's own currency
   if (p.currency === rule.currency && rule.min > 0) {
     let spent = p.amountMinor / 10 ** p.minorUnits;
@@ -114,7 +171,7 @@ export function tripRefundTotal(
       total += est.refundHomeMinor;
       count++;
     } else if (est.status === 'belowMin') belowMin++;
-    else noRule++;
+    else noRule++; // no rules, or no refund there
   }
   return { total, count, belowMin, noRule };
 }

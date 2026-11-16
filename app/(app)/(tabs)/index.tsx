@@ -279,29 +279,41 @@ export default function Home() {
         </View>
       </Row>
     ),
-    // Expected VAT refund: only once something was bought tax free
-    taxfree:
-      taxFree.count + taxFree.belowMin + taxFree.noRule > 0 ? (
-        <Card style={{ gap: 6 }}>
-          <SectionHeader title={t('taxFree.cardTitle')} />
-          <Text variant="h2" style={{ fontSize: 22 }} color={c.primary}>
-            {t('taxFree.cardUpTo', { amount: ils(taxFree.total) })}
+    // Expected VAT refund (estimate) from the purchases marked tax free
+    taxfree: (
+      <Card style={{ gap: 6 }}>
+        <SectionHeader title={t('taxFree.cardTitle')} />
+        <Text variant="h2" style={{ fontSize: 22 }} color={taxFree.total > 0 ? c.primary : c.textMuted}>
+          {t('taxFree.cardUpTo', { amount: ils(taxFree.total) })}
+        </Text>
+        {taxFree.count + taxFree.belowMin + taxFree.noRule === 0 ? (
+          <Text variant="caption" muted>
+            {t('taxFree.cardEmpty')}
           </Text>
-          {taxFree.count > 0 ? (
-            <Text variant="caption" muted>
-              {t('taxFree.cardCount', { count: taxFree.count })}
+        ) : (
+          <>
+            {taxFree.count > 0 ? (
+              <Text variant="caption" muted>
+                {t('taxFree.cardCount', { count: taxFree.count })}
+              </Text>
+            ) : null}
+            {taxFree.belowMin > 0 ? (
+              <Text variant="caption" color={c.warning}>
+                {t('taxFree.cardBelowMin', { count: taxFree.belowMin })}
+              </Text>
+            ) : null}
+            {taxFree.noRule > 0 ? (
+              <Text variant="caption" muted>
+                {t('taxFree.cardNoRules', { count: taxFree.noRule })}
+              </Text>
+            ) : null}
+            <Text variant="caption" faint>
+              {t('taxFree.cardNote')}
             </Text>
-          ) : null}
-          {taxFree.belowMin > 0 ? (
-            <Text variant="caption" color={c.warning}>
-              {t('taxFree.cardBelowMin', { count: taxFree.belowMin })}
-            </Text>
-          ) : null}
-          <Text variant="caption" faint>
-            {t('taxFree.cardNote')}
-          </Text>
-        </Card>
-      ) : null,
+          </>
+        )}
+      </Card>
+    ),
     // Also shown after a partner was removed while money is still open between you
     couple:
       balances.length > 1 ? (

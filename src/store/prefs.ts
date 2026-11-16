@@ -14,6 +14,9 @@ type PrefsState = {
   lastPayment: Record<string, string>;
   lastPaymentAny: string | null;
   notePaymentUsed: (tripId: string, method: string) => void;
+  /** Country of the last expense, per trip (trip id -> ISO code). New expenses start there. */
+  lastCountry: Record<string, string>;
+  noteCountryUsed: (tripId: string, code: string) => void;
   recentCurrencies: string[];
   currencyUsage: Record<string, number>;
   /** Latest rate snapshots by requested date, for offline conversion previews. */
@@ -49,6 +52,8 @@ export const usePrefs = create<PrefsState>()(
       lastCurrency: {},
       lastPayment: {},
       lastPaymentAny: null,
+      lastCountry: {},
+      noteCountryUsed: (tripId, code) => set((s) => ({ lastCountry: { ...s.lastCountry, [tripId]: code } })),
       notePaymentUsed: (tripId, method) => set((s) => ({ lastPayment: { ...s.lastPayment, [tripId]: method }, lastPaymentAny: method })),
       recentCurrencies: [],
       currencyUsage: {},

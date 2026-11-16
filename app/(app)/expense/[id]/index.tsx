@@ -12,6 +12,7 @@ import { formatMoney, invertRate, trimRate } from '@/lib/money';
 import { paymentLabel } from '@/lib/payments';
 import { rateSourceName } from '@/lib/rateLabels';
 import { estimateRefund } from '@/lib/taxFree';
+import { countryFlag, countryName } from '@/lib/countries';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { radius, space, useColors } from '@/theme';
 import { CategoryIcon } from '@/ui/CategoryIcon';
@@ -107,6 +108,7 @@ export default function ExpenseDetails() {
         <Line label={t('form.category')} value={categoryLabel(cat, t)} />
         <Divider />
         <Line label={t('details.when')} value={new Date(e.occurred_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })} />
+        {e.vat_country ? <Line label={t('form.location')} value={`${countryFlag(e.vat_country)} ${countryName(e.vat_country, lang)}`} /> : null}
         <Divider />
         <Line label={t('details.paidBy')} value={e.paid_by_member_id === null ? t('details.jointMoney') : payer?.display_name ?? '?'} />
         <Divider />
@@ -150,7 +152,7 @@ export default function ExpenseDetails() {
             label={t('taxFree.toggle')}
             value={(() => {
               const est = estimateRefund({ amountMinor: e.amount_minor, currency: e.currency, minorUnits: getCurrency(e.currency).minor_units, homeMinor: e.amount_ils_minor, feePct: Number(e.fx_fee_pct ?? 0), country: e.vat_country });
-              return est.status === 'eligible' ? t('taxFree.cardUpTo', { amount: formatMoney(est.refundHomeMinor, HOME_CURRENCY, { lang }) }) : est.status === 'belowMin' ? t('taxFree.belowMinShort') : t('taxFree.noRule');
+              return est.status === 'eligible' ? t('taxFree.cardUpTo', { amount: formatMoney(est.refundHomeMinor, HOME_CURRENCY, { lang }) }) : est.status === 'belowMin' ? t('taxFree.belowMinShort') : est.status === 'noRefund' ? t('taxFree.noRefundHere') : t('taxFree.noRule');
             })()}
           />
         </Card>

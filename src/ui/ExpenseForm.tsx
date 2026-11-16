@@ -45,8 +45,9 @@ import { Sheet } from './Sheet';
 import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
 import { Button, Chip, ClearButton, Field, IconButton, Row, Segmented, Text, Toggle, tap, useAmountTyping } from './primitives';
-import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, withFee } from '@/lib/taxFree';
-import { countryName } from '@/lib/countries';
+import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, vatRule, withFee } from '@/lib/taxFree';
+import { countryFlag, countryName } from '@/lib/countries';
+import { CountryPicker } from './CountryPicker';
 import { FadeIn } from './FadeIn';
 import { UploadZone } from './UploadZone';
 
@@ -68,6 +69,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const lastCurrency = usePrefs((s) => (trip ? s.lastCurrency[trip.id] : undefined));
   const noteCurrencyUsed = usePrefs((s) => s.noteCurrencyUsed);
   const notePaymentUsed = usePrefs((s) => s.notePaymentUsed);
+  const lastCountry = usePrefs((s) => (trip ? s.lastCountry[trip.id] : undefined)) ?? null;
+  const noteCountryUsed = usePrefs((s) => s.noteCountryUsed);
   // A new expense starts with the payment method used last (in this trip, else the last one anywhere that this trip offers)
   const lastPayment = usePrefs((s) => (trip ? lastPaymentFor(s.lastPayment, s.lastPaymentAny, trip.id, customPayments) : null));
   const cachedRates = usePrefs((s) => s.rates);
@@ -78,7 +81,9 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [amountFocused, setAmountFocused] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
   const [taxFree, setTaxFree] = useState(existing?.tax_free ?? false);
-  const [vatCountry, setVatCountry] = useState<string | null>(existing?.vat_country ?? null);
+  // Where the expense was (a country): picked, else the default below
+  const [countryPick, setCountryPick] = useState<string | null>(existing ? existing.vat_country ?? null : null);
+  const [pickCountry, setPickCountry] = useState(false);
   const [description, setDescription] = useState(existing?.description ?? '');
   // null = joint money (the default): no payer, so it never creates a debt
   const [payerId, setPayerId] = useState<string | null>(existing ? existing.paid_by_member_id : null);
@@ -171,10 +176,13 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
   // Tax free: which country's rules, and the most it can get back
   const tripCountries = trip?.countries ?? [];
+  // Location: what was picked; for a new expense the last one used in this trip,
+  // else the destination that uses this currency (baht: Thailand), else the first destination
+  const byCurrency = countryForCurrency(currency, tripCountries);
+  const purchaseCountry = existing ? countryPick : countryPick ?? lastCountry ?? byCurrency ?? tripCountries[0] ?? null;
   const vatCandidates = countriesForCurrency(currency, tripCountries);
-  const purchaseCountry = vatCountry && vatCandidates.includes(vatCountry) ? vatCountry : countryForCurrency(currency, tripCountries);
   const isShopping = allCategories.find((x) => x.id === categoryId)?.key === 'shopping';
-  const showTaxFree = taxFree || (isShopping && vatCandidates.length > 0);
+  const showTaxFree = taxFree || (isShopping && (vatCandidates.length > 0 || !!vatRule(purchaseCountry)));
   const refund =
     taxFree && amountMinor != null && homeMinor != null
       ? estimateRefund({ amountMinor, currency, minorUnits: cur.minor_units, homeMinor, feePct, country: purchaseCountry })
@@ -304,12 +312,13 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       payment_method: paymentMethod,
       fx_fee_pct: feePct,
       tax_free: taxFree,
-      vat_country: taxFree ? purchaseCountry : null,
+      vat_country: purchaseCountry,
       split_type: splitType,
       splits: toSplitEntries(effectiveSplit, payerId),
     });
 
     const remember = () => {
+      if (purchaseCountry) noteCountryUsed(trip.id, purchaseCountry);
       noteCurrencyUsed(trip.id, currency);
       if (paymentMethod) notePaymentUsed(trip.id, paymentMethod);
     };
@@ -634,6 +643,32 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           />
         </View>
 
+        {/* Location: the country the expense was in (remembered for the next one) */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t('form.location')}: ${purchaseCountry ? countryName(purchaseCountry, lang) : t('form.locationNone')}`}
+          onPress={() => setPickCountry(true)}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.sm,
+            backgroundColor: c.cardAlt,
+            borderRadius: radius.md,
+            paddingHorizontal: space.md,
+            minHeight: 44,
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <Ionicons name="location-outline" size={18} color={c.primary} />
+          <Text variant="label" color={c.text} style={{ flex: 1 }}>
+            {t('form.location')}
+          </Text>
+          <Text style={{ fontWeight: '600' }} numberOfLines={1} color={purchaseCountry ? c.text : c.textFaint}>
+            {purchaseCountry ? `${countryFlag(purchaseCountry)} ${countryName(purchaseCountry, lang)}` : t('form.locationNone')}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={c.textMuted} />
+        </Pressable>
+
         {/* Tax free: suggested for shopping; estimates the VAT refund */}
         {showTaxFree ? (
           <View style={{ gap: 6, backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }}>
@@ -654,18 +689,15 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                           ? t(refund.rule.per === 'storeDay' ? 'taxFree.belowMinStore' : 'taxFree.belowMinReceipt', {
                               min: `${groupThousands(String(refund.rule.min))} ${refund.rule.currency}`,
                             })
-                          : t('taxFree.noRule')}
+                          : refund.status === 'noRefund'
+                            ? t('taxFree.noRefundHere')
+                            : purchaseCountry
+                              ? t('taxFree.noRule')
+                              : t('taxFree.pickLocation')}
                 </Text>
               </View>
               <Toggle value={taxFree} onValueChange={setTaxFree} label={t('taxFree.toggle')} />
             </Row>
-            {taxFree && vatCandidates.length > 1 ? (
-              <Row style={{ flexWrap: 'wrap' }} gap={6}>
-                {vatCandidates.map((code) => (
-                  <Chip key={code} label={countryName(code, lang)} selected={purchaseCountry === code} onPress={() => setVatCountry(code)} />
-                ))}
-              </Row>
-            ) : null}
           </View>
         ) : null}
 
@@ -940,6 +972,14 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
         </View>
       </Sheet>
 
+      <CountryPicker
+        visible={pickCountry}
+        title={t('form.location')}
+        selected={purchaseCountry ? [purchaseCountry] : []}
+        top={tripCountries}
+        onPick={setCountryPick}
+        onClose={() => setPickCountry(false)}
+      />
       <CurrencyPicker
         visible={pickCurrency}
         value={currency}

@@ -1,7 +1,7 @@
 // Order of the cards on the Home screen, chosen per user (synced to their account).
 
-// Default order (also "Reset to default order"): totals, today, recent, categories, 7 days, who paid, VAT refund
-export const HOME_SECTIONS = ['hero', 'today', 'recent', 'categories', 'trend', 'couple', 'taxfree'] as const;
+// Default order (also "Reset to default order"): totals, today, recent, categories, VAT refund, 7 days, who paid
+export const HOME_SECTIONS = ['hero', 'today', 'recent', 'categories', 'taxfree', 'trend', 'couple'] as const;
 export type HomeSection = (typeof HOME_SECTIONS)[number];
 
 /**
@@ -11,7 +11,15 @@ export type HomeSection = (typeof HOME_SECTIONS)[number];
 export function resolveHomeOrder(saved: string[] | undefined | null): HomeSection[] {
   const known = new Set<string>(HOME_SECTIONS);
   const kept = (saved ?? []).filter((k, i, a): k is HomeSection => known.has(k) && a.indexOf(k) === i);
-  return [...kept, ...HOME_SECTIONS.filter((k) => !kept.includes(k))];
+  // A card added in a later version goes right after the card it follows by default
+  // (VAT refund after By category), or first if that one isn't there
+  const out = [...kept];
+  HOME_SECTIONS.forEach((k, i) => {
+    if (out.includes(k)) return;
+    const before = HOME_SECTIONS.slice(0, i).reverse().find((p) => out.includes(p));
+    out.splice(before ? out.indexOf(before) + 1 : 0, 0, k);
+  });
+  return out;
 }
 
 /**

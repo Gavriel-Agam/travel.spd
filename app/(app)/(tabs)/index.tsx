@@ -54,7 +54,7 @@ export default function Home() {
   // Text on the total card follows the card colour (white on dark, ink on light)
   const onHero = readableOn(c.heroFrom);
   const data = useTripData();
-  const { trip, stats, members, expenses, balances, transfers, memberById, categoryById } = data;
+  const { trip, stats, members, expenses, balances, transfers, memberById, categoryById, me } = data;
   // Invite codes only apply to regular trips; in the shared MVP trip everyone joins with Start
   const invite = useInviteCode(members.length < 2 && !trip?.shared ? trip?.id : undefined);
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
@@ -136,6 +136,8 @@ export default function Home() {
   const jointPaid = expenses.reduce((t, e) => (e.kind === 'expense' && e.paid_by_member_id === null ? t + e.amount_ils_minor : t), 0);
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const notStarted = !!trip.start_date && today < trip.start_date;
+  // Your part of the expenses (by each split), shown next to the shared budget when the trip has 2+ people
+  const myShare = me && balances.length > 1 ? (balances.find((b) => b.memberId === me.id)?.share ?? 0) : null;
 
   // Cards in the order chosen on this phone (Arrange)
   const hasData = expenses.length > 0;
@@ -182,18 +184,45 @@ export default function Home() {
               <ProgressBar value={stats.pctUsed} color={onHero} track={onHero + '40'} height={10} />
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text variant="label" color={onHero}>
-                  {stats.pctUsed}% · {t('home.of', { amount: ils(stats.budget) })}
+                  {t('home.pctUsed', { pct: stats.pctUsed })}
                 </Text>
                 <Text variant="label" color={onHero} style={{ fontWeight: '700' }}>
                   {stats.remaining! >= 0 ? t('home.remaining', { amount: ils(stats.remaining!) }) : t('home.over', { amount: ils(-stats.remaining!) })}
                 </Text>
               </Row>
             </>
-          ) : (
+          ) : null}
+          {/* Two numbers: the group's shared budget, and your own part of the spending */}
+          {stats.budget || myShare != null ? (
+            <Row style={{ borderTopWidth: 1, borderTopColor: onHero + '33', paddingTop: space.md, alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="caption" color={onHero}>
+                  {t('home.sharedBudget')}
+                </Text>
+                <Text color={onHero} style={{ fontWeight: '700', fontSize: 18 }}>
+                  {stats.budget ? ils(stats.budget) : t('budget.notSet')}
+                </Text>
+              </View>
+              {myShare != null ? (
+                <>
+                <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: onHero + '33', marginHorizontal: space.md }} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text variant="caption" color={onHero}>
+                    {t('home.yourShare')}
+                  </Text>
+                  <Text color={onHero} style={{ fontWeight: '700', fontSize: 18 }}>
+                    {ils(myShare)}
+                  </Text>
+                </View>
+                </>
+              ) : null}
+            </Row>
+          ) : null}
+          {!stats.budget ? (
             <Text variant="label" color={onHero}>
               {t('home.noBudget')}
             </Text>
-          )}
+          ) : null}
         </View>
       </View>
       </View>

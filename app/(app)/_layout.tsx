@@ -1,5 +1,6 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { takePendingJoin } from '@/lib/inviteLink';
 import { View } from 'react-native';
 import { SyncBar } from '@/ui/SyncStatus';
 import { useActiveTrip, useCurrencyList, useRates, useTripCoverUrl, useTripRealtime } from '@/api/queries';
@@ -16,6 +17,8 @@ export default function AppLayout() {
   const pathname = usePathname();
   const { trip, data: trips, error, fetchStatus, refetch } = useActiveTrip();
   const online = useOnline();
+  // An invite link opened before signing in: go to the join form with its code
+  const [pendingJoin] = useState(() => takePendingJoin());
   useCurrencyList();
   useTripRealtime(trip?.id);
   useOutboxSync();
@@ -43,6 +46,8 @@ export default function AppLayout() {
   }
 
   const hasTrip = !!trip;
+  if (pendingJoin && !pathname.startsWith('/onboarding/join'))
+    return <Redirect href={{ pathname: '/onboarding/join', params: { code: pendingJoin } }} />;
   // Without a trip, start at the choice screen (create or join). Otherwise the
   // router falls back to whichever onboarding screen it finds first.
   if (!hasTrip && !pathname.startsWith('/onboarding') && !pathname.startsWith('/join/')) return <Redirect href="/onboarding" />;

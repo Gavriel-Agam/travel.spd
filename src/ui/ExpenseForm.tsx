@@ -74,6 +74,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // ---------------------------------------------------------------- state
   const [currency, setCurrency] = useState(existing?.currency ?? lastCurrency ?? trip?.default_currency ?? 'THB');
   const [amountText, setAmountText] = useState(existing ? groupThousands(minorToInput(existing.amount_minor, existing.currency)) : '');
+  const [amountFocused, setAmountFocused] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
   const [description, setDescription] = useState(existing?.description ?? '');
   // null = joint money (the default): no payer, so it never creates a debt
@@ -407,7 +408,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         scrollEnabled={!draggingChip}
-        contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: space.xs, gap: space.md, paddingBottom: space.xxl }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.xs, gap: space.md, paddingBottom: space.lg }}
       >
         {/* Currency on top, the amount under it, then the rate */}
         <View style={{ gap: 6 }}>
@@ -445,7 +446,23 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 keyboardType={cur.minor_units > 0 ? 'decimal-pad' : 'number-pad'}
                 autoFocus={!existing}
                 {...(Platform.OS === 'web' ? ({ dir: 'ltr' } as object) : null)}
-                style={{ height: 56, fontSize: amountFontSize(amountText), fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -1, paddingHorizontal: 36 }}
+                onFocus={() => setAmountFocused(true)}
+                onBlur={() => setAmountFocused(false)}
+                style={[
+                  {
+                    height: 56,
+                    fontSize: amountFontSize(amountText),
+                    fontWeight: '800',
+                    color: c.text,
+                    textAlign: 'center',
+                    letterSpacing: -1,
+                    paddingHorizontal: 36,
+                    // A line under the amount instead of a box
+                    borderBottomWidth: 2,
+                    borderBottomColor: amountFocused ? c.primary : c.border,
+                  },
+                  WEB_NO_OUTLINE,
+                ]}
               />
               {amountText ? <ClearButton rtl={lang === 'he'} inset={0} onPress={() => setAmountText('')} /> : null}
           </View>
@@ -511,6 +528,19 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           ) : null}
         </View>
 
+        {/* Title: what it was */}
+        <View style={{ gap: 6 }}>
+          <SectionTitle icon="create-outline" title={t('form.title')} />
+          <Field
+            accessibilityLabel={t('form.title')}
+            value={description}
+            onChangeText={setDescription}
+            placeholder={t('form.descriptionPlaceholder')}
+            maxLength={120}
+            style={{ minHeight: 46, paddingVertical: 10 }}
+          />
+        </View>
+
         {/* Category: hold a tile to drag it to a new place (saved for the trip) */}
         <View style={{ gap: 6 }}>
           <SectionTitle icon="pricetag-outline" title={t('form.category')} hint={t('form.categoryDragHintShort')} />
@@ -548,20 +578,6 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
               setNewPayment('');
               setAddingPayment(true);
             }}
-          />
-        </View>
-
-        <SectionBreak />
-
-        <View style={{ gap: 6 }}>
-          <SectionTitle icon="create-outline" title={t('form.description')} />
-          <Field
-            accessibilityLabel={t('form.description')}
-            value={description}
-            onChangeText={setDescription}
-            placeholder={t('form.descriptionPlaceholder')}
-            maxLength={120}
-            style={{ minHeight: 46, paddingVertical: 10 }}
           />
         </View>
 
@@ -878,6 +894,7 @@ function amountFontSize(text: string) {
 }
 
 // Long one-word names ("Accommodation") break at a syllable with a hyphen, not at a random letter
+const WEB_NO_OUTLINE = Platform.OS === 'web' ? ({ outlineStyle: 'none', outlineWidth: 0 } as object) : null;
 const WEB_HYPHENS = Platform.OS === 'web' ? ({ hyphens: 'auto', WebkitHyphens: 'auto' } as object) : null;
 
 /**

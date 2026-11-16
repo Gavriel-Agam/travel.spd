@@ -4,7 +4,8 @@ import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Image, Platform, Pressable, Share, View } from 'react-native';
+import { Image, Linking, Platform, Pressable, Share, View } from 'react-native';
+import { inviteLink, whatsappUrl } from '@/lib/inviteLink';
 import * as ImagePicker from 'expo-image-picker';
 import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useTripChanges, useTrips } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
@@ -198,9 +199,16 @@ export default function Settings() {
     }
   }
 
+  const inviteMessage = (code: string) => t('settings.inviteShare', { trip: trip.name, link: inviteLink(code), code });
+
+  function whatsappInvite() {
+    if (!invite.data) return;
+    Linking.openURL(whatsappUrl(inviteMessage(invite.data))).catch(() => {});
+  }
+
   async function shareInvite() {
     if (!invite.data) return;
-    const message = t('settings.inviteShare', { code: invite.data });
+    const message = inviteMessage(invite.data);
     if (Platform.OS === 'web') {
       await Clipboard.setStringAsync(message);
       setCopied(true);
@@ -334,6 +342,7 @@ export default function Settings() {
               {t('settings.inviteBody')}
             </Text>
             <CopyCode code={invite.data} />
+            <Button title={t('settings.inviteWhatsapp')} icon="logo-whatsapp" onPress={whatsappInvite} disabled={!invite.data} />
             {/* On the web "Share" copies the invite message: the button says so for a moment */}
             <Button
               title={copied ? t('common.copied') : t('common.share')}

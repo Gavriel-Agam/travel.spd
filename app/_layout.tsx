@@ -1,3 +1,4 @@
+import { rememberJoinLink } from '@/lib/inviteLink';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { focusManager, hydrate, MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -109,6 +110,9 @@ function usePrefsHydrated() {
   useEffect(() => usePrefs.persist.onFinishHydration(() => setHydrated(true)), []);
   return hydrated;
 }
+
+// A /join/CODE link opened while signed out: keep the code through sign-in
+rememberJoinLink();
 
 function RootNavigator() {
   const { session, loading, recovery, transferring } = useAuth();

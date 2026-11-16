@@ -34,6 +34,7 @@ import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Chip, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
 import { CountryPicker } from '@/ui/CountryPicker';
 import { countryFlag, countryName } from '@/lib/countries';
+import { feeFromInput, feeToInput } from '@/lib/taxFree';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
 import type { Trip } from '@/types/db';
@@ -294,7 +295,7 @@ export default function Settings() {
             setCurrency(trip.default_currency);
             setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
             setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
-            setFeeText(trip.card_fx_fee_pct != null && Number(trip.card_fx_fee_pct) > 0 ? String(Number(trip.card_fx_fee_pct)) : '');
+            setFeeText(feeToInput(trip.card_fx_fee_pct));
             setCountries(trip.countries ?? []);
             setFormError(null);
             setEdit('trip');
@@ -394,7 +395,8 @@ export default function Settings() {
             label={edit === 'trip' ? t('settings.tripName') : undefined}
             value={text}
             onChangeText={setText}
-            autoFocus
+            // No autoFocus: the keyboard would cover the trip details
+            autoFocus={edit !== 'trip'}
             maxLength={edit === 'trip' ? 80 : 40}
           />
           {edit === 'trip' ? (
@@ -433,7 +435,7 @@ export default function Settings() {
                 value={feeText}
                 onChangeText={(v) => setFeeText(v.replace(',', '.').replace(/[^\d.]/g, '').slice(0, 5))}
                 keyboardType="decimal-pad"
-                placeholder="2.5"
+                placeholder="0"
                 hint={t('taxFree.feeHint')}
               />
               <Divider />
@@ -574,8 +576,9 @@ export default function Settings() {
                 const budget = budgetText.trim() ? parseAmount(budgetText, HOME_CURRENCY) : null;
                 if (budgetText.trim() && (budget == null || budget <= 0)) return setFormError(t('errors.invalid_amount'));
                 if (budget !== totalBudget) changes.setBudget('total', budget);
-                const fee = feeText.trim() ? Number(feeText) : null;
-                if (fee != null && (!Number.isFinite(fee) || fee < 0 || fee > 10)) return setFormError(t('errors.invalid_fee'));
+                // 0 is a real fee (0%), empty is unset
+                const fee = feeFromInput(feeText);
+                if (fee != null && Number.isNaN(fee)) return setFormError(t('errors.invalid_fee'));
                 changes.updateTrip({
                   name: text.trim(),
                   start_date: s,

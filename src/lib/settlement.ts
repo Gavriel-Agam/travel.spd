@@ -63,3 +63,25 @@ export function settleUp(balances: MemberBalance[]): Transfer[] {
   }
   return out;
 }
+
+/**
+ * A member's personal spending: only expenses marked Personal for them (whoever
+ * paid). Shared expenses (equal, treat, percent, amount) are left out: they
+ * belong to the shared trip budget.
+ */
+export function personalTotal(
+  expenses: readonly { kind: string; split_type?: string; deleted_at?: string | null; amount_ils_minor: number; splits: { member_id: string }[] }[],
+  memberId: string,
+): number {
+  let total = 0;
+  for (const e of expenses) {
+    if (e.kind !== 'expense' || e.split_type !== 'personal' || e.deleted_at) continue;
+    if (e.splits.length === 1 && e.splits[0].member_id === memberId) total += e.amount_ils_minor;
+  }
+  return total;
+}
+
+/** A personal expense the owner paid for themself: only the owner can see it (server rule, migration 0020). */
+export function isPrivateExpense(e: { kind: string; split_type?: string; paid_by_member_id: string | null; splits: { member_id: string }[] }): boolean {
+  return e.kind === 'expense' && e.split_type === 'personal' && e.paid_by_member_id != null && e.splits.every((s) => s.member_id === e.paid_by_member_id);
+}

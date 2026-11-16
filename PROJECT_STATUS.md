@@ -2,7 +2,7 @@
 
 Short running log of what changed and what is open. Product scope and specs live in [PRODUCT_DOCS.md](PRODUCT_DOCS.md).
 
-Last updated: 2026-11-15
+Last updated: 2026-11-17
 
 ## Current state
 - Live at https://gavriel-agam.github.io/travel.spd/ (deploys on push to `main`).
@@ -17,6 +17,7 @@ Last updated: 2026-11-15
 ## Recent fixes
 | Date | Fix | Files |
 |---|---|---|
+| 2026-11-17 | (1) Trip details sheet no longer auto-focuses the name (keyboard stayed up over the details). (2) Card fee 0%: saved 0 was shown as an empty field with a grey "2.5" placeholder, looking like 2.5%; now shows "0" (`feeToInput` / `feeFromInput`), placeholder "0". (3) VAT refund popup in the expense form when the amount reaches the country minimum (`meetsVatMinimum`), once per form, with "Mark as Tax free". (4) Home "your share" = only Personal expenses for you (`personalTotal`; it used to count your part of shared splits too, e.g. QA Thailand showed ₪711.51 with no personal expenses), hidden when 0, 🔒 tip. **Migration 0020**: a Personal expense paid by its owner is private to them (RLS on expenses, splits, receipts; trigger blocks others' edits). Privacy page (EN + HE) updated. Tests: 5 new Vitest, 2 new SQL checks. | `settings.tsx`, `ExpenseForm.tsx`, `index.tsx`, `InfoTip.tsx`, `taxFree.ts`, `settlement.ts`, `0020_private_personal_expenses.sql`, `privacy.html` |
 | 2026-11-17 | Budget is labelled as shared: "👥 תקציב טיול משותף" in Settings › Trip details, new trip, budget alerts ("תקציב יומי משותף"), Home card name and the no-budget line. Home hero card: total spent, bar with "% נוצלו" and remaining, then two numbers side by side: 👥 התקציב המשותף and החלק שלך (your part of the expenses by each split; shown when the trip has 2+ people). Split ⓘ and Personal-defaults-to-payer were already live (510a381). Tested locally (QA Thailand, 375 px). | `app/(app)/(tabs)/index.tsx`, i18n |
 | 2026-11-17 | Expense form: removed the "לחיצה ארוכה לשינוי הסדר" hint next to the Category heading (reordering still works). Receipt button now reads "לחץ להוספת תמונה" / "Tap to add a photo" (was "גלריה"). | `src/ui/ExpenseForm.tsx`, i18n |
 | 2026-11-17 | Split in the expense form: title "איך מתחלקים בהוצאה?" with an ⓘ (InfoTip) explaining it decides how the expense is shared among the trip's people and drives settle-up. Personal now belongs to the payer by default (`personalId` null = follow the payer; reset when switching to Personal; an existing personal expense keeps its person); before it defaulted to the current user, or the first member while members were loading. Tested locally: payer Dan → Personal → Dan selected; tip opens. | `src/ui/ExpenseForm.tsx`, i18n |

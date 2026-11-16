@@ -11,7 +11,22 @@ const EDGE = 12;
  * A small ⓘ that opens a short note right under it. Tapping anywhere closes
  * it. Keeps detail off the screen until someone asks for it.
  */
-export function InfoTip({ label, children, size = 16 }: { label: string; children: ReactNode; size?: number }) {
+/** `icon`/`color` swap the ⓘ (e.g. a 🔒 for a privacy note); `circled` draws it in a small ring. */
+export function InfoTip({
+  label,
+  children,
+  size = 16,
+  icon = 'information-circle-outline',
+  color,
+  circled = false,
+}: {
+  label: string;
+  children: ReactNode;
+  size?: number;
+  icon?: keyof typeof Ionicons.glyphMap;
+  color?: string;
+  circled?: boolean;
+}) {
   const c = useColors();
   const { lang } = useT();
   const rtl = lang === 'he';
@@ -38,7 +53,13 @@ export function InfoTip({ label, children, size = 16 }: { label: string; childre
         hitSlop={12}
         style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
       >
-        <Ionicons name="information-circle-outline" size={size} color={c.textMuted} />
+        {circled ? (
+          <View style={{ width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, borderWidth: 1, borderColor: color ?? c.textMuted, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={icon} size={size - 4} color={color ?? c.textMuted} />
+          </View>
+        ) : (
+          <Ionicons name={icon} size={size} color={color ?? c.textMuted} />
+        )}
       </Pressable>
       <Modal visible={!!at} transparent animationType="fade" onRequestClose={close}>
         <Pressable style={{ flex: 1 }} onPress={close} accessibilityRole="button" accessibilityLabel={label}>

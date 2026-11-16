@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { goBack } from '@/lib/nav';
 import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useTripChanges, type SaveExpenseInput } from '@/api/queries';
@@ -42,10 +42,10 @@ import { flatten } from '@/lib/contrast';
 import { CurrencyPicker } from './CurrencyPicker';
 import { ReorderChips } from './ReorderChips';
 import { Sheet } from './Sheet';
-import { confirmDialog } from './Dialog';
+import { confirmDialog, showDialog } from './Dialog';
 import { DateField } from './DateField';
 import { Button, Chip, ClearButton, Field, IconButton, Row, Segmented, Text, Toggle, tap, useAmountTyping } from './primitives';
-import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, vatRule, withFee } from '@/lib/taxFree';
+import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, meetsVatMinimum, vatRule, withFee } from '@/lib/taxFree';
 import { countryFlag, countryName } from '@/lib/countries';
 import { CountryPicker } from './CountryPicker';
 import { FadeIn } from './FadeIn';
@@ -189,6 +189,29 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     taxFree && amountMinor != null && homeMinor != null
       ? estimateRefund({ amountMinor, currency, minorUnits: cur.minor_units, homeMinor, feePct, country: purchaseCountry })
       : null;
+
+  // VAT refund popup: once per form, when a shopping (or tax free) amount reaches
+  // the country's minimum. Waits for typing to pause so it never interrupts a number.
+  // An edited expense already marked tax free that qualified when opened: no popup.
+  const qualifiesForVat = showTaxFree && meetsVatMinimum({ amountMinor, currency, minorUnits: cur.minor_units, country: purchaseCountry });
+  const vatAlerted = useRef(!!existing?.tax_free && qualifiesForVat);
+  useEffect(() => {
+    if (!qualifiesForVat || vatAlerted.current) return;
+    const timer = setTimeout(() => {
+      vatAlerted.current = true;
+      showDialog(
+        t('taxFree.eligibleTitle'),
+        t('taxFree.eligibleBody'),
+        taxFree
+          ? [{ label: t('taxFree.gotIt') }]
+          : [
+              { label: t('taxFree.markTaxFree'), onPress: () => setTaxFree(true) },
+              { label: t('taxFree.gotIt'), style: 'cancel' },
+            ],
+      );
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [qualifiesForVat, taxFree, t]);
 
   // Changing currency or date means the stored rate no longer applies
   function changeCurrency(code: string) {
@@ -816,6 +839,12 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                         value={personalId ?? payerId}
                         onChange={setPersonalId}
                       />
+                      {/* Paid by its owner: private to them (other members don't see it) */}
+                      {members.length > 1 && payerId && (personalId ?? payerId) === payerId ? (
+                        <Text variant="caption" muted>
+                          {t('split.privateHint')}
+                        </Text>
+                      ) : null}
                     </View>
                   ) : null}
                   {splitType === 'percent' || splitType === 'amount'

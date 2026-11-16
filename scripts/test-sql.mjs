@@ -536,4 +536,31 @@ assert.equal(feOld.tax_free, true);
 assert.equal(feOld.vat_country, 'TH');
 ok('card fee / tax free kept when an older app edits the expense');
 
+// Private personal expenses (0020): a personal expense its owner paid for themself is theirs alone
+const [mine] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ amount_minor: 30000, split_type: 'personal', splits: [{ member_id: mA }], description: 'Sunglasses' })]);
+assert.equal((await as(A, 'select count(*)::int n from expenses where id = $1', [mine.id]))[0].n, 1);
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1', [mine.id]))[0].n, 0);
+assert.equal((await as(B, 'select count(*)::int n from expense_splits where expense_id = $1', [mine.id]))[0].n, 0);
+assert.equal((await as(A, 'select count(*)::int n from expense_splits where expense_id = $1', [mine.id]))[0].n, 1);
+await rejects(as(B, `select * from save_expense($1::jsonb, 1)`, [expense({ id: mine.id, split_type: 'equal' })]), /not_found/);
+await rejects(as(B, 'select delete_expense($1, 1)', [mine.id]), /not_found/);
+// Paid by someone else for me: a debt, so both still see it
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1', [e5.id]))[0].n, 1);
+// The owner can still edit it, and once shared it is visible again
+const [mineShared] = await as(A, `select * from save_expense($1::jsonb, 1)`, [expense({ id: mine.id, amount_minor: 30000 })]);
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1', [mineShared.id]))[0].n, 1);
+// Saved for B by A (personal, B paid): B sees it, A no longer does; the offline client id still works
+const [forB] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ client_id: '88888888-8888-4888-8888-888888888888', paid_by_member_id: mB, split_type: 'personal', splits: [{ member_id: mB }] })]);
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1', [forB.id]))[0].n, 1);
+assert.equal((await as(A, 'select count(*)::int n from expenses where id = $1', [forB.id]))[0].n, 0);
+ok('private personal expenses: only the owner reads, edits or deletes them; debts and shared ones stay visible');
+
+// ...and its receipt photo
+await as(A, `insert into storage.objects (bucket_id, name) values ('receipts', $1)`, [`${trip}/private.jpg`]);
+await as(A, `select * from save_expense($1::jsonb)`, [expense({ split_type: 'personal', splits: [{ member_id: mA }], receipt_path: `${trip}/private.jpg` })]);
+assert.equal((await as(A, `select count(*)::int n from storage.objects where name = $1`, [`${trip}/private.jpg`]))[0].n, 1);
+assert.equal((await as(B, `select count(*)::int n from storage.objects where name = $1`, [`${trip}/private.jpg`]))[0].n, 0);
+assert.equal((await as(B, `select count(*)::int n from storage.objects where name = $1`, [`${trip}/r1.jpg`]))[0].n, 1);
+ok('private expense receipt: only the owner can read it');
+
 console.log(`\n${passed} SQL checks passed`);

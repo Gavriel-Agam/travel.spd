@@ -11,6 +11,7 @@ import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { tripRefundTotal } from '@/lib/taxFree';
+import { personalTotal } from '@/lib/settlement';
 import { homeLayoutValue, mergeVisibleOrder, resolveHomeLayout, type HomeSection } from '@/lib/homeLayout';
 import { formatMoney, percent } from '@/lib/money';
 import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
@@ -136,8 +137,10 @@ export default function Home() {
   const jointPaid = expenses.reduce((t, e) => (e.kind === 'expense' && e.paid_by_member_id === null ? t + e.amount_ils_minor : t), 0);
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const notStarted = !!trip.start_date && today < trip.start_date;
-  // Your part of the expenses (by each split), shown next to the shared budget when the trip has 2+ people
-  const myShare = me && balances.length > 1 ? (balances.find((b) => b.memberId === me.id)?.share ?? 0) : null;
+  // Your personal spending: only expenses marked Personal for you (shared ones belong to the shared budget).
+  // Shown only to you, and only when there is some, so a couple on one joint budget sees just the shared numbers.
+  const personal = me ? personalTotal(expenses.map((e) => ({ ...e, splits: e.expense_splits })), me.id) : 0;
+  const myShare = personal > 0 ? personal : null;
 
   // Cards in the order chosen on this phone (Arrange)
   const hasData = expenses.length > 0;
@@ -207,9 +210,14 @@ export default function Home() {
                 <>
                 <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: onHero + '33', marginHorizontal: space.md }} />
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="caption" color={onHero}>
-                    {t('home.yourShare')}
-                  </Text>
+                  <Row style={{ gap: 6 }}>
+                    <Text variant="caption" color={onHero}>
+                      {t('home.yourShare')}
+                    </Text>
+                    <InfoTip label={t('home.privateInfoLabel')} icon="lock-closed" color={onHero} circled size={14}>
+                      <Text variant="label">{t('home.privateInfo')}</Text>
+                    </InfoTip>
+                  </Row>
                   <Text color={onHero} style={{ fontWeight: '700', fontSize: 18 }}>
                     {ils(myShare)}
                   </Text>

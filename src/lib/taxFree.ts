@@ -188,3 +188,31 @@ export function cardFeeFor(paymentMethod: string | null | undefined, currency: s
 export function withFee(homeMinor: number, feePct: number): number {
   return feePct > 0 ? Math.round((homeMinor * (100 + feePct)) / 100) : homeMinor;
 }
+
+/**
+ * Does this amount reach the country's VAT refund minimum? Only checkable in
+ * the country's own currency (or when any amount qualifies). Countries with no
+ * refund, or no rules, never qualify.
+ */
+export function meetsVatMinimum(p: { amountMinor: number | null | undefined; currency: string; minorUnits: number; country: string | null | undefined }): boolean {
+  const rule = vatRule(p.country);
+  if (!rule || rule.noRefund || p.amountMinor == null || p.amountMinor <= 0) return false;
+  if (rule.min === 0) return true;
+  if (p.currency !== rule.currency) return false;
+  let spent = p.amountMinor / 10 ** p.minorUnits;
+  if (rule.minBeforeTax) spent = spent / (1 + rule.vat / 100);
+  return spent + 1e-9 >= rule.min;
+}
+
+/** The trip's card fee as the settings field shows it: 0 stays "0", unset is empty. */
+export function feeToInput(pct: number | string | null | undefined): string {
+  return pct == null || pct === '' || !Number.isFinite(Number(pct)) ? '' : String(Number(pct));
+}
+
+/** The settings field back to a fee: empty is unset (null), "0" is 0%. NaN when invalid. */
+export function feeFromInput(text: string): number | null {
+  const s = text.trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 && n <= 10 ? n : NaN;
+}

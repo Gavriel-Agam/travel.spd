@@ -18,6 +18,9 @@ type PrefsState = {
   notePaymentUsed: (tripId: string, method: string) => void;
   /** Who paid the last expense saved, per trip (trip id -> member id, or 'joint'). New expenses start with it. */
   lastPayer: Record<string, string>;
+  /** How the last expense saved was split, per trip (Smart import uses it when the text doesn't say). */
+  lastSplit: Record<string, 'equal' | 'personal'>;
+  noteSplitUsed: (tripId: string, split: 'equal' | 'personal') => void;
   notePayerUsed: (tripId: string, payer: string | null) => void;
   /** Country of the last expense, per trip (trip id -> ISO code). New expenses start there. */
   lastCountry: Record<string, string>;
@@ -62,6 +65,8 @@ export const usePrefs = create<PrefsState>()(
       lastPaymentAny: null,
       lastCountry: {},
       lastPayer: {},
+      lastSplit: {},
+      noteSplitUsed: (tripId, split) => set((s) => ({ lastSplit: { ...s.lastSplit, [tripId]: split } })),
       notePayerUsed: (tripId, payer) => set((s) => ({ lastPayer: { ...s.lastPayer, [tripId]: payer ?? 'joint' } })),
       noteCountryUsed: (tripId, code) => set((s) => ({ lastCountry: { ...s.lastCountry, [tripId]: code } })),
       notePaymentUsed: (tripId, method) => set((s) => ({ lastPayment: { ...s.lastPayment, [tripId]: method }, lastPaymentAny: method })),
@@ -121,6 +126,7 @@ export const usePrefs = create<PrefsState>()(
         lastPayment: (persisted as Partial<PrefsState>)?.lastPayment ?? {},
         lastPaymentAny: (persisted as Partial<PrefsState>)?.lastPaymentAny ?? null,
         lastPayer: (persisted as Partial<PrefsState>)?.lastPayer ?? {},
+        lastSplit: (persisted as Partial<PrefsState>)?.lastSplit ?? {},
       }),
     },
   ),

@@ -571,4 +571,13 @@ assert.equal((await as(B, `select count(*)::int n from storage.objects where nam
 assert.equal((await as(B, `select count(*)::int n from storage.objects where name = $1`, [`${trip}/r1.jpg`]))[0].n, 1);
 ok('private expense receipt: only the owner can read it');
 
+// Smart import usage (0022): written only by the Edge Function; each person reads only their own
+await db.exec(`insert into smart_import_usage (user_id) values ('${A}'), ('${A}'), ('${B}')`);
+assert.equal((await as(A, 'select count(*)::int n from smart_import_usage'))[0].n, 2);
+assert.equal((await as(B, 'select count(*)::int n from smart_import_usage'))[0].n, 1);
+await rejects(as(A, `insert into smart_import_usage (user_id) values ('${A}')`), /permission denied/);
+await rejects(as(A, `delete from smart_import_usage`), /permission denied/);
+await rejects(asAnon('select * from smart_import_usage'), /permission denied/);
+ok('smart import usage: own rows readable, never added or removed by the app');
+
 console.log(`\n${passed} SQL checks passed`);

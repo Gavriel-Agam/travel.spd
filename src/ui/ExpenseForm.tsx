@@ -78,6 +78,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // Who paid the last expense saved in this trip: a new expense starts with it
   const lastPayer = usePrefs((s) => (trip ? s.lastPayer[trip.id] : undefined));
   const notePayerUsed = usePrefs((s) => s.notePayerUsed);
+  const noteSplitUsed = usePrefs((s) => s.noteSplitUsed);
 
   // ---------------------------------------------------------------- state
   const [currency, setCurrency] = useState(existing?.currency ?? lastCurrency ?? trip?.default_currency ?? 'THB');
@@ -366,7 +367,10 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       if (purchaseCountry) noteCountryUsed(trip.id, purchaseCountry);
       noteCurrencyUsed(trip.id, currency);
       if (paymentMethod) notePaymentUsed(trip.id, paymentMethod);
-      if (members.length > 1) notePayerUsed(trip.id, payerId);
+      if (members.length > 1) {
+        notePayerUsed(trip.id, payerId);
+        noteSplitUsed(trip.id, splitType === 'personal' ? 'personal' : 'equal');
+      }
     };
     const done = () => {
       remember();

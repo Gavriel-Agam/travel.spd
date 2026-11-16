@@ -8,8 +8,9 @@ import { Sheet } from './Sheet';
 
 type Item = { key: string; icon: IconName; ready: boolean };
 
-// Arrange works today; the others are on the way (greyed out, "Coming soon")
+// Smart import and Arrange work today; the others are on the way (greyed out, "Coming soon")
 const ITEMS: Item[] = [
+  { key: 'smartImport', icon: 'sparkles-outline', ready: true },
   { key: 'arrange', icon: 'swap-vertical', ready: true },
   { key: 'export', icon: 'download-outline', ready: false },
   { key: 'share', icon: 'share-social-outline', ready: false },
@@ -18,7 +19,20 @@ const ITEMS: Item[] = [
 ];
 
 /** The gear menu on Home's top bar. */
-export function HomeMenu({ visible, onClose, onArrange }: { visible: boolean; onClose: () => void; onArrange: () => void }) {
+export function HomeMenu({
+  visible,
+  onClose,
+  onArrange,
+  onSmartImport,
+  importBadge,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onArrange: () => void;
+  onSmartImport: () => void;
+  /** A Smart import waiting on this device: shown next to the item. */
+  importBadge: 'ready' | 'queued' | 'error' | null;
+}) {
   const c = useColors();
   const { t } = useT();
   // The disabled item tapped last: shows a "Coming soon" bubble for a moment
@@ -49,6 +63,7 @@ export function HomeMenu({ visible, onClose, onArrange }: { visible: boolean; on
               tap();
               if (!item.ready) return setSoon(item.key);
               if (item.key === 'arrange') onArrange();
+              if (item.key === 'smartImport') onSmartImport();
             }}
             style={({ pressed }) => ({
               flexDirection: 'row',
@@ -66,7 +81,9 @@ export function HomeMenu({ visible, onClose, onArrange }: { visible: boolean; on
                 {t(`home.menu.${item.key}`)}
               </Text>
             </View>
-            {soon === item.key ? (
+            {item.key === 'smartImport' && importBadge ? (
+              <ImportBadge status={importBadge} />
+            ) : soon === item.key ? (
               <View style={{ backgroundColor: c.text, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
                 <Text variant="caption" color={c.card} style={{ fontWeight: '700' }}>
                   {t('home.menu.soon')}
@@ -79,5 +96,21 @@ export function HomeMenu({ visible, onClose, onArrange }: { visible: boolean; on
         ))}
       </View>
     </Sheet>
+  );
+}
+
+/** "Queued offline" / "Ready for review" / "Failed" next to Smart import. */
+export function ImportBadge({ status }: { status: 'ready' | 'queued' | 'error' }) {
+  const c = useColors();
+  const { t } = useT();
+  const color = status === 'ready' ? c.primary : status === 'error' ? c.danger : c.textMuted;
+  const label = t(status === 'ready' ? 'smartImport.badgeReady' : status === 'error' ? 'smartImport.badgeError' : 'smartImport.badgeQueued');
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: color + '1F' }}>
+      <Ionicons name={status === 'ready' ? 'checkmark-circle' : status === 'error' ? 'alert-circle' : 'cloud-offline-outline'} size={13} color={color} />
+      <Text variant="caption" color={color} style={{ fontWeight: '700' }}>
+        {label}
+      </Text>
+    </View>
   );
 }

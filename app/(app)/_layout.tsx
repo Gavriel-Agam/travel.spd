@@ -6,6 +6,7 @@ import { SyncBar } from '@/ui/SyncStatus';
 import { useActiveTrip, useCurrencyList, useRates, useTripCoverUrl, useTripRealtime } from '@/api/queries';
 import { useTripLook } from '@/store/tripLook';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
+import { useSmartImportSync } from '@/hooks/useSmartImport';
 import { dayKey } from '@/lib/stats';
 import { ErrorView, OfflineNoData, Screen, ScreenSkeleton } from '@/ui/primitives';
 import { useOnline } from '@/hooks/useOutboxSync';
@@ -22,6 +23,8 @@ export default function AppLayout() {
   useCurrencyList();
   useTripRealtime(trip?.id);
   useOutboxSync();
+  // Smart imports queued offline: read them once the connection is back
+  useSmartImportSync();
   // Fetch today's rates on launch so conversion keeps working if the connection drops later
   useRates(dayKey(new Date(), trip?.timezone ?? 'UTC'));
 
@@ -63,6 +66,7 @@ export default function AppLayout() {
         <Stack.Screen name="expense/[id]/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="categories" />
         <Stack.Screen name="settle" />
+        <Stack.Screen name="smart-import/[id]" />
       </Stack.Protected>
       <Stack.Screen name="onboarding/index" />
       <Stack.Screen name="onboarding/create" />

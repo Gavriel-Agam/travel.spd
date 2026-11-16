@@ -25,6 +25,8 @@ import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
 import { InfoTip } from '@/ui/InfoTip';
 import { HomeMenu } from '@/ui/HomeMenu';
+import { SmartImportSheet } from '@/ui/SmartImportSheet';
+import { smartImportBadge, useSmartImports } from '@/store/smartImports';
 import { ViewSelect } from '@/ui/ViewSelect';
 import { scheduleLaunchSnapshot } from '@/lib/launchSnapshot';
 import { sessionStorageKey } from '@/lib/supabase';
@@ -144,6 +146,9 @@ export default function Home() {
   const setHomeView = usePrefs((s) => s.setHomeView);
   const viewOf = (card: string): HomeView => (myStats && homeViews[card] === 'mine' ? 'mine' : 'trip');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  // A Smart import waiting on this device: a dot on the gear, a badge in the menu
+  const importBadge = useSmartImports((s) => smartImportBadge(s.records, trip?.id));
 
   if (!trip) return null;
   if (data.offlineEmpty) return <OfflineNoData onRetry={data.refetch} />;
@@ -582,6 +587,21 @@ export default function Home() {
         {/* Gear: Arrange, and what is coming (export, share, filter, light/dark) */}
         <Pressable accessibilityRole="button" accessibilityLabel={t('home.menu.title')} onPress={() => setMenuOpen(true)} hitSlop={8} style={{ padding: 6 }}>
           <Ionicons name="settings-outline" size={21} color={c.primary} />
+          {importBadge ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: 4,
+                end: 3,
+                width: 9,
+                height: 9,
+                borderRadius: 5,
+                borderWidth: 1.5,
+                borderColor: c.bg,
+                backgroundColor: importBadge === 'ready' ? c.primary : importBadge === 'error' ? c.danger : c.textMuted,
+              }}
+            />
+          ) : null}
         </Pressable>
         {/* Last in the row: top left in Hebrew */}
         {canFeedback ? <FeedbackBell /> : null}
@@ -642,12 +662,18 @@ export default function Home() {
       <HomeMenu
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
+        importBadge={importBadge}
+        onSmartImport={() => {
+          setMenuOpen(false);
+          setTimeout(() => setImportOpen(true), 300);
+        }}
         onArrange={() => {
           setMenuOpen(false);
           // One sheet at a time: Arrange opens once the menu has slid away
           setTimeout(() => setArranging(true), 300);
         }}
       />
+      <SmartImportSheet visible={importOpen} onClose={() => setImportOpen(false)} tripId={trip.id} />
       <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false} dragContent={false}>
         <View style={{ padding: space.lg, gap: space.md }}>
           <Text variant="caption" muted center>

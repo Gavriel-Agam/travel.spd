@@ -389,6 +389,15 @@ export async function uploadReceipt(tripId: string, uri: string, mime = 'image/j
   return path;
 }
 
+/** Uploads a picture already in memory (a Smart import screenshot) as a receipt. Returns its path. */
+export async function uploadReceiptBlob(tripId: string, blob: Blob) {
+  const mime = blob.type || 'image/jpeg';
+  const ext = mime.split('/')[1] ?? 'jpg';
+  const path = `${tripId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  unwrap(await supabase.storage.from('receipts').upload(path, await blob.arrayBuffer(), { contentType: mime }));
+  return path;
+}
+
 /** Uploads a new cover photo for the trip and removes the previous one. Returns the new path. */
 export async function uploadTripCover(tripId: string, uri: string, previous?: string | null) {
   const { body, mime } = await shrinkForUpload(uri);
@@ -480,6 +489,13 @@ export function useCurrencyList() {
   });
 }
 
+/** The fx-rates Edge Function's rates for a date. */
+export async function fetchRates(date: string) {
+  const { data, error } = await supabase.functions.invoke('fx-rates', { body: { date } });
+  if (error) throw error;
+  return data as RatesSnapshot;
+}
+
 /**
  * ILS rates for a date. Network first (via the fx-rates Edge Function), falling
  * back to the device cache so the conversion preview also works offline.
@@ -492,11 +508,7 @@ export function useRates(date: string) {
     enabled: !demo,
     staleTime: 30 * 60_000,
     retry: 1,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('fx-rates', { body: { date } });
-      if (error) throw error;
-      return data as RatesSnapshot;
-    },
+    queryFn: () => fetchRates(date),
   });
   useEffect(() => {
     if (query.data) cache(query.data);

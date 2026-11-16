@@ -49,6 +49,7 @@ import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, v
 import { countryFlag, countryName } from '@/lib/countries';
 import { CountryPicker } from './CountryPicker';
 import { FadeIn } from './FadeIn';
+import { InfoTip } from './InfoTip';
 import { UploadZone } from './UploadZone';
 
 type RateMode = 'stored' | 'auto' | 'manual';
@@ -123,8 +124,9 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [equalIds, setEqualIds] = useState<string[]>(
     existing?.split_type === 'equal' ? existing.expense_splits.map((s) => s.member_id) : members.map((m) => m.id),
   );
-  const [personalId, setPersonalId] = useState(
-    existing?.split_type === 'personal' ? existing.expense_splits[0]?.member_id : me?.id ?? members[0]?.id,
+  // Personal: belongs to whoever paid, until another name is picked (null = follow the payer)
+  const [personalId, setPersonalId] = useState<string | null>(
+    existing?.split_type === 'personal' ? existing.expense_splits[0]?.member_id ?? null : null,
   );
   const [percents, setPercents] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -763,16 +765,25 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
               {/* Split: only when one person paid (joint money is shared by everyone) */}
               {members.length > 1 && payerId !== null ? (
                 <View style={{ gap: space.sm }}>
-                  <Text variant="label" muted>
-                    {t('form.split')}
-                  </Text>
+                  <Row gap={4}>
+                    <Text variant="label" muted>
+                      {t('form.splitTitle')}
+                    </Text>
+                    <InfoTip label={t('form.splitInfoLabel')}>
+                      <Text variant="label">{t('form.splitInfo')}</Text>
+                    </InfoTip>
+                  </Row>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
                     {(['equal', 'treat', 'personal', 'percent', 'amount'] as const).map((type) => (
                       <Chip
                         key={type}
                         label={type === 'equal' && members.length > 2 ? t('split.equalN') : t(`split.${type}`)}
                         selected={splitType === type}
-                        onPress={() => setSplitType(type)}
+                        onPress={() => {
+                          // Switching to Personal: it belongs to whoever paid
+                          if (type === 'personal' && splitType !== 'personal') setPersonalId(null);
+                          setSplitType(type);
+                        }}
                       />
                     ))}
                   </ScrollView>

@@ -1,4 +1,5 @@
 import { rememberJoinLink } from '@/lib/inviteLink';
+import { markAppStarted } from '@/lib/bootGuard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { focusManager, hydrate, MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -150,7 +151,10 @@ function RootNavigator() {
 export default function RootLayout() {
   const hydrated = usePrefsHydrated();
   // The live app has replaced the saved copy of Home shown at launch
-  useEffect(() => dropLaunchSnapshotStyles(), []);
+  useEffect(() => {
+    dropLaunchSnapshotStyles();
+    markAppStarted();
+  }, []);
   const lang = usePrefs((s) => s.lang) ?? deviceLang();
   if (hydrated) {
     initI18n(lang);

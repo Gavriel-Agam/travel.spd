@@ -47,6 +47,72 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <script>
+      // Start-up guard: if a new version can't start (an old cached file, or data
+      // saved by an older version it can't read), the page would stay blank. When
+      // the app hasn't started, or an error leaves the screen empty, repair this
+      // device's copy and reload: 1st time the stored app files, the saved Home
+      // picture and the saved trip data (all downloaded again); 2nd time also the
+      // display settings. Expenses waiting to sync and the sign-in are kept. If it
+      // still fails, a message offers a full reset. The app sets __appStarted.
+      (function () {
+        var TRIES = 'smarttrip-boot-repair';
+        var root = function () { return document.getElementById('root'); };
+        var empty = function () { var r = root(); return !r || (!r.childElementCount && !r.textContent.trim()); };
+        function tries() { try { return +(sessionStorage.getItem(TRIES) || 0); } catch (e) { return 9; } }
+        function drop(keys) { keys.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} }); }
+        function wipeFiles() {
+          var p = [];
+          if (window.caches) p.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+          if (navigator.serviceWorker) p.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+          return Promise.all(p).catch(function () {});
+        }
+        function help() {
+          var he = (navigator.language || '').indexOf('he') === 0 || /"lang":"he"/.test(localStorage.getItem('travelspend-prefs') || '');
+          var r = root();
+          if (!r) return;
+          r.innerHTML =
+            '<div dir="' + (he ? 'rtl' : 'ltr') + '" style="margin:auto;max-width:340px;padding:32px;text-align:center;font-family:system-ui,sans-serif;color:#F2F3F8">' +
+            '<div style="font-size:44px">⚠️</div><p style="font-size:18px;font-weight:700">' + (he ? 'האפליקציה לא נפתחה' : "The app didn't open") + '</p>' +
+            '<p style="color:#A0A4BA;font-size:14px">' + (he ? 'איפוס מוחק את העותק במכשיר הזה. הוצאות שעוד לא סונכרנו יימחקו. הנתונים בחשבון נשמרים.' : 'Resetting clears this device’s copy. Expenses not yet synced will be lost. Your account data is kept.') + '</p>' +
+            '<button id="boot-retry" style="width:100%;padding:14px;border:0;border-radius:14px;background:#3366FF;color:#fff;font-weight:700;font-size:16px;margin-top:8px">' + (he ? 'לנסות שוב' : 'Try again') + '</button>' +
+            '<button id="boot-reset" style="width:100%;padding:14px;border:0;border-radius:14px;background:#2A2D45;color:#F2F3F8;font-weight:700;font-size:16px;margin-top:10px">' + (he ? 'איפוס ופתיחה מחדש' : 'Reset and reopen') + '</button></div>';
+          document.body.style.background = '#0E1020';
+          document.getElementById('boot-retry').onclick = function () { location.reload(); };
+          document.getElementById('boot-reset').onclick = function () {
+            try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
+            wipeFiles().then(function () { location.reload(); });
+          };
+        }
+        var repairing = false;
+        function repair(reason) {
+          if (window.__appStarted && !empty()) return;
+          if (repairing) return;
+          var n = tries();
+          if (n >= 2) return help();
+          repairing = true;
+          try { sessionStorage.setItem(TRIES, String(n + 1)); localStorage.setItem('smarttrip-repaired', reason); } catch (e) {}
+          drop(['smarttrip-launch', 'travelspend-cache']);
+          if (n >= 1) drop(['travelspend-prefs']);
+          wipeFiles().then(function () { location.reload(); });
+        }
+        // Opened from the offline copy: the app starts in a second or two, so a long wait means it's stuck
+        var fromCache = function () { return !!(navigator.serviceWorker && navigator.serviceWorker.controller); };
+        function onError(e) {
+          if (!window.__appStarted && !fromCache()) return;
+          var why = String((e && (e.message || (e.reason && e.reason.message) || e.reason)) || 'error').slice(0, 120);
+          // React empties the page when drawing crashes; give it a moment
+          setTimeout(function () { if (empty()) repair(why); }, 1500);
+        }
+        window.addEventListener('error', onError);
+        window.addEventListener('unhandledrejection', onError);
+        // Never started at all (e.g. the app's file failed to load)
+        setTimeout(function () { if (!window.__appStarted && fromCache()) repair('no-start'); }, 20000);
+        window.__appStartedOk = function () {
+          try { sessionStorage.removeItem(TRIES); } catch (e) {}
+        };
+      })();
+    </script>
+    <script>
       // Instant launch (src/lib/launchSnapshot.ts): the Home screen as it was last
       // shown goes on screen right away; the app replaces it with the live one
       // as soon as it has started. Only on Home, only while still signed in.

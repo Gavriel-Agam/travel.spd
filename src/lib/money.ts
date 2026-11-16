@@ -73,10 +73,10 @@ export function trimRate(rate: string): string {
  * Human-friendly rate: whichever direction reads as a number above 1.
  * 0.0927 THB -> "1 ₪ = 10.78 ฿"; 3.65 EUR -> "1 € = 3.65 ₪".
  */
-export function formatRate(rate: string, code: string, symbol = getCurrency(code).symbol): string {
+export function formatRate(rate: string, code: string, symbol = getCurrency(code).symbol, maxDecimals = 4): string {
   const r = new Decimal(rate);
   // Display only: grouped digits ("8,202.5"), at most 4 decimals
-  const fmt = (d: Decimal) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(d.toNumber());
+  const fmt = (d: Decimal) => new Intl.NumberFormat('en-US', { maximumFractionDigits: maxDecimals }).format(d.toNumber());
   if (r.gte(1)) return `1 ${symbol} = ${fmt(r.toDecimalPlaces(4))} ₪`;
   return `1 ₪ = ${fmt(new Decimal(1).div(r).toSignificantDigits(5))} ${symbol}`;
 }

@@ -28,7 +28,6 @@ import {
   trimRate,
   type RateDirection,
 } from '@/lib/money';
-import { rateSourceLabel } from '@/lib/rateLabels';
 import { previewShares, toSplitEntries, validateSplit, type SplitConfig, type SplitType } from '@/lib/split';
 import { dayKey } from '@/lib/stats';
 import { blockedInDemo } from '@/lib/demoPrompt';
@@ -386,13 +385,21 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     ...customPayments,
     ...(paymentMethod && !BUILTIN_PAYMENTS.some((p) => p.key === paymentMethod) && !customPayments.includes(paymentMethod) ? [paymentMethod] : []),
   ];
-  const rateInfo = (() => {
+  // Under the amount: the rate, plus a short tag only when it matters
+  // (typed by hand, from another day, saved copy while offline)
+  const shortDate = (d: string) => d.slice(8, 10) + '.' + d.slice(5, 7);
+  const rateTag = (() => {
     if (currency === HOME_CURRENCY) return null;
-    if (rateMode === 'manual') return t('form.rateManual');
-    if (rateMode === 'stored') return rateSourceLabel(t, existing!.fx_source, existing!.fx_rate_date);
-    if (!autoEntry) return rates.isLoading ? t('common.loading') : t('form.rateMissing', { code: currency });
-    return fromCache ? t('form.rateCached', { date: autoEntry.date }) : rateSourceLabel(t, autoEntry.source, autoEntry.date);
+    if (rateMode === 'manual') return t('form.rateTagManual');
+    if (rateMode === 'stored') {
+      const d = existing!.fx_rate_date;
+      return existing!.fx_source === 'manual' || !d ? t('form.rateTagManual') : d !== rateDate ? shortDate(d) : null;
+    }
+    if (!autoEntry) return null;
+    if (fromCache) return t('form.rateTagSaved', { date: shortDate(autoEntry.date) });
+    return autoEntry.date !== rateDate ? shortDate(autoEntry.date) : null;
   })();
+  const rateMissing = currency !== HOME_CURRENCY && rateMode === 'auto' && !autoEntry && !rates.isLoading;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: c.card }}>
@@ -468,18 +475,34 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </View>
           {currency !== HOME_CURRENCY ? (
             <Pressable accessibilityRole="button" accessibilityLabel={t('form.rateEdit')} onPress={() => setEditingRate((v) => !v)} hitSlop={6}>
-              <Row gap={6} style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Text variant="label" color={homeMinor != null ? c.primary : c.textFaint}>
-                  ≈ {formatMoney(homeMinor ?? 0, HOME_CURRENCY, { lang })}
-                </Text>
-                {rateInfo ? (
-                  <Text variant="caption" muted>
-                    · {effectiveRate ? `${formatRate(effectiveRate, currency, cur.symbol)} · ` : ''}
-                    {rateInfo}
+              <View style={{ alignItems: 'center', gap: 2 }}>
+                {homeMinor != null ? (
+                  <Text variant="label" color={c.primary} style={{ fontSize: 16 }}>
+                    ≈ {formatMoney(homeMinor, HOME_CURRENCY, { lang })}
                   </Text>
                 ) : null}
-                <Ionicons name="pencil" size={12} color={c.textMuted} />
-              </Row>
+                <Row gap={6} style={{ justifyContent: 'center' }}>
+                  {rateMissing ? (
+                    <Text variant="caption" color={c.danger}>
+                      {t('form.rateMissingShort')}
+                    </Text>
+                  ) : effectiveRate ? (
+                    <Text variant="caption" muted {...(Platform.OS === 'web' ? ({ dir: 'ltr' } as object) : null)}>
+                      {formatRate(effectiveRate, currency, cur.symbol, 2)}
+                    </Text>
+                  ) : (
+                    <Text variant="caption" muted>
+                      {t('common.loading')}
+                    </Text>
+                  )}
+                  {rateTag ? (
+                    <Text variant="caption" muted>
+                      · {rateTag}
+                    </Text>
+                  ) : null}
+                  <Ionicons name="pencil" size={12} color={c.textMuted} />
+                </Row>
+              </View>
             </Pressable>
           ) : null}
           {editingRate && currency !== HOME_CURRENCY ? (

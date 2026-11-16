@@ -607,7 +607,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
         {/* Category: hold a tile to drag it to a new place (saved for the trip) */}
         <View style={{ gap: 6 }}>
-          <SectionTitle icon="pricetag-outline" title={t('form.category')} hint={t('form.categoryDragHintShort')} />
+          <SectionTitle icon="pricetag-outline" title={t('form.category')} />
           <ReorderChips
             columns={width >= 520 ? 5 : 4}
             items={categories.map((cat) => ({
@@ -898,7 +898,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                       <Button title={t('form.takePhoto')} icon="camera-outline" variant="secondary" onPress={() => pickReceipt('camera')} style={{ flex: 1 }} />
                     ) : null}
                     <UploadZone
-                      title={t('form.choosePhoto')}
+                      title={t('form.addReceipt')}
                       icon="receipt-outline"
                       onPress={() => pickReceipt('library')}
                       onDropFile={(uri, mime) => setLocalReceipt({ uri, mime })}

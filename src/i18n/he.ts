@@ -262,7 +262,7 @@ const he: Dict = {
     notes: 'הערות',
     notesPlaceholder: 'משהו שכדאי לזכור',
     receipt: 'קבלה',
-    addReceipt: 'הוספת תמונה',
+    addReceipt: 'לחץ להוספת תמונה',
     takePhoto: 'מצלמה',
     choosePhoto: 'גלריה',
     removeReceipt: 'הסרה',

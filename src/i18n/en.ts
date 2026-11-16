@@ -260,7 +260,7 @@ const en = {
     notes: 'Notes',
     notesPlaceholder: 'Anything to remember',
     receipt: 'Receipt',
-    addReceipt: 'Add photo',
+    addReceipt: 'Tap to add a photo',
     takePhoto: 'Camera',
     choosePhoto: 'Library',
     removeReceipt: 'Remove',

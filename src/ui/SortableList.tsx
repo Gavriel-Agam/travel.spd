@@ -1,3 +1,4 @@
+import { DragOutline, useHoverKey } from './DragOutline';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Platform, Pressable, View, type ViewStyle } from 'react-native';
@@ -100,6 +101,7 @@ function SortableRow({
 }) {
   const c = useColors();
   const { t } = useT();
+  const { hover, props: hoverProps } = useHoverKey();
   const h = useRef(handlers);
   h.current = handlers;
   const pan = useRef(
@@ -139,7 +141,9 @@ function SortableRow({
         elevation: active ? 6 : 0,
         transform: [{ scale: active ? 1.02 : 1 }],
       }}
+      {...hoverProps(item.key)}
     >
+      <DragOutline visible={active || hover === item.key} strong={active} radius={radius.md} />
       <View
         {...pan.panHandlers}
         accessibilityLabel={t('home.dragHandle')}

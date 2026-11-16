@@ -15,6 +15,7 @@ import {
   type Rect,
 } from '@/lib/homeLayout';
 import { radius as radii, space, useColors } from '@/theme';
+import { DragOutline, useHoverKey } from './DragOutline';
 import { tap } from './primitives';
 
 export type GridItem = {
@@ -63,6 +64,7 @@ export function DraggableGrid({
   gap?: number;
 }) {
   const c = useColors();
+  const { hover, props: hoverProps } = useHoverKey();
   const { width, height } = useWindowDimensions();
   const cols = fixedColumns ?? columnCount(width);
   const keys = items.map((i) => i.key);
@@ -274,6 +276,8 @@ export function DraggableGrid({
         <View key={col} style={{ flex: 1, gap, zIndex: drag && colItems.some((i) => i.key === drag.key) ? 10 : 0 }}>
           {colItems.map((item) => {
             const lifted = drag?.key === item.key;
+            // Dashed outline: while dragged, or (mouse) while hovered and nothing is being dragged
+            const outlined = !item.fixed && (lifted || (!drag && hover === item.key));
             return (
               <View
                 key={item.key}
@@ -286,6 +290,7 @@ export function DraggableGrid({
                 {...responders.get(item.key)?.panHandlers}
                 onTouchEnd={release}
                 onTouchCancel={release}
+                {...(item.fixed ? null : hoverProps(item.key))}
                 style={[
                   { position: 'relative', borderRadius: item.radius ?? radii.lg },
                   item.sticky && web ? ({ position: 'sticky', top: 0, zIndex: 5 } as object) : null,
@@ -301,6 +306,7 @@ export function DraggableGrid({
                 ]}
               >
                 {item.node}
+                <DragOutline visible={outlined} strong={lifted} radius={item.radius || 10} />
               </View>
             );
           })}

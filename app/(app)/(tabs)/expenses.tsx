@@ -192,11 +192,7 @@ export default function Expenses() {
           refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
           contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}
         >
-          {sections.length ? (
-            <Text variant="caption" faint style={{ marginBottom: space.xs }}>
-              {t('expenses.dragHint')}
-            </Text>
-          ) : expenses.length === 0 ? (
+          {sections.length ? null : expenses.length === 0 ? (
             <EmptyState emoji="🧾" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
           ) : (
             <EmptyState emoji="🔍" title={t('expenses.empty')} body={t('expenses.emptyBody')} />

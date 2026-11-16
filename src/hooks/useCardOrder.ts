@@ -1,20 +1,32 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ScrollViewInstance } from 'react-native';
-import { mergeVisibleOrder, resolveOrder } from '@/lib/homeLayout';
+import { HIDDEN_MARK, homeLayoutValue, mergeVisibleOrder, resolveOrder } from '@/lib/homeLayout';
 import { usePrefs } from '@/store/prefs';
 
 /**
- * Card order for a screen whose cards can be dragged (Statistics, Budget),
- * saved on this device. `onReorder` takes the new order of the cards that are
- * showing; hidden cards keep their place.
+ * Card order for a screen whose cards can be dragged (Statistics), saved on
+ * this device. `onReorder` takes the new order of the cards that are showing.
+ * Cards can be hidden (swipe a card, Hide) and shown again: saved in the same
+ * list after a marker, like Home.
  */
 export function useCardOrder<T extends string>(screen: string, defaults: readonly T[]) {
   const saved = usePrefs((s) => s.screenOrders[screen]);
   const setScreenOrder = usePrefs((s) => s.setScreenOrder);
-  const order = useMemo(() => resolveOrder(saved, defaults), [saved, defaults]);
+  const { order, hidden } = useMemo(() => {
+    const list = saved ?? [];
+    const mark = list.indexOf(HIDDEN_MARK);
+    const known = new Set<string>(defaults);
+    const hidden = (mark < 0 ? [] : list.slice(mark + 1)).filter((k, i, a): k is T => known.has(k) && a.indexOf(k) === i);
+    const order = resolveOrder(mark < 0 ? list : list.slice(0, mark), defaults).filter((k) => !hidden.includes(k));
+    return { order, hidden };
+  }, [saved, defaults]);
+  const store = (visible: readonly string[], hid: readonly string[]) => setScreenOrder(screen, homeLayoutValue(visible, hid));
   return {
     order,
-    onReorder: (visible: string[]) => setScreenOrder(screen, mergeVisibleOrder<string>(order, visible)),
+    hidden,
+    onReorder: (visible: string[]) => store(mergeVisibleOrder<string>(order, visible), hidden),
+    hide: (key: T) => store(order.filter((k) => k !== key), [...hidden, key]),
+    show: (key: T) => store([...order, key], hidden.filter((k) => k !== key)),
   };
 }
 

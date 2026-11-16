@@ -1,3 +1,4 @@
+import { DragOutline, useHoverKey } from './DragOutline';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PanResponder, Platform, View, type ViewInstance } from 'react-native';
 import { useT } from '@/i18n';
@@ -28,6 +29,7 @@ export function ReorderChips({ items, onReorder, onDragging, columns }: {
   columns?: number;
 }) {
   const c = useColors();
+  const { hover, props: hoverProps } = useHoverKey();
   const { lang } = useT();
   const rtl = lang === 'he';
   const keys = items.map((i) => i.key);
@@ -158,6 +160,7 @@ export function ReorderChips({ items, onReorder, onDragging, columns }: {
     >
       {items.map((item) => {
         const lifted = drag?.key === item.key;
+        const outlined = lifted || (!drag && hover === item.key);
         return (
           <View
             key={item.key}
@@ -170,6 +173,7 @@ export function ReorderChips({ items, onReorder, onDragging, columns }: {
             {...responders.get(item.key)?.panHandlers}
             onTouchEnd={release}
             onTouchCancel={release}
+            {...hoverProps(item.key)}
             style={[
               columns ? { width: `${100 / columns}%`, padding: GAP / 2 } : null,
               web ? ({ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', cursor: lifted ? 'grabbing' : undefined } as object) : null,
@@ -184,6 +188,7 @@ export function ReorderChips({ items, onReorder, onDragging, columns }: {
             ]}
           >
             {item.node}
+            <DragOutline visible={outlined} strong={lifted} radius={columns ? 16 : 999} />
           </View>
         );
       })}

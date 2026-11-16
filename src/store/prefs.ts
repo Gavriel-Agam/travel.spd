@@ -16,6 +16,9 @@ type PrefsState = {
   lastPayment: Record<string, string>;
   lastPaymentAny: string | null;
   notePaymentUsed: (tripId: string, method: string) => void;
+  /** Who paid the last expense saved, per trip (trip id -> member id, or 'joint'). New expenses start with it. */
+  lastPayer: Record<string, string>;
+  notePayerUsed: (tripId: string, payer: string | null) => void;
   /** Country of the last expense, per trip (trip id -> ISO code). New expenses start there. */
   lastCountry: Record<string, string>;
   noteCountryUsed: (tripId: string, code: string) => void;
@@ -58,6 +61,8 @@ export const usePrefs = create<PrefsState>()(
       lastPayment: {},
       lastPaymentAny: null,
       lastCountry: {},
+      lastPayer: {},
+      notePayerUsed: (tripId, payer) => set((s) => ({ lastPayer: { ...s.lastPayer, [tripId]: payer ?? 'joint' } })),
       noteCountryUsed: (tripId, code) => set((s) => ({ lastCountry: { ...s.lastCountry, [tripId]: code } })),
       notePaymentUsed: (tripId, method) => set((s) => ({ lastPayment: { ...s.lastPayment, [tripId]: method }, lastPaymentAny: method })),
       recentCurrencies: [],
@@ -115,6 +120,7 @@ export const usePrefs = create<PrefsState>()(
         expenseOrder: (persisted as Partial<PrefsState>)?.expenseOrder ?? {},
         lastPayment: (persisted as Partial<PrefsState>)?.lastPayment ?? {},
         lastPaymentAny: (persisted as Partial<PrefsState>)?.lastPaymentAny ?? null,
+        lastPayer: (persisted as Partial<PrefsState>)?.lastPayer ?? {},
       }),
     },
   ),

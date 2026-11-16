@@ -10,11 +10,12 @@ import { paymentColor, paymentLabel } from '@/lib/payments';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, percent } from '@/lib/money';
 import { byCategoryBetween, dayKey, periodRange, spendByCurrency, type Period } from '@/lib/stats';
-import { space, useColors } from '@/theme';
+import { radius, space, useColors } from '@/theme';
 import { BarChart, DonutChart, LegendRow } from '@/ui/charts';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { CurrencySheet } from '@/ui/CurrencySheet';
 import { DraggableGrid } from '@/ui/DraggableGrid';
+import { SwipeRow } from '@/ui/SwipeRow';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { DateField } from '@/ui/DateField';
@@ -25,6 +26,28 @@ const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'partners',
 type StatsSection = (typeof STATS_SECTIONS)[number];
 
 const NO_PAYMENT_COLOR = '#A3A7B9';
+
+// Names and icons of the cards, for the list of hidden ones
+const STATS_TITLES: Record<StatsSection, string> = {
+  summary: 'stats.summary',
+  categories: 'home.byCategory',
+  byDay: 'stats.byDay',
+  topDays: 'stats.topDays',
+  partners: 'stats.byPartner',
+  payment: 'stats.byPayment',
+  distribution: 'stats.distribution',
+  currency: 'stats.byCurrency',
+};
+const STATS_ICONS: Record<StatsSection, string> = {
+  summary: '💰',
+  categories: '🏷️',
+  byDay: '📊',
+  topDays: '🏆',
+  partners: '👫',
+  payment: '💳',
+  distribution: '📏',
+  currency: '💱',
+};
 
 /** Time range of the category pie: the whole trip, a day / week / month, or chosen dates. */
 type PieRange = 'all' | Period | 'custom';
@@ -459,13 +482,60 @@ export default function Stats() {
           <EmptyState emoji="📊" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
         </Card>
       ) : (
-        <DraggableGrid
-          items={layout.order.filter((k) => sections[k]).map((k) => ({ key: k, node: sections[k] }))}
-          onReorder={layout.onReorder}
-          scrollRef={drag.scrollRef}
-          scroll={drag.scroll}
-          onDragging={drag.setDragging}
-        />
+        <>
+          {/* Hold a card to drag it; swipe it (right in Hebrew) for Hide */}
+          <DraggableGrid
+            items={layout.order
+              .filter((k) => sections[k])
+              .map((k) => ({
+                key: k,
+                node: (
+                  <SwipeRow
+                    background={c.bg}
+                    style={{ borderRadius: radius.lg }}
+                    yieldToInner
+                    clipWhenClosed={false}
+                    actions={[{ key: 'hide', icon: 'eye-off-outline', color: c.textMuted, label: t('home.hideCard'), onPress: () => layout.hide(k) }]}
+                  >
+                    {() => sections[k]}
+                  </SwipeRow>
+                ),
+              }))}
+            onReorder={layout.onReorder}
+            scrollRef={drag.scrollRef}
+            scroll={drag.scroll}
+            onDragging={drag.setDragging}
+          />
+          {/* Hidden cards: at the bottom, under a line, each with Show */}
+          {layout.hidden.length > 0 ? (
+            <View style={{ gap: space.sm }}>
+              <View style={{ height: 1, backgroundColor: c.border, marginVertical: space.xs }} />
+              <Text variant="label" muted>
+                {t('home.hiddenCards')}
+              </Text>
+              {layout.hidden.map((k) => (
+                <Row key={k} gap={space.md} style={{ minHeight: 52, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: c.cardAlt }}>
+                  <Text style={{ fontSize: 18, opacity: 0.6 }}>{STATS_ICONS[k]}</Text>
+                  <Text muted style={{ flex: 1 }} numberOfLines={1}>
+                    {t(STATS_TITLES[k])}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('home.showCard')}: ${t(STATS_TITLES[k])}`}
+                    onPress={() => layout.show(k)}
+                    hitSlop={8}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: space.sm }}
+                  >
+                    <Ionicons name="eye-outline" size={18} color={c.primary} />
+                    <Text variant="label" color={c.primary}>
+                      {t('home.showCard')}
+                    </Text>
+                  </Pressable>
+                </Row>
+              ))}
+            </View>
+          ) : null}
+        </>
       )}
       <CurrencySheet
         visible={currencyOpen !== null}

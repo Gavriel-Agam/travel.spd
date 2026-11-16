@@ -6,7 +6,7 @@ import { goBack } from '@/lib/nav';
 import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type TextInputInstance } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type ScrollViewInstance, type TextInputInstance, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useTripChanges, type SaveExpenseInput } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
@@ -75,6 +75,9 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // A new expense starts with the payment method used last (in this trip, else the last one anywhere that this trip offers)
   const lastPayment = usePrefs((s) => (trip ? lastPaymentFor(s.lastPayment, s.lastPaymentAny, trip.id, customPayments) : null));
   const cachedRates = usePrefs((s) => s.rates);
+  // Who paid the last expense saved in this trip: a new expense starts with it
+  const lastPayer = usePrefs((s) => (trip ? s.lastPayer[trip.id] : undefined));
+  const notePayerUsed = usePrefs((s) => s.notePayerUsed);
 
   // ---------------------------------------------------------------- state
   const [currency, setCurrency] = useState(existing?.currency ?? lastCurrency ?? trip?.default_currency ?? 'THB');
@@ -86,15 +89,31 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [countryPick, setCountryPick] = useState<string | null>(existing ? existing.vat_country ?? null : null);
   const [pickCountry, setPickCountry] = useState(false);
   const [description, setDescription] = useState(existing?.description ?? '');
-  // null = joint money (the default): no payer, so it never creates a debt
-  const [payerId, setPayerId] = useState<string | null>(existing ? existing.paid_by_member_id : null);
+  // null = joint money: no payer, so it never creates a debt. A new expense
+  // starts with whoever paid the last one (if still on the trip), else joint.
+  const [payerId, setPayerId] = useState<string | null>(
+    existing ? existing.paid_by_member_id : lastPayer && members.some((m) => m.id === lastPayer) ? lastPayer : null,
+  );
   const [occurredAt, setOccurredAt] = useState(existing ? new Date(existing.occurred_at) : new Date());
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [paymentMethod, setPaymentMethod] = useState<string | null>(existing ? existing.payment_method : lastPayment);
   const [receiptPath, setReceiptPath] = useState<string | null>(existing?.receipt_path ?? null);
   const [localReceipt, setLocalReceipt] = useState<{ uri: string; mime: string } | null>(null);
-  // Who paid, split, date, notes and receipt: folded away until opened
+  // Who paid, split, notes, receipt, date: folded away until opened
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Opening More details scrolls the form so all of it is in view
+  const formScroll = useRef<ScrollViewInstance>(null);
+  const formScrollY = useRef(0);
+  const detailsTop = useRef(0);
+  const detailsRef = useRef<ViewInstance>(null);
+  // Where the section starts in the form (web: read from the page, always current)
+  const detailsY = () => (Platform.OS === 'web' ? ((detailsRef.current as unknown as HTMLElement | null)?.offsetTop ?? detailsTop.current) : detailsTop.current);
+  useEffect(() => {
+    if (!detailsOpen) return;
+    // After the section has been drawn: bring its header to the top of the form
+    const id = setTimeout(() => formScroll.current?.scrollTo({ y: Math.max(0, detailsY() - space.sm), animated: true }), 60);
+    return () => clearTimeout(id);
+  }, [detailsOpen]);
   // A category chip is being dragged: the form stops scrolling meanwhile
   const [draggingChip, setDraggingChip] = useState(false);
   // Adding the trip's own payment method
@@ -347,6 +366,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       if (purchaseCountry) noteCountryUsed(trip.id, purchaseCountry);
       noteCurrencyUsed(trip.id, currency);
       if (paymentMethod) notePaymentUsed(trip.id, paymentMethod);
+      if (members.length > 1) notePayerUsed(trip.id, payerId);
     };
     const done = () => {
       remember();
@@ -430,6 +450,29 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
   // ---------------------------------------------------------------- render
   const locale = lang === 'he' ? 'he-IL' : 'en-GB';
+  // A person by their account: their name in this trip (removed partners too)
+  const nameOf = (userId: string | null | undefined) => {
+    if (!userId) return t('form.someone');
+    const m = [...memberById.values()].find((x) => x.user_id === userId);
+    return m ? (m.id === me?.id ? `${m.display_name} (${t('common.you')})` : m.display_name) : t('form.someone');
+  };
+  const auditLine = (label: string, who: string, at: string) => (
+    <Row style={{ justifyContent: 'space-between' }} gap={space.sm}>
+      <Text variant="caption" muted>
+        {label}
+      </Text>
+      {/* Name and date as separate texts, so a Latin name never scrambles a Hebrew date */}
+      <Row gap={6} style={{ flexShrink: 1 }}>
+        <Text variant="caption" style={{ fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>
+          {who}
+        </Text>
+        <Text variant="caption" muted>
+          {new Date(at).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </Row>
+    </Row>
+  );
+
   // What "More details" holds, in one line while it is folded
   const detailsSummary = [
     members.length > 1 ? (payerId === null ? t('form.joint') : memberById.get(payerId)?.display_name) : null,
@@ -473,8 +516,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           payment method, description) fits on one iPhone screen without scrolling;
           the rest waits under More details. */}
       <ScrollView
+        ref={formScroll}
         keyboardShouldPersistTaps="handled"
         scrollEnabled={!draggingChip}
+        scrollEventThrottle={16}
+        onScroll={(e) => (formScrollY.current = e.nativeEvent.contentOffset.y)}
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.xs, gap: space.md, paddingBottom: space.lg }}
       >
         {/* Currency on top, the amount under it, then the rate */}
@@ -727,13 +773,15 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </View>
         ) : null}
 
-        {/* More details: who paid, split, date, notes, receipt. Folded until opened. */}
-        <View style={{ gap: space.lg }}>
+        {/* More details: who paid, split, notes, receipt, date, who created / edited. Folded until opened. */}
+        <View ref={detailsRef} style={{ gap: space.lg }} onLayout={(e) => (detailsTop.current = e.nativeEvent.layout.y)}>
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: detailsOpen }}
             onPress={() => {
               tap();
+              // Closing: ease the form back up so the fields above come into view again
+              if (detailsOpen) formScroll.current?.scrollTo({ y: Math.max(0, Math.min(formScrollY.current, detailsY() - 200)), animated: true });
               setDetailsOpen((v) => !v);
             }}
             style={({ pressed }) => ({
@@ -762,7 +810,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </Pressable>
 
           {detailsOpen ? (
-            <FadeIn duration={180} style={{ gap: space.lg }}>
+            // Its own tinted panel, so it reads apart from the rest of the form
+            <FadeIn
+              duration={180}
+              style={{ gap: space.lg, backgroundColor: c.primarySoft, borderRadius: radius.lg, borderWidth: 1, borderColor: c.primary + '33', padding: space.md, marginTop: -space.sm }}
+            >
               {/* Who paid */}
               {members.length > 1 ? (
                 <View style={{ gap: space.sm }}>
@@ -894,17 +946,6 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 </View>
               ) : null}
 
-              {/* Date / time */}
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text variant="label" muted>
-                  {t('form.date')}
-                </Text>
-                <Row gap={space.sm}>
-                  <DateField value={occurredAt} onChange={changeDate} />
-                  <DateField value={occurredAt} onChange={changeDate} mode="time" />
-                </Row>
-              </Row>
-
               <Field label={t('form.notes')} value={notes} onChangeText={setNotes} placeholder={t('form.notesPlaceholder')} multiline maxLength={1000} style={{ minHeight: 80, textAlignVertical: 'top' }} />
               <View style={{ gap: space.sm }}>
                 <Text variant="label" muted>
@@ -938,6 +979,27 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                   </Row>
                 )}
               </View>
+
+              {/* Date / time */}
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Text variant="label" muted>
+                  {t('form.date')}
+                </Text>
+                <Row gap={space.sm}>
+                  <DateField value={occurredAt} onChange={changeDate} />
+                  <DateField value={occurredAt} onChange={changeDate} mode="time" />
+                </Row>
+              </Row>
+
+              {/* Who added it and who changed it last (saved expenses) */}
+              {existing ? (
+                <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: c.primary + '22', paddingTop: space.md }}>
+                  {auditLine(t('form.createdBy'), nameOf(existing.created_by), existing.created_at)}
+                  {existing.version > 1 || existing.updated_at !== existing.created_at
+                    ? auditLine(t('form.editedBy'), nameOf(existing.updated_by), existing.updated_at)
+                    : null}
+                </View>
+              ) : null}
             </FadeIn>
           ) : null}
         </View>

@@ -5,6 +5,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { RatesSnapshot } from '@/types/db';
 
 type Lang = 'en' | 'he';
+/** A Home card's figures: the whole trip, or just your share of it. */
+export type HomeView = 'trip' | 'mine';
 
 type PrefsState = {
   lang: Lang | null; // null = follow the device
@@ -25,6 +27,9 @@ type PrefsState = {
   homeOrder: string[] | null;
   /** The order changed on this device and has not reached the account yet (sent again on the next sync). */
   homeOrderDirty: boolean;
+  /** What each Home card shows (card key → 'trip' or 'mine'), on this device. */
+  homeViews: Record<string, HomeView>;
+  setHomeView: (card: string, view: HomeView) => void;
   /** Card order on other screens that can be rearranged (Statistics, Budget), on this device. */
   screenOrders: Record<string, string[]>;
   /** Expenses tab: a day's expenses in the order set by hand, per trip (trip id → day → expense ids). This device only. */
@@ -61,6 +66,8 @@ export const usePrefs = create<PrefsState>()(
       homeOrder: null,
       homeOrderDirty: false,
       screenOrders: {},
+      homeViews: {},
+      setHomeView: (card, view) => set((s) => ({ homeViews: { ...s.homeViews, [card]: view } })),
       feedbackPrompted: [],
       expenseOrder: {},
       setExpenseOrder: (tripId, day, ids) =>
@@ -104,6 +111,7 @@ export const usePrefs = create<PrefsState>()(
         ...current,
         ...(persisted as Partial<PrefsState>),
         screenOrders: (persisted as Partial<PrefsState>)?.screenOrders ?? {},
+        homeViews: (persisted as Partial<PrefsState>)?.homeViews ?? {},
         expenseOrder: (persisted as Partial<PrefsState>)?.expenseOrder ?? {},
         lastPayment: (persisted as Partial<PrefsState>)?.lastPayment ?? {},
         lastPaymentAny: (persisted as Partial<PrefsState>)?.lastPaymentAny ?? null,

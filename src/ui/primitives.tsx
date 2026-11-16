@@ -186,11 +186,14 @@ export function Card({ children, style, onPress }: { children: ReactNode; style?
   );
 }
 
-export function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+export function SectionHeader({ title, action, onAction, end }: { title: string; action?: string; onAction?: () => void; end?: ReactNode }) {
   const c = useColors();
   return (
     <Row style={{ justifyContent: 'space-between' }}>
-      <Text variant="h2">{title}</Text>
+      <Text variant="h2" style={{ flexShrink: 1 }} numberOfLines={1}>
+        {title}
+      </Text>
+      {end ?? null}
       {action ? (
         <Pressable onPress={onAction} hitSlop={10}>
           <Text variant="label" color={c.primary}>

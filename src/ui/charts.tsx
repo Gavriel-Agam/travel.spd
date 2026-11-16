@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 // Small, dependency-free charts on react-native-svg. Every chart is tappable:
 // selecting a slice or bar reports its key so the screen can show details.
 // Time axes always run left to right, also in Hebrew.
@@ -258,6 +259,7 @@ export function LegendRow({
   pct,
   selected,
   onPress,
+  expanded,
 }: {
   color: string;
   label: string;
@@ -267,11 +269,15 @@ export function LegendRow({
   pct?: number;
   selected?: boolean;
   onPress?: () => void;
+  /** Set: the row opens a list under it; an arrow at its end shows open or closed. */
+  expanded?: boolean;
 }) {
   const c = useColors();
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={expanded != null ? { expanded } : undefined}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -293,6 +299,7 @@ export function LegendRow({
         </Text>
       ) : null}
       <Text variant="mono">{value}</Text>
+      {expanded != null ? <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={c.textFaint} /> : null}
     </Pressable>
   );
 }

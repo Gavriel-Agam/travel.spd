@@ -41,7 +41,7 @@ export type OverrideItem = Base & { kind: 'override'; categoryId: string; reset:
 /** A budget amount; null removes it. */
 export type BudgetItem = Base & { kind: 'budget'; scope: Budget['scope']; categoryId: string | null; memberId: string | null; amount: number | null };
 /** Your own name or colour in the trip. */
-export type MemberItem = Base & { kind: 'member'; memberId: string; patch: Partial<Pick<Member, 'display_name' | 'color'>> };
+export type MemberItem = Base & { kind: 'member'; memberId: string; patch: Partial<Pick<Member, 'display_name' | 'color' | 'card_fx_fee_pct'>> };
 
 export type ChangeItem = TripItem | CategoryItem | OverrideItem | BudgetItem | MemberItem;
 export type OutboxItem = CreateItem | UpdateItem | DeleteItem | ChangeItem;

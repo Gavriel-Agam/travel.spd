@@ -38,6 +38,8 @@ export type Member = {
   removed_at?: string | null;
   /** Profile photo in the member-photos bucket (0016); null shows the initial. */
   photo_path?: string | null;
+  /** Card foreign-transaction fee (%) of this person's card (0021); null = none set. */
+  card_fx_fee_pct?: number | string | null;
 };
 
 export type Category = {

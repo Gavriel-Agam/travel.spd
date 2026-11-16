@@ -45,7 +45,7 @@ import { Sheet } from './Sheet';
 import { confirmDialog, showDialog } from './Dialog';
 import { DateField } from './DateField';
 import { Button, Chip, ClearButton, Field, IconButton, Row, Segmented, Text, Toggle, tap, useAmountTyping } from './primitives';
-import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, meetsVatMinimum, vatRule, withFee } from '@/lib/taxFree';
+import { cardFeeFor, memberFeePct, countriesForCurrency, countryForCurrency, estimateRefund, meetsVatMinimum, vatRule, withFee } from '@/lib/taxFree';
 import { countryFlag, countryName } from '@/lib/countries';
 import { CountryPicker } from './CountryPicker';
 import { FadeIn } from './FadeIn';
@@ -167,12 +167,13 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
 
   const amountMinor = parseAmount(amountText, currency);
   const plainHomeMinor = amountMinor != null && effectiveRate ? convertToHomeMinor(amountMinor, currency, effectiveRate) : null;
-  // Card fee on foreign-currency card payments (trip setting). An edited expense
+  // Card fee on foreign-currency card payments: the payer's own card setting
+  // (joint money: yours). An edited expense
   // keeps the fee it was saved with while its currency and payment stay the same.
   const feePct =
     existing && existing.currency === currency && existing.payment_method === paymentMethod
       ? Number(existing.fx_fee_pct ?? 0)
-      : cardFeeFor(paymentMethod, currency, HOME_CURRENCY, trip?.card_fx_fee_pct);
+      : cardFeeFor(paymentMethod, currency, HOME_CURRENCY, memberFeePct(payerId ? memberById.get(payerId) : me, trip));
   const homeMinor = plainHomeMinor != null ? withFee(plainHomeMinor, feePct) : null;
   const cur = getCurrency(currency);
 

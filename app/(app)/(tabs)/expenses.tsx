@@ -6,6 +6,7 @@ import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useDragScroll } from '@/hooks/useCardOrder';
 import { dayHeadingKey, dropAcrossDays, orderDay } from '@/lib/expenseOrder';
 import { usePrefs } from '@/store/prefs';
+import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -29,6 +30,7 @@ export default function Expenses() {
   // Hold an expense and drag it to another place in its day or onto another day.
   // The order within a day is kept on this device; a new day changes the date.
   const drag = useDragScroll();
+  useScrollTopOnTabTap('expenses', drag.scrollRef);
   const savedOrder = usePrefs((s) => s.expenseOrder[trip?.id ?? '']);
   const setExpenseOrder = usePrefs((s) => s.setExpenseOrder);
 

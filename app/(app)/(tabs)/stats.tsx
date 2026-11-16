@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
 import { useTripData } from '@/hooks/useTripData';
+import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useT } from '@/i18n';
 import { byPaymentMethod, dailySeries, sizeDistribution } from '@/lib/budget';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
@@ -15,6 +16,7 @@ import { CategoryIcon } from '@/ui/CategoryIcon';
 import { CurrencySheet } from '@/ui/CurrencySheet';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
+import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { DateField } from '@/ui/DateField';
 import { Avatar, Card, EmptyState, ErrorView, IconButton, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Segmented, Text } from '@/ui/primitives';
 
@@ -38,6 +40,9 @@ export default function Stats() {
   const data = useTripData();
   const { trip, stats, expenses, categoryById, memberById, balances, isLoading } = data;
   const [selCategory, setSelCategory] = useState<string | null>(null);
+  // Category rows opened to show their expenses
+  const [openCats, setOpenCats] = useState<string[]>([]);
+  const actions = useExpenseActions(trip?.id ?? '');
   const [selPayment, setSelPayment] = useState<string | null>(null);
   const [selDay, setSelDay] = useState<string | null>(null);
   const [pieRange, setPieRange] = useState<PieRange>('all');
@@ -49,6 +54,7 @@ export default function Stats() {
   // The currency breakdown: null = closed, '' = open with nothing expanded, a code = that currency opened
   const [currencyOpen, setCurrencyOpen] = useState<string | null>(null);
   const drag = useDragScroll();
+  useScrollTopOnTabTap('stats', drag.scrollRef);
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
   const ilsShort = (m: number) => formatMoney(m, HOME_CURRENCY, { lang, compact: true });
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
@@ -107,6 +113,16 @@ export default function Stats() {
     setSelCategory(null);
   };
 
+  // A category's expenses in the pie's range, newest first (opened under its row)
+  const inPie = (key: string) =>
+    expenses
+      .filter((e) => {
+        if (e.kind !== 'expense' || (e.category_id ?? 'none') !== key) return false;
+        if (!span) return true;
+        const d = dayKey(e.occurred_at, trip.timezone);
+        return d >= span.from && d <= span.to;
+      })
+      .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
   const slices = pie.rows.map((row) => {
     const cat = row.categoryId ? categoryById.get(row.categoryId) : undefined;
     return { key: row.categoryId ?? 'none', value: row.total, color: cat?.color ?? UNCATEGORIZED.color, row, cat };
@@ -220,18 +236,48 @@ export default function Stats() {
               }
             />
             <View>
-              {slices.map((s) => (
-                <LegendRow
-                  key={s.key}
-                  color={s.color}
-                  icon={<CategoryIcon category={s.cat} size={15} />}
-                  label={categoryLabel(s.cat, t)}
-                  value={ils(s.value)}
-                  pct={s.row.pct}
-                  selected={selCategory === s.key}
-                  onPress={() => setSelCategory(selCategory === s.key ? null : s.key)}
-                />
-              ))}
+              {slices.map((s) => {
+                const open = openCats.includes(s.key);
+                return (
+                  <View key={s.key}>
+                    {/* Tap a category (or its arrow, at the row's end): its expenses open under it */}
+                    <LegendRow
+                      color={s.color}
+                      icon={<CategoryIcon category={s.cat} size={15} />}
+                      label={categoryLabel(s.cat, t)}
+                      value={ils(s.value)}
+                      pct={s.row.pct}
+                      selected={selCategory === s.key}
+                      expanded={open}
+                      onPress={() => {
+                        setOpenCats((list) => (open ? list.filter((k) => k !== s.key) : [...list, s.key]));
+                        setSelCategory(open ? null : s.key);
+                      }}
+                    />
+                    {open ? (
+                      <View style={{ marginStart: 30, marginBottom: space.sm, borderStartWidth: 2, borderStartColor: s.color + '55', paddingStart: space.sm }}>
+                        {inPie(s.key).map((e) => (
+                          <Pressable
+                            key={e.id}
+                            accessibilityRole="button"
+                            onPress={() => actions.open(e)}
+                            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8, backgroundColor: pressed ? c.cardAlt : 'transparent' })}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text numberOfLines={1}>{e.description || categoryLabel(s.cat, t)}</Text>
+                              <Text variant="caption" muted>
+                                {fmtDay(dayKey(e.occurred_at, trip.timezone), { weekday: 'short', day: 'numeric', month: 'short' })}
+                                {e.currency !== HOME_CURRENCY ? ` · ${formatMoney(e.amount_minor, e.currency, { lang })}` : ''}
+                              </Text>
+                            </View>
+                            <Text variant="mono">{ils(e.amount_ils_minor)}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
             </View>
               </>
             )}

@@ -11,10 +11,10 @@ import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { tripRefundTotal } from '@/lib/taxFree';
-import { personalTotal } from '@/lib/settlement';
+import { myShareExpenses, personalTotal } from '@/lib/settlement';
 import { homeLayoutValue, mergeVisibleOrder, resolveHomeLayout, type HomeSection } from '@/lib/homeLayout';
 import { formatMoney, percent } from '@/lib/money';
-import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
+import { computeTripStats, daysInclusive, dayKey, lastNDays, type TripStats } from '@/lib/stats';
 import { readableOn } from '@/lib/contrast';
 import { alertColor, radius, space, useColors } from '@/theme';
 import { BudgetAlertBanner } from '@/ui/BudgetAlert';
@@ -24,12 +24,15 @@ import { SwipeRow } from '@/ui/SwipeRow';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
 import { InfoTip } from '@/ui/InfoTip';
+import { HomeMenu } from '@/ui/HomeMenu';
+import { ViewSelect } from '@/ui/ViewSelect';
 import { scheduleLaunchSnapshot } from '@/lib/launchSnapshot';
 import { sessionStorageKey } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTripLook } from '@/store/tripLook';
 import { useFeedback } from '@/store/feedback';
-import { useIsDemo, usePrefs } from '@/store/prefs';
+import { useIsDemo, usePrefs, type HomeView } from '@/store/prefs';
+import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { FeedbackBanner, FeedbackBell } from '@/ui/Feedback';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
@@ -76,6 +79,7 @@ export default function Home() {
     scroll.current.max = Math.max(0, scroll.current.contentH - scroll.current.viewH);
   };
   const [draggingCard, setDraggingCard] = useState(false);
+  useScrollTopOnTabTap('index', scrollRef);
   const [avgOpen, setAvgOpen] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const actions = useExpenseActions(trip?.id ?? '');
@@ -114,11 +118,32 @@ export default function Home() {
     if (feedbackOpen) scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, [feedbackOpen]);
 
-  const trend = useMemo(() => {
-    if (!trip || !stats) return [];
-    const map = new Map(stats.byDay.map((d) => [d.day, d.total]));
-    return lastNDays(7, new Date(), trip.timezone).map((day) => ({ day, total: map.get(day) ?? 0 }));
-  }, [trip, stats]);
+  // "My share" figures: each expense counted as the part split to you (your
+  // personal ones in full, your share of shared ones). Only with partners.
+  const myExpenses = useMemo(
+    () => (me && members.length > 1 ? myShareExpenses(expenses.map((e) => ({ ...e, splits: e.expense_splits })), me.id) : null),
+    [expenses, me, members.length],
+  );
+  const myStats = useMemo(
+    () =>
+      trip && myExpenses
+        ? computeTripStats({
+            expenses: myExpenses,
+            timeZone: trip.timezone,
+            now: new Date(),
+            startDate: trip.start_date,
+            endDate: trip.end_date,
+            totalBudget: null,
+            dailyBudget: null,
+          })
+        : null,
+    [trip, myExpenses],
+  );
+  // What each card shows (its pill), remembered on this device
+  const homeViews = usePrefs((s) => s.homeViews);
+  const setHomeView = usePrefs((s) => s.setHomeView);
+  const viewOf = (card: string): HomeView => (myStats && homeViews[card] === 'mine' ? 'mine' : 'trip');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!trip) return null;
   if (data.offlineEmpty) return <OfflineNoData onRetry={data.refetch} />;
@@ -133,7 +158,15 @@ export default function Home() {
 
   const today = dayKey(new Date(), trip.timezone);
   const dayN = trip.start_date && trip.start_date <= today ? daysInclusive(trip.start_date, today) : null;
+  const statsOf = (card: string): TripStats => (viewOf(card) === 'mine' && myStats ? myStats : stats);
+  const picker = (card: string, title: string, opts: { color?: string; compact?: boolean } = {}) =>
+    myStats ? <ViewSelect value={viewOf(card)} onChange={(v) => setHomeView(card, v)} title={title} {...opts} /> : null;
+  const trendMap = new Map(statsOf('trend').byDay.map((d) => [d.day, d.total]));
+  const trend = lastNDays(7, new Date(), trip.timezone).map((day) => ({ day, total: trendMap.get(day) ?? 0 }));
   const maxTrend = Math.max(1, ...trend.map((d) => d.total));
+  const heroMine = viewOf('hero') === 'mine' && myStats ? myStats : null;
+  const todayStats = statsOf('today');
+  const avgStats = statsOf('avg');
   const jointPaid = expenses.reduce((t, e) => (e.kind === 'expense' && e.paid_by_member_id === null ? t + e.amount_ils_minor : t), 0);
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const notStarted = !!trip.start_date && today < trip.start_date;
@@ -176,13 +209,21 @@ export default function Home() {
           <Rect width="100%" height="100%" fill="url(#heroGlow)" />
         </Svg>
         <View style={{ gap: space.md, zIndex: 1 }}>
-          <Text variant="label" color={onHero}>
-            {t('home.spent')}
-          </Text>
+          {/* The card's pill sits at its end (top left in Hebrew): whole trip or your share */}
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Text variant="label" color={onHero} style={{ flexShrink: 1 }}>
+              {heroMine ? t('home.view.mineTitle') : t('home.spent')}
+            </Text>
+            {picker('hero', t('home.sections.hero'), { color: onHero })}
+          </Row>
           <Text variant="hero" color={onHero}>
-            {ils(stats.total)}
+            {ils(heroMine ? heroMine.total : stats.total)}
           </Text>
-          {stats.budget ? (
+          {heroMine ? (
+            <Text variant="label" color={onHero}>
+              {t('home.view.ofTrip', { pct: percent(heroMine.total, stats.total), amount: ils(stats.total) })}
+            </Text>
+          ) : stats.budget ? (
             <>
               <ProgressBar value={stats.pctUsed} color={onHero} track={onHero + '40'} height={10} />
               <Row style={{ justifyContent: 'space-between' }}>
@@ -226,7 +267,7 @@ export default function Home() {
               ) : null}
             </Row>
           ) : null}
-          {!stats.budget ? (
+          {!stats.budget && !heroMine ? (
             <Text variant="label" color={onHero}>
               {t('home.noBudget')}
             </Text>
@@ -238,13 +279,16 @@ export default function Home() {
     today: (
       <Row gap={space.md} align="stretch">
         <Card style={{ flex: 1, gap: 6 }}>
-          <Text variant="label" muted>
-            {t('home.today')}
-          </Text>
+          <Row style={{ justifyContent: 'space-between' }} gap={4}>
+            <Text variant="label" muted numberOfLines={1} style={{ flexShrink: 1 }}>
+              {t('home.today')}
+            </Text>
+            {picker('today', t('home.today'), { compact: true })}
+          </Row>
           <Text variant="h2" style={{ fontSize: 20 }}>
-            {ils(stats.today)}
+            {ils(todayStats.today)}
           </Text>
-          {stats.dailyBudget ? (
+          {stats.dailyBudget && viewOf('today') === 'trip' ? (
             <>
               <ProgressBar value={stats.todayPct} color={alertColor(c, stats.todayPct)} height={6} />
               <Text variant="caption" muted>
@@ -280,22 +324,22 @@ export default function Home() {
               {/* The label, then ⓘ at its end: how the figure is worked out */}
               <View pointerEvents="box-none" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 }}>
                 <View pointerEvents="none" style={{ flexShrink: 1 }}>
-                  <Text variant="label" muted numberOfLines={1}>
+                  <Text variant="label" muted numberOfLines={2}>
                     {t('home.dailyAvg')}
                   </Text>
                 </View>
                 <InfoTip label={t('home.avgInfo')}>
                   <Text variant="label">
-                    {stats.daysElapsed ? t('home.avgMath', { amount: ils(stats.averagedTotal), count: stats.daysElapsed }) : t('home.avgNotStarted')}
+                    {avgStats.daysElapsed ? t('home.avgMath', { amount: ils(avgStats.averagedTotal), count: avgStats.daysElapsed }) : t('home.avgNotStarted')}
                   </Text>
-                  {stats.preTrip > 0 ? (
+                  {avgStats.preTrip > 0 ? (
                     <Text variant="caption" muted>
-                      {t('home.avgExcludesPre', { amount: ils(stats.preTrip) })}
+                      {t('home.avgExcludesPre', { amount: ils(avgStats.preTrip) })}
                     </Text>
                   ) : null}
-                  {stats.projected != null ? (
+                  {avgStats.projected != null ? (
                     <Text variant="caption" muted>
-                      {t('home.projected')}: {ils(stats.projected)}
+                      {t('home.projected')}: {ils(avgStats.projected)}
                     </Text>
                   ) : null}
                   <Text variant="caption" faint style={{ marginTop: 4 }}>
@@ -303,14 +347,19 @@ export default function Home() {
                   </Text>
                 </InfoTip>
               </View>
-              <View pointerEvents="none">
-                <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} />
-              </View>
+              {myStats ? (
+                picker('avg', t('home.dailyAvg'), { compact: true })
+              ) : (
+                <View pointerEvents="none">
+                  <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} />
+                </View>
+              )}
             </View>
-            <View pointerEvents="none">
+            <View pointerEvents="none" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
               <Text variant="h2" style={{ fontSize: 20 }}>
-                {ils(stats.dailyAverage)}
+                {ils(avgStats.dailyAverage)}
               </Text>
+              {myStats ? <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={c.textFaint} /> : null}
             </View>
           </View>
         </View>
@@ -409,7 +458,7 @@ export default function Home() {
       ) : null,
     trend: hasData ? (
       <Card>
-        <SectionHeader title={t('home.trend')} />
+        <SectionHeader title={t('home.trend')} end={picker('trend', t('home.trend'))} />
         <Row align="flex-end" gap={8} style={{ height: 120 }}>
           {trend.map((d) => {
             const isToday = d.day === today;
@@ -436,8 +485,8 @@ export default function Home() {
     ) : null,
     categories: hasData ? (
       <Card>
-        <SectionHeader title={t('home.byCategory')} />
-        {stats.byCategory.slice(0, 5).map((row) => {
+        <SectionHeader title={t('home.byCategory')} end={picker('categories', t('home.byCategory'))} />
+        {statsOf('categories').byCategory.slice(0, 5).map((row) => {
           const cat = row.categoryId ? categoryById.get(row.categoryId) : undefined;
           const color = cat?.color ?? UNCATEGORIZED.color;
           return (
@@ -530,16 +579,9 @@ export default function Home() {
             <Ionicons name="person-add-outline" size={20} color={c.primary} />
           </Pressable>
         ) : null}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setArranging(true)}
-          hitSlop={8}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 }}
-        >
-          <Ionicons name="swap-vertical" size={18} color={c.primary} />
-          <Text variant="label" color={c.primary}>
-            {t('home.arrange')}
-          </Text>
+        {/* Gear: Arrange, and what is coming (export, share, filter, light/dark) */}
+        <Pressable accessibilityRole="button" accessibilityLabel={t('home.menu.title')} onPress={() => setMenuOpen(true)} hitSlop={8} style={{ padding: 6 }}>
+          <Ionicons name="settings-outline" size={21} color={c.primary} />
         </Pressable>
         {/* Last in the row: top left in Hebrew */}
         {canFeedback ? <FeedbackBell /> : null}
@@ -597,6 +639,15 @@ export default function Home() {
         </Pressable>
       ) : null}
 
+      <HomeMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onArrange={() => {
+          setMenuOpen(false);
+          // One sheet at a time: Arrange opens once the menu has slid away
+          setTimeout(() => setArranging(true), 300);
+        }}
+      />
       <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false} dragContent={false}>
         <View style={{ padding: space.lg, gap: space.md }}>
           <Text variant="caption" muted center>
@@ -643,8 +694,8 @@ export default function Home() {
         <DailyAverageSheet
           visible={avgOpen}
           onClose={() => setAvgOpen(false)}
-          stats={stats}
-          expenses={expenses}
+          stats={avgStats}
+          expenses={viewOf('avg') === 'mine' && myExpenses ? myExpenses : expenses}
           categoryById={categoryById}
           timeZone={trip.timezone}
         />

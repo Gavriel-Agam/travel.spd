@@ -85,3 +85,21 @@ export function personalTotal(
 export function isPrivateExpense(e: { kind: string; split_type?: string; paid_by_member_id: string | null; splits: { member_id: string }[] }): boolean {
   return e.kind === 'expense' && e.split_type === 'personal' && e.paid_by_member_id != null && e.splits.every((s) => s.member_id === e.paid_by_member_id);
 }
+
+/**
+ * Your part of each expense: its amount becomes the share split to you (your
+ * personal expenses in full, your share of shared ones). Expenses with no share
+ * of yours are left out; settlements are not spending and are dropped too.
+ */
+export function myShareExpenses<T extends { kind: string; amount_ils_minor: number; splits: { member_id: string; share_ils_minor: number }[] }>(
+  expenses: readonly T[],
+  memberId: string,
+): T[] {
+  const out: T[] = [];
+  for (const e of expenses) {
+    if (e.kind !== 'expense') continue;
+    const mine = e.splits.reduce((t, s) => (s.member_id === memberId ? t + s.share_ils_minor : t), 0);
+    if (mine > 0) out.push({ ...e, amount_ils_minor: mine });
+  }
+  return out;
+}

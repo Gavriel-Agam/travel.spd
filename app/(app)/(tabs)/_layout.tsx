@@ -11,6 +11,7 @@ import { useExitDemo } from '@/hooks/useExitDemo';
 import { readableOn } from '@/lib/contrast';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { useIsDemo } from '@/store/prefs';
+import { useTabTap } from '@/store/tabTap';
 import { Text, type IconName } from '@/ui/primitives';
 
 const ICONS: Record<string, [IconName, IconName]> = {
@@ -94,7 +95,10 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
               accessibilityState={{ selected: focused }}
               onPress={() => {
                 const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                if (!focused && !event.defaultPrevented) navigateToTab(route.key);
+                if (event.defaultPrevented) return;
+                // Already here: back to the top of this screen
+                if (focused) useTabTap.getState().tap(route.name);
+                else navigateToTab(route.key);
               }}
               style={{ flex: 1, alignItems: 'center', gap: 2 }}
             >

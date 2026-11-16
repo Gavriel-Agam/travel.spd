@@ -3,8 +3,8 @@ import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Image, Linking, Platform, Pressable, Share, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Image, Linking, Platform, Pressable, Share, View, type ScrollViewInstance } from 'react-native';
 import { inviteLink, whatsappUrl } from '@/lib/inviteLink';
 import * as ImagePicker from 'expo-image-picker';
 import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useTripChanges, useTrips } from '@/api/queries';
@@ -24,6 +24,7 @@ import { blockedInDemo } from '@/lib/demoPrompt';
 import { seedDemo } from '@/lib/demoSeed';
 import i18n from '@/i18n';
 import { useIsDemo, usePrefs } from '@/store/prefs';
+import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
 import { CopyCode } from '@/ui/CopyCode';
@@ -34,7 +35,7 @@ import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Chip, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
 import { CountryPicker } from '@/ui/CountryPicker';
 import { countryFlag, countryName } from '@/lib/countries';
-import { feeFromInput, feeToInput } from '@/lib/taxFree';
+import { feeFromInput, feeToInput, memberFeePct } from '@/lib/taxFree';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
 import type { Trip } from '@/types/db';
@@ -64,6 +65,8 @@ export default function Settings() {
   const signOut = useSignOut();
   const isCreator = !!trip && !trip.shared && !demo && trip.created_by === userId;
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  useScrollTopOnTabTap('settings', scrollRef);
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
   const [hasDates, setHasDates] = useState(false);
@@ -226,7 +229,7 @@ export default function Settings() {
   }
 
   return (
-    <Screen>
+    <Screen ref={scrollRef}>
       <Text variant="title">{t('settings.title')}</Text>
 
       {/* Trips (not in the shared MVP trip: a separate trip would be invisible to the partner) */}
@@ -295,7 +298,7 @@ export default function Settings() {
             setCurrency(trip.default_currency);
             setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
             setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
-            setFeeText(feeToInput(trip.card_fx_fee_pct));
+            setFeeText(feeToInput(memberFeePct(me, trip)));
             setCountries(trip.countries ?? []);
             setFormError(null);
             setEdit('trip');
@@ -585,9 +588,11 @@ export default function Settings() {
                   end_date: e,
                   default_currency: currency,
                   theme_color: themeColor === 'blue' ? null : themeColor,
-                  card_fx_fee_pct: fee,
                   countries,
                 });
+                // The card fee is each person's own (their card), saved on their member row
+                const myFee = memberFeePct(me, trip);
+                if (me && (myFee == null ? null : Number(myFee)) !== fee) changes.updateMyMember(me.id, { card_fx_fee_pct: fee });
               }
               else if (me) changes.updateMyMember(me.id, { display_name: text.trim() });
               setEdit(null);

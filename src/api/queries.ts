@@ -298,7 +298,7 @@ export function useTripChanges(tripId: string) {
       setBudget: (scope: Budget['scope'], amount: number | null, categoryId: string | null = null, memberId: string | null = null) =>
         queue({ ...base(), kind: 'budget', clientId: budgetChangeKey(tripId, scope, categoryId, memberId), scope, categoryId, memberId, amount }),
       /** Your own name or colour in the trip. */
-      updateMyMember: (memberId: string, patch: { display_name?: string; color?: string }) =>
+      updateMyMember: (memberId: string, patch: { display_name?: string; color?: string; card_fx_fee_pct?: number | null }) =>
         queue({ ...base(), kind: 'member', clientId: memberChangeKey(memberId), memberId, patch }),
     };
   }, [tripId]);

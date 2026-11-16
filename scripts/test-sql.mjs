@@ -92,6 +92,14 @@ await rejects(as(B, `update trip_members set role = 'owner' where user_id = $1`,
 await as(B, `update trip_members set display_name = 'B2' where user_id = $1`, [B]);
 ok('members can rename themselves but not change role');
 
+// 0021: each person sets their own card fee; nobody can set someone else's
+await as(B, `update trip_members set card_fx_fee_pct = 1.5 where user_id = $1`, [B]);
+await as(A, `update trip_members set card_fx_fee_pct = 9 where id = $1`, [mB]);
+const [{ card_fx_fee_pct: feeB }] = await as(A, 'select card_fx_fee_pct from trip_members where id = $1', [mB]);
+if (Number(feeB) !== 1.5) throw new Error(`member fee: expected 1.5, got ${feeB}`);
+await rejects(as(B, `update trip_members set card_fx_fee_pct = 11 where user_id = $1`, [B]), /check/);
+ok('each member sets only their own card fee (0-10%)');
+
 const [{ id: catStreet }] = await db.query(`select id from expense_categories where key = 'street_food'`).then((r) => r.rows);
 
 function expense(extra) {

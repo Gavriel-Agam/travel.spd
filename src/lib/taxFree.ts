@@ -184,6 +184,18 @@ export function cardFeeFor(paymentMethod: string | null | undefined, currency: s
   return paymentMethod === 'card' && currency !== homeCurrency && pct > 0 ? pct : 0;
 }
 
+/**
+ * A member's card fee (%): each person sets their own (0021). Data cached by an
+ * app version from before that has no member value yet: the trip's old setting.
+ */
+export function memberFeePct(
+  member: { card_fx_fee_pct?: number | string | null } | null | undefined,
+  trip: { card_fx_fee_pct?: number | string | null } | null | undefined,
+): number | string | null {
+  if (member && member.card_fx_fee_pct !== undefined) return member.card_fx_fee_pct;
+  return trip?.card_fx_fee_pct ?? null;
+}
+
 /** A home amount with the fee added (rounded like the server). */
 export function withFee(homeMinor: number, feePct: number): number {
   return feePct > 0 ? Math.round((homeMinor * (100 + feePct)) / 100) : homeMinor;

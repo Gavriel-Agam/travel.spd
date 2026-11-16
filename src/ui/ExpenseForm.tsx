@@ -44,7 +44,9 @@ import { ReorderChips } from './ReorderChips';
 import { Sheet } from './Sheet';
 import { confirmDialog } from './Dialog';
 import { DateField } from './DateField';
-import { Button, Chip, ClearButton, Field, IconButton, Row, Segmented, Text, tap, useAmountTyping } from './primitives';
+import { Button, Chip, ClearButton, Field, IconButton, Row, Segmented, Text, Toggle, tap, useAmountTyping } from './primitives';
+import { cardFeeFor, countriesForCurrency, countryForCurrency, estimateRefund, withFee } from '@/lib/taxFree';
+import { countryName } from '@/lib/countries';
 import { FadeIn } from './FadeIn';
 import { UploadZone } from './UploadZone';
 
@@ -75,6 +77,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   const [amountText, setAmountText] = useState(existing ? groupThousands(minorToInput(existing.amount_minor, existing.currency)) : '');
   const [amountFocused, setAmountFocused] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
+  const [taxFree, setTaxFree] = useState(existing?.tax_free ?? false);
+  const [vatCountry, setVatCountry] = useState<string | null>(existing?.vat_country ?? null);
   const [description, setDescription] = useState(existing?.description ?? '');
   // null = joint money (the default): no payer, so it never creates a debt
   const [payerId, setPayerId] = useState<string | null>(existing ? existing.paid_by_member_id : null);
@@ -155,8 +159,26 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           : autoRate;
 
   const amountMinor = parseAmount(amountText, currency);
-  const homeMinor = amountMinor != null && effectiveRate ? convertToHomeMinor(amountMinor, currency, effectiveRate) : null;
+  const plainHomeMinor = amountMinor != null && effectiveRate ? convertToHomeMinor(amountMinor, currency, effectiveRate) : null;
+  // Card fee on foreign-currency card payments (trip setting). An edited expense
+  // keeps the fee it was saved with while its currency and payment stay the same.
+  const feePct =
+    existing && existing.currency === currency && existing.payment_method === paymentMethod
+      ? Number(existing.fx_fee_pct ?? 0)
+      : cardFeeFor(paymentMethod, currency, HOME_CURRENCY, trip?.card_fx_fee_pct);
+  const homeMinor = plainHomeMinor != null ? withFee(plainHomeMinor, feePct) : null;
   const cur = getCurrency(currency);
+
+  // Tax free: which country's rules, and the most it can get back
+  const tripCountries = trip?.countries ?? [];
+  const vatCandidates = countriesForCurrency(currency, tripCountries);
+  const purchaseCountry = vatCountry && vatCandidates.includes(vatCountry) ? vatCountry : countryForCurrency(currency, tripCountries);
+  const isShopping = allCategories.find((x) => x.id === categoryId)?.key === 'shopping';
+  const showTaxFree = taxFree || (isShopping && vatCandidates.length > 0);
+  const refund =
+    taxFree && amountMinor != null && homeMinor != null
+      ? estimateRefund({ amountMinor, currency, minorUnits: cur.minor_units, homeMinor, feePct, country: purchaseCountry })
+      : null;
 
   // Changing currency or date means the stored rate no longer applies
   function changeCurrency(code: string) {
@@ -280,6 +302,9 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       occurred_at: occurredAt.toISOString(),
       receipt_path: receipt,
       payment_method: paymentMethod,
+      fx_fee_pct: feePct,
+      tax_free: taxFree,
+      vat_country: taxFree ? purchaseCountry : null,
       split_type: splitType,
       splits: toSplitEntries(effectiveSplit, payerId),
     });
@@ -502,6 +527,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                   ) : null}
                   <Ionicons name="pencil" size={12} color={c.textMuted} />
                 </Row>
+                {feePct > 0 && homeMinor != null && plainHomeMinor != null ? (
+                  <Text variant="caption" muted>
+                    {t('form.cardFeeIncluded', { pct: feePct, amount: formatMoney(homeMinor - plainHomeMinor, HOME_CURRENCY, { lang }) })}
+                  </Text>
+                ) : null}
               </View>
             </Pressable>
           ) : null}
@@ -603,6 +633,41 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
             }}
           />
         </View>
+
+        {/* Tax free: suggested for shopping; estimates the VAT refund */}
+        {showTaxFree ? (
+          <View style={{ gap: 6, backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }}>
+            <Row gap={space.sm}>
+              <Ionicons name="receipt-outline" size={18} color={c.primary} />
+              <View style={{ flex: 1 }}>
+                <Text variant="label" color={c.text}>
+                  {t('taxFree.toggle')}
+                </Text>
+                <Text variant="caption" muted>
+                  {!taxFree
+                    ? t('taxFree.toggleHint')
+                    : !refund
+                      ? t('taxFree.enterAmount')
+                      : refund.status === 'eligible'
+                        ? t('taxFree.upTo', { amount: formatMoney(refund.refundHomeMinor, HOME_CURRENCY, { lang }), vat: refund.rule.vat })
+                        : refund.status === 'belowMin'
+                          ? t(refund.rule.per === 'storeDay' ? 'taxFree.belowMinStore' : 'taxFree.belowMinReceipt', {
+                              min: `${groupThousands(String(refund.rule.min))} ${refund.rule.currency}`,
+                            })
+                          : t('taxFree.noRule')}
+                </Text>
+              </View>
+              <Toggle value={taxFree} onValueChange={setTaxFree} label={t('taxFree.toggle')} />
+            </Row>
+            {taxFree && vatCandidates.length > 1 ? (
+              <Row style={{ flexWrap: 'wrap' }} gap={6}>
+                {vatCandidates.map((code) => (
+                  <Chip key={code} label={countryName(code, lang)} selected={purchaseCountry === code} onPress={() => setVatCountry(code)} />
+                ))}
+              </Row>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* More details: who paid, split, date, notes, receipt. Folded until opened. */}
         <View style={{ gap: space.lg }}>

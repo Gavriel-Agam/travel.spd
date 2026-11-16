@@ -118,6 +118,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 | 2026-11-12 | Only a trip's creator can delete it (for everyone); partners see Delete but are told only the creator can. |
 | 2026-11-12 | Expenses can be reordered by hand within a day only, saved on the device (Gabriel's choice over shared order or moving across days). |
 | 2026-11-12 | "Budget vs actual" removed from Statistics. |
+| 2026-11-16 | Card FX fee: trip setting (0-10%), added to the ₪ amount of card expenses in a foreign currency, kept per expense. Tax free: trip destinations (countries with known rules), a Tax-free switch on the expense (shown for Shopping), estimate "up to" = VAT inside the price, minimum checked per country; Home card "Expected VAT refund". Rules from Global Blue country pages (16 Nov 2026) + Thailand's scheme. |
 | 2026-11-16 | Start-up guard: a version that can't start repairs this device's copy (offline files, saved data; queue and sign-in kept) and reloads; after 2 tries a Try again / Reset screen. Rate line under the amount: ≈ ₪ total, then the rate with a tag only for manual / older date / offline. |
 | 2026-11-16 | Expense form order: currency, amount (underline), title, category, payment, More details; fills the screen. WhatsApp invite: Settings › Send invite on WhatsApp → message with trip name, …/join/CODE link and code; link opened signed out keeps the code through sign-in. |
 | 2026-11-15 | Expense form: currency back above the amount (one line felt cramped); amount full width. |

@@ -4,6 +4,7 @@
 // - new expenses appear, edits replace the saved version, deletes hide it;
 // - a change the server rejected stays visible, marked, so it can be fixed.
 import { convertToHomeMinor } from './money';
+import { withFee } from './taxFree';
 import { isExpenseItem } from './pendingChanges';
 import { sharesFromEntries, type SplitType } from './split';
 import type { SaveExpenseInput } from '@/api/queries';
@@ -12,7 +13,7 @@ import type { CreateItem, OutboxItem, UpdateItem } from '@/store/outbox';
 
 /** The expense as the server will store it, from a queued payload. */
 function fromPayload(p: SaveExpenseInput, id: string, item: CreateItem | UpdateItem, base?: Expense): Expense {
-  const homeMinor = convertToHomeMinor(p.amount_minor, p.currency, p.fx_rate);
+  const homeMinor = withFee(convertToHomeMinor(p.amount_minor, p.currency, p.fx_rate), p.fx_fee_pct ?? 0);
   const shares = sharesFromEntries(p.split_type as SplitType, p.splits, p.paid_by_member_id, homeMinor);
   return {
     id,
@@ -36,6 +37,9 @@ function fromPayload(p: SaveExpenseInput, id: string, item: CreateItem | UpdateI
     occurred_at: p.occurred_at,
     receipt_path: p.receipt_path ?? base?.receipt_path ?? null,
     payment_method: p.payment_method as Expense['payment_method'],
+    fx_fee_pct: p.fx_fee_pct ?? 0,
+    tax_free: p.tax_free ?? false,
+    vat_country: p.vat_country ?? null,
     split_type: p.split_type as SplitType,
     // An edited expense keeps the version it was changed from: a further edit or a delete starts from it too
     version: item.kind === 'update' ? item.expectedVersion : 0,

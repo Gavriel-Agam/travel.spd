@@ -122,6 +122,9 @@ export function inputFromExpense(e: Expense): SaveExpenseInput {
     occurred_at: e.occurred_at,
     receipt_path: e.receipt_path,
     payment_method: e.payment_method,
+    fx_fee_pct: Number(e.fx_fee_pct ?? 0),
+    tax_free: e.tax_free ?? false,
+    vat_country: e.vat_country ?? null,
     split_type: e.split_type,
     splits: splitEntriesOf(e),
   };

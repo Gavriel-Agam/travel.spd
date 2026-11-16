@@ -7,10 +7,11 @@ import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
-import { HOME_CURRENCY } from '@/lib/currencies';
+import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, invertRate, trimRate } from '@/lib/money';
 import { paymentLabel } from '@/lib/payments';
 import { rateSourceName } from '@/lib/rateLabels';
+import { estimateRefund } from '@/lib/taxFree';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { radius, space, useColors } from '@/theme';
 import { CategoryIcon } from '@/ui/CategoryIcon';
@@ -134,6 +135,24 @@ export default function ExpenseDetails() {
               <Line label={t('details.rateDate')} value={e.fx_rate_date} />
             </>
           ) : null}
+          {Number(e.fx_fee_pct ?? 0) > 0 ? (
+            <>
+              <Divider />
+              <Line label={t('details.cardFee', { pct: Number(e.fx_fee_pct) })} value={formatMoney(e.amount_ils_minor - Math.round(e.amount_ils_minor / (1 + Number(e.fx_fee_pct) / 100)), HOME_CURRENCY, { lang, forceDecimals: true })} />
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {e.tax_free ? (
+        <Card>
+          <Line
+            label={t('taxFree.toggle')}
+            value={(() => {
+              const est = estimateRefund({ amountMinor: e.amount_minor, currency: e.currency, minorUnits: getCurrency(e.currency).minor_units, homeMinor: e.amount_ils_minor, feePct: Number(e.fx_fee_pct ?? 0), country: e.vat_country });
+              return est.status === 'eligible' ? t('taxFree.cardUpTo', { amount: formatMoney(est.refundHomeMinor, HOME_CURRENCY, { lang }) }) : est.status === 'belowMin' ? t('taxFree.belowMinShort') : t('taxFree.noRule');
+            })()}
+          />
         </Card>
       ) : null}
 

@@ -31,7 +31,9 @@ import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
-import { Avatar, Button, Card, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
+import { Avatar, Button, Card, Chip, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
+import { VAT_RULES } from '@/lib/taxFree';
+import { countryFlag, countryName } from '@/lib/countries';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
 import type { Trip } from '@/types/db';
@@ -70,6 +72,9 @@ export default function Settings() {
   const [themeColor, setThemeColor] = useState<TripTheme>('blue');
   // Total trip budget in shekels, as typed; empty = no budget
   const [budgetText, setBudgetText] = useState('');
+  // Card foreign-transaction fee (%) as typed, and the trip's destinations (VAT refund rules)
+  const [feeText, setFeeText] = useState('');
+  const [countries, setCountries] = useState<string[]>([]);
   const [coverBusy, setCoverBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   // A picked profile photo waiting to be cropped (browser)
@@ -288,6 +293,8 @@ export default function Settings() {
             setCurrency(trip.default_currency);
             setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
             setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
+            setFeeText(trip.card_fx_fee_pct != null && Number(trip.card_fx_fee_pct) > 0 ? String(Number(trip.card_fx_fee_pct)) : '');
+            setCountries(trip.countries ?? []);
             setFormError(null);
             setEdit('trip');
           }}
@@ -419,6 +426,32 @@ export default function Settings() {
                 placeholder={t('settings.tripBudgetPlaceholder')}
                 hint={t('settings.tripBudgetHint')}
               />
+              <Field
+                label={t('taxFree.feeLabel')}
+                value={feeText}
+                onChangeText={(v) => setFeeText(v.replace(',', '.').replace(/[^\d.]/g, '').slice(0, 5))}
+                keyboardType="decimal-pad"
+                placeholder="2.5"
+                hint={t('taxFree.feeHint')}
+              />
+              <View style={{ gap: space.sm }}>
+                <Text variant="label" muted>
+                  {t('taxFree.countries')}
+                </Text>
+                <Row style={{ flexWrap: 'wrap' }} gap={6}>
+                  {VAT_RULES.map((rule) => (
+                    <Chip
+                      key={rule.country}
+                      label={`${countryFlag(rule.country)} ${countryName(rule.country, lang)}`}
+                      selected={countries.includes(rule.country)}
+                      onPress={() => setCountries((list) => (list.includes(rule.country) ? list.filter((x) => x !== rule.country) : [...list, rule.country]))}
+                    />
+                  ))}
+                </Row>
+                <Text variant="caption" muted>
+                  {t('taxFree.countriesHint')}
+                </Text>
+              </View>
               <Pressable
                 onPress={() => setPickCurrency(true)}
                 style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md }}
@@ -531,12 +564,16 @@ export default function Settings() {
                 const budget = budgetText.trim() ? parseAmount(budgetText, HOME_CURRENCY) : null;
                 if (budgetText.trim() && (budget == null || budget <= 0)) return setFormError(t('errors.invalid_amount'));
                 if (budget !== totalBudget) changes.setBudget('total', budget);
+                const fee = feeText.trim() ? Number(feeText) : null;
+                if (fee != null && (!Number.isFinite(fee) || fee < 0 || fee > 10)) return setFormError(t('errors.invalid_fee'));
                 changes.updateTrip({
                   name: text.trim(),
                   start_date: s,
                   end_date: e,
                   default_currency: currency,
                   theme_color: themeColor === 'blue' ? null : themeColor,
+                  card_fx_fee_pct: fee,
+                  countries,
                 });
               }
               else if (me) changes.updateMyMember(me.id, { display_name: text.trim() });

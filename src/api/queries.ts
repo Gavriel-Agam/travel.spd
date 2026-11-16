@@ -346,6 +346,10 @@ export type SaveExpenseInput = {
   payment_method: string | null;
   split_type: string;
   splits: { member_id: string; value?: number }[];
+  /** Card foreign-transaction fee included in the home amount (0019) */
+  fx_fee_pct?: number;
+  tax_free?: boolean;
+  vat_country?: string | null;
 };
 
 export function useSaveExpense(tripId: string) {

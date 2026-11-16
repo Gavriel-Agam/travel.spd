@@ -9,7 +9,8 @@ import { claimFeedbackPrompt, useHomeLayout, useInviteCode } from '@/api/queries
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
-import { HOME_CURRENCY } from '@/lib/currencies';
+import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
+import { tripRefundTotal } from '@/lib/taxFree';
 import { homeLayoutValue, mergeVisibleOrder, resolveHomeLayout, type HomeSection } from '@/lib/homeLayout';
 import { formatMoney, percent } from '@/lib/money';
 import { daysInclusive, dayKey, lastNDays } from '@/lib/stats';
@@ -45,7 +46,7 @@ import {
   Text,
 } from '@/ui/primitives';
 
-const SECTION_ICONS: Record<HomeSection, string> = { hero: '💰', today: '📅', couple: '👫', trend: '📊', categories: '🏷️', recent: '🧾' };
+const SECTION_ICONS: Record<HomeSection, string> = { hero: '💰', today: '📅', couple: '👫', trend: '📊', categories: '🏷️', recent: '🧾', taxfree: '🛍️' };
 
 export default function Home() {
   const { t, lang } = useT();
@@ -57,6 +58,7 @@ export default function Home() {
   // Invite codes only apply to regular trips; in the shared MVP trip everyone joins with Start
   const invite = useInviteCode(members.length < 2 && !trip?.shared ? trip?.id : undefined);
   const ils = (m: number) => formatMoney(m, HOME_CURRENCY, { lang });
+  const taxFree = useMemo(() => tripRefundTotal(expenses, (code) => getCurrency(code).minor_units), [expenses]);
   const { session } = useAuth();
   const layout = useHomeLayout(!!session && !session.user.is_anonymous);
   // Cards on show in their order, and cards hidden from Home (swipe a card › Hide; Arrange brings them back)
@@ -277,6 +279,29 @@ export default function Home() {
         </View>
       </Row>
     ),
+    // Expected VAT refund: only once something was bought tax free
+    taxfree:
+      taxFree.count + taxFree.belowMin + taxFree.noRule > 0 ? (
+        <Card style={{ gap: 6 }}>
+          <SectionHeader title={t('taxFree.cardTitle')} />
+          <Text variant="h2" style={{ fontSize: 22 }} color={c.primary}>
+            {t('taxFree.cardUpTo', { amount: ils(taxFree.total) })}
+          </Text>
+          {taxFree.count > 0 ? (
+            <Text variant="caption" muted>
+              {t('taxFree.cardCount', { count: taxFree.count })}
+            </Text>
+          ) : null}
+          {taxFree.belowMin > 0 ? (
+            <Text variant="caption" color={c.warning}>
+              {t('taxFree.cardBelowMin', { count: taxFree.belowMin })}
+            </Text>
+          ) : null}
+          <Text variant="caption" faint>
+            {t('taxFree.cardNote')}
+          </Text>
+        </Card>
+      ) : null,
     // Also shown after a partner was removed while money is still open between you
     couple:
       balances.length > 1 ? (

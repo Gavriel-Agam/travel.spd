@@ -31,7 +31,7 @@ export type CreateItem = Base & { kind?: 'create'; payload: SaveExpenseInput & {
 export type UpdateItem = Base & { kind: 'update'; expenseId: string; expectedVersion: number; payload: SaveExpenseInput };
 export type DeleteItem = Base & { kind: 'delete'; expenseId: string; expectedVersion: number };
 
-export type TripPatch = Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'default_currency' | 'theme_color' | 'category_order' | 'payment_methods'>>;
+export type TripPatch = Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'default_currency' | 'theme_color' | 'category_order' | 'payment_methods' | 'card_fx_fee_pct' | 'countries'>>;
 /** The trip's details, colour, category order or own payment methods. */
 export type TripItem = Base & { kind: 'trip'; patch: TripPatch };
 /** One of the trip's own categories, added (`create`) or changed (archived = deleted from the list). */

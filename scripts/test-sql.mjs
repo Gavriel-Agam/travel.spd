@@ -513,4 +513,27 @@ assert.equal((await db.query(`select count(*)::int n from app_feedback where mes
 assert.equal((await as(A, 'select count(*)::int n from trips where id = $1', [trip]))[0].n, 1); // other trips untouched
 ok('delete_trip: creator only (partner refused, outsider sees nothing); trip and everything in it removed');
 
+// Card fee and tax free (0019): the fee is part of the home amount; never on home-currency expenses
+const [fe] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ amount_minor: 100000, fx_rate: '0.1', fx_fee_pct: 2.5, tax_free: true, vat_country: 'th' })]);
+assert.equal(Number(fe.amount_ils_minor), 10250); // 1,000 THB x 0.1 = 100 ILS, + 2.5% = 102.50
+assert.equal(Number(fe.fx_fee_pct), 2.5);
+assert.equal(fe.tax_free, true);
+assert.equal(fe.vat_country, 'TH');
+const feSum = (await as(A, 'select sum(share_ils_minor)::int n from expense_splits where expense_id = $1', [fe.id]))[0].n;
+assert.equal(feSum, 10250);
+const [feHome] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ amount_minor: 10000, currency: 'ILS', fx_rate: '1', fx_fee_pct: 2.5 })]);
+assert.equal(Number(feHome.amount_ils_minor), 10000);
+assert.equal(Number(feHome.fx_fee_pct), 0);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ fx_fee_pct: 11 })]), /invalid_fee/);
+await as(A, `update trips set card_fx_fee_pct = 2.5, countries = '{TH}' where id = $1`, [trip]);
+await rejects(as(A, `update trips set card_fx_fee_pct = 20 where id = $1`, [trip]), /check constraint/);
+ok('card fee: added to the home amount and the shares, not on home currency, max 10%; tax free + country saved');
+
+// An older app version edits without the new fields: fee and tax free are kept
+const [feOld] = await as(A, `select * from save_expense($1::jsonb, 1)`, [expense({ id: fe.id, amount_minor: 200000, fx_rate: '0.1' })]);
+assert.equal(Number(feOld.amount_ils_minor), 20500);
+assert.equal(feOld.tax_free, true);
+assert.equal(feOld.vat_country, 'TH');
+ok('card fee / tax free kept when an older app edits the expense');
+
 console.log(`\n${passed} SQL checks passed`);

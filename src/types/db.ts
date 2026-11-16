@@ -20,6 +20,10 @@ export type Trip = {
   category_order?: string[] | null;
   /** This trip's own payment methods, by name (0017). */
   payment_methods?: string[];
+  /** The card's foreign-transaction fee, % (0019); null = none. */
+  card_fx_fee_pct?: number | string | null;
+  /** Destinations, ISO country codes, for VAT refund rules (0019). */
+  countries?: string[];
 };
 
 export type Member = {
@@ -97,6 +101,11 @@ export type Expense = {
   /** A built-in key (see lib/payments) or one of the trip's own names. */
   payment_method: string | null;
   split_type: SplitType;
+  /** Card fee (%) included in amount_ils_minor (0019). numeric: may arrive as a string. */
+  fx_fee_pct?: number | string;
+  /** Bought tax free (VAT refund), and in which country (0019). */
+  tax_free?: boolean;
+  vat_country?: string | null;
   version: number;
   created_at: string;
   updated_at: string;

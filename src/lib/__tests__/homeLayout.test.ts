@@ -35,11 +35,11 @@ describe('resolveHomeOrder', () => {
     expect(resolveHomeOrder(undefined)).toEqual([...HOME_SECTIONS]);
   });
   it('keeps the saved order', () => {
-    const saved = ['recent', 'hero', 'trend', 'today', 'couple', 'categories'];
+    const saved = ['recent', 'hero', 'trend', 'today', 'couple', 'categories', 'taxfree'];
     expect(resolveHomeOrder(saved)).toEqual(saved);
   });
   it('drops unknown or repeated keys and appends cards added later', () => {
-    expect(resolveHomeOrder(['recent', 'old-card', 'recent', 'hero'])).toEqual(['recent', 'hero', 'today', 'categories', 'trend', 'couple']);
+    expect(resolveHomeOrder(['recent', 'old-card', 'recent', 'hero'])).toEqual(['recent', 'hero', 'today', 'categories', 'trend', 'couple', 'taxfree']);
   });
 });
 
@@ -143,8 +143,8 @@ describe('dropPlacement', () => {
 });
 
 describe('default Home order', () => {
-  it('totals, today, recent, categories, 7 days, who paid', () => {
-    expect(resolveHomeOrder(null)).toEqual(['hero', 'today', 'recent', 'categories', 'trend', 'couple']);
+  it('totals, today, recent, categories, 7 days, who paid, VAT refund', () => {
+    expect(resolveHomeOrder(null)).toEqual(['hero', 'today', 'recent', 'categories', 'trend', 'couple', 'taxfree']);
   });
 });
 
@@ -152,7 +152,7 @@ describe('hiding Home cards', () => {
   it('keeps the cards after the marker hidden, the rest in their order', () => {
     const r = resolveHomeLayout(['recent', 'hero', HIDDEN_MARK, 'couple', 'trend']);
     expect(r.hidden).toEqual(['couple', 'trend']);
-    expect(r.visible).toEqual(['recent', 'hero', 'today', 'categories']);
+    expect(r.visible).toEqual(['recent', 'hero', 'today', 'categories', 'taxfree']);
   });
 
   it('without a marker every card shows (older layouts, or none saved)', () => {

@@ -621,6 +621,23 @@ const en = {
     expensesCount_other: '{{count}} expenses',
     expensesCount_two: '{{count}} expenses', // unused in English; Hebrew has a dual form
   },
+  passkeys: {
+    signIn: 'Sign in with Face ID / passkey',
+    title: 'Face ID / passkey',
+    about: 'Sign in next time with Face ID, your fingerprint or this device\'s PIN. No password, nothing to type.',
+    add: 'Set up on this device',
+    added: 'Saved. Next time, tap "Sign in with Face ID / passkey".',
+    none: 'No passkeys yet.',
+    device: 'Passkey',
+    remove: 'Remove',
+    removeConfirm: 'Remove this passkey? You can still sign in the way you did before.',
+    lastUsed: 'Last used {{date}}',
+    offerTitle: 'Faster sign-in next time?',
+    offerBody: 'Save a passkey and sign in with Face ID or your fingerprint, without choosing an account or typing a password.',
+    offerYes: 'Set it up',
+    offerNo: 'Not now',
+    cancelled: 'Cancelled.',
+  },
   settings: {
     title: 'Settings',
     trip: 'Trip',

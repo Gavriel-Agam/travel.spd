@@ -75,11 +75,45 @@ export async function setNewPassword(password: string) {
   if (error) throw error;
 }
 
+/** This browser can use passkeys (Face ID, fingerprint, device PIN). Web only for now. */
+export function passkeySupported() {
+  return Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function';
+}
+
+/** Signs in with a passkey saved on this device: the device asks for Face ID / fingerprint and picks the account. */
+export async function signInWithPasskey() {
+  await beginTransferIfAnonymous();
+  const { error } = await supabase.auth.signInWithPasskey();
+  if (error) throw error;
+}
+
+/** Saves a passkey for the signed-in account on this device. */
+export async function addPasskey() {
+  const { error } = await supabase.auth.registerPasskey();
+  if (error) throw error;
+}
+
+export async function listPasskeys() {
+  const { data, error } = await supabase.auth.passkey.list();
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function removePasskey(passkeyId: string) {
+  const { error } = await supabase.auth.passkey.delete({ passkeyId });
+  if (error) throw error;
+}
+
 /** Which sign-in methods the project has turned on (so a button never leads to an error). */
-export async function fetchAuthProviders(): Promise<{ google: boolean; facebook: boolean; email: boolean }> {
+export async function fetchAuthProviders(): Promise<{ google: boolean; facebook: boolean; email: boolean; passkey: boolean }> {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key ?? '' } });
-  const body = (await res.json()) as { external?: Record<string, boolean> };
-  return { google: !!body.external?.google, facebook: !!body.external?.facebook, email: !!body.external?.email };
+  const body = (await res.json()) as { external?: Record<string, boolean>; passkeys_enabled?: boolean };
+  return {
+    google: !!body.external?.google,
+    facebook: !!body.external?.facebook,
+    email: !!body.external?.email,
+    passkey: !!body.passkeys_enabled,
+  };
 }

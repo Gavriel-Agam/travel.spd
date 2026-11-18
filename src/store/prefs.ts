@@ -44,6 +44,9 @@ type PrefsState = {
   /** Accounts on this device that were already offered the feedback panel (it opens by itself once per account). */
   feedbackPrompted: string[];
   markFeedbackPrompted: (userId: string) => void;
+  /** Accounts on this device that were already offered to save a passkey (offered once per account). */
+  passkeyOffered: string[];
+  markPasskeyOffered: (userId: string) => void;
   /** Guest demo: a read-only sample trip on this device; nothing is sent to the server. */
   demo: boolean;
   setDemo: (demo: boolean) => void;
@@ -79,11 +82,14 @@ export const usePrefs = create<PrefsState>()(
       homeViews: {},
       setHomeView: (card, view) => set((s) => ({ homeViews: { ...s.homeViews, [card]: view } })),
       feedbackPrompted: [],
+      passkeyOffered: [],
       expenseOrder: {},
       setExpenseOrder: (tripId, day, ids) =>
         set((s) => ({ expenseOrder: { ...s.expenseOrder, [tripId]: { ...s.expenseOrder[tripId], [day]: ids } } })),
       markFeedbackPrompted: (userId) =>
         set((s) => (s.feedbackPrompted.includes(userId) ? s : { feedbackPrompted: [...s.feedbackPrompted, userId].slice(-10) })),
+      markPasskeyOffered: (userId) =>
+        set((s) => (s.passkeyOffered.includes(userId) ? s : { passkeyOffered: [...s.passkeyOffered, userId].slice(-10) })),
       demo: false,
       setDemo: (demo) => set({ demo }),
       setHomeOrder: (homeOrder, dirty = false) => set({ homeOrder, homeOrderDirty: dirty }),
@@ -127,6 +133,7 @@ export const usePrefs = create<PrefsState>()(
         lastPaymentAny: (persisted as Partial<PrefsState>)?.lastPaymentAny ?? null,
         lastPayer: (persisted as Partial<PrefsState>)?.lastPayer ?? {},
         lastSplit: (persisted as Partial<PrefsState>)?.lastSplit ?? {},
+        passkeyOffered: (persisted as Partial<PrefsState>)?.passkeyOffered ?? [],
       }),
     },
   ),

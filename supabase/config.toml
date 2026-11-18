@@ -29,6 +29,18 @@ enable_confirmations = false
 otp_length = 6
 otp_expiry = 3600
 
+# Passkeys (Face ID / fingerprint), Supabase beta. These values are for the local
+# QA stack; the live project sets its own in the dashboard (Authentication >
+# Passkeys) with RP ID gavriel-agam.github.io. Changing the live RP ID makes every
+# saved passkey stop working.
+[auth.passkey]
+enabled = true
+
+[auth.webauthn]
+rp_display_name = "SmartTrip"
+rp_id = "localhost"
+rp_origins = ["http://localhost:8082"]
+
 [functions.fx-rates]
 verify_jwt = true
 

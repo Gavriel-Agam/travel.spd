@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Image, Platform, Pressable, View } from 'react-native';
 import { useT } from '@/i18n';
-import { fetchAuthProviders, sendPasswordReset, signInWithPassword, signInWithProvider, signUpWithPassword } from '@/lib/auth';
+import { fetchAuthProviders, passkeySupported, sendPasswordReset, signInWithPasskey, signInWithPassword, signInWithProvider, signUpWithPassword } from '@/lib/auth';
 import { seedDemo } from '@/lib/demoSeed';
 import { errorCode } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
@@ -33,13 +33,15 @@ export default function SignIn() {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState<null | 'email' | 'google' | 'facebook' | 'reset'>(null);
+  const [busy, setBusy] = useState<null | 'email' | 'google' | 'facebook' | 'passkey' | 'reset'>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const upgrading = !!session?.user.is_anonymous;
   const googleOn = Platform.OS === 'web' && !!providers.data?.google;
   const facebookOn = Platform.OS === 'web' && !!providers.data?.facebook;
-  const socialOn = googleOn || facebookOn;
+  // Face ID / fingerprint for someone who saved a passkey earlier (Supabase beta)
+  const passkeyOn = passkeySupported() && !!providers.data?.passkey;
+  const socialOn = googleOn || facebookOn || passkeyOn;
   const [more, setMore] = useState(false);
   // Until we know which sign-in methods are on, show neither layout (no flash of the email form)
   const checking = Platform.OS === 'web' && providers.isLoading;
@@ -78,6 +80,20 @@ export default function SignIn() {
       await signInWithProvider(provider); // leaves for Google / Facebook and comes back signed in
     } catch (e) {
       fail(e);
+      setBusy(null);
+    }
+  }
+
+  async function passkey() {
+    setError(null);
+    setNotice(null);
+    setBusy('passkey');
+    try {
+      await signInWithPasskey(); // the auth listener moves on to the app
+    } catch (e) {
+      const name = (e as { name?: string })?.name;
+      if (name !== 'NotAllowedError' && name !== 'AbortError') fail(e);
+    } finally {
       setBusy(null);
     }
   }
@@ -140,6 +156,15 @@ export default function SignIn() {
                 text="#FFFFFF"
                 disabled={!!busy}
                 onPress={() => social('facebook')}
+              />
+            ) : null}
+            {passkeyOn ? (
+              <Button
+                title={busy === 'passkey' ? t('common.loading') : t('passkeys.signIn')}
+                icon="finger-print"
+                variant="secondary"
+                disabled={!!busy}
+                onPress={passkey}
               />
             ) : null}
           </View>

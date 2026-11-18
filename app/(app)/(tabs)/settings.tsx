@@ -1,3 +1,4 @@
+import { PasskeysCard } from '@/ui/Passkeys';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
@@ -366,6 +367,9 @@ export default function Settings() {
           </>
         ) : null}
       </Card>
+
+      {/* Face ID / passkey (only where supported and turned on) */}
+      <PasskeysCard />
 
       {/* Language */}
       <Card>

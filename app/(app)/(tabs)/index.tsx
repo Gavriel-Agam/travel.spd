@@ -36,6 +36,7 @@ import { useFeedback } from '@/store/feedback';
 import { useIsDemo, usePrefs, type HomeView } from '@/store/prefs';
 import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { FeedbackBanner, FeedbackBell } from '@/ui/Feedback';
+import { PasskeyOffer } from '@/ui/Passkeys';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
@@ -607,6 +608,7 @@ export default function Home() {
         {canFeedback ? <FeedbackBell /> : null}
       </Row>
 
+      <PasskeyOffer />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
 
       {/* Hold a card to drag it; swipe it (right in Hebrew) for Hide. Rows inside a card swipe on their own. */}

@@ -82,6 +82,8 @@ export const supabase = createClient(url || 'https://not-configured.supabase.co'
     // Google sign-in returns to the site with ?code=…; the client exchanges it
     detectSessionInUrl: Platform.OS === 'web',
     flowType: 'pkce',
+    // Passkeys (Face ID / fingerprint) are a Supabase beta API and need this opt-in
+    experimental: { passkey: true },
   },
 });
 

@@ -60,6 +60,15 @@ describe('enrichCandidates', () => {
   });
 });
 
+describe('notes about people outside the trip', () => {
+  it('the parser note becomes the expense notes', () => {
+    const [d] = enrichCandidates([cand({ note: 'שולם על ידי יוסי' })], base);
+    expect(d.notes).toBe('שולם על ידי יוסי');
+    const [e] = enrichCandidates([cand({})], base);
+    expect(e.notes).toBe('');
+  });
+});
+
 describe('draftToSaveInput', () => {
   const snap: RatesSnapshot = { requested_date: '2026-11-15', fetched_at: '2026-11-15T08:00:00Z', rates: { THB: { rate: '0.1', date: '2026-11-15', source: 'ecb' } } };
   const me = { id: 'a', card_fx_fee_pct: 2 } as Member;
@@ -84,13 +93,14 @@ describe('draftToSaveInput', () => {
       receipt_path: 'r.jpg',
       tax_free: false,
       vat_country: null,
+      notes: null,
     });
     expect(p.splits.map((s) => s.member_id).sort()).toEqual(['a', 'b']);
   });
 
   it('personal goes to the payer; tax free gets the country', () => {
-    const p = draftToSaveInput({ ...draft, payerId: 'b', split: 'personal', taxFree: true }, 100, { clientId: 'c2', trip, members, me, memberById, snapshot: snap, paymentMethod: 'cash', receiptPath: null })!;
-    expect(p).toMatchObject({ split_type: 'personal', splits: [{ member_id: 'b' }], fx_fee_pct: 0, vat_country: 'TH' });
+    const p = draftToSaveInput({ ...draft, payerId: 'b', split: 'personal', taxFree: true, notes: ' Paid for Dana ' }, 100, { clientId: 'c2', trip, members, me, memberById, snapshot: snap, paymentMethod: 'cash', receiptPath: null })!;
+    expect(p).toMatchObject({ split_type: 'personal', splits: [{ member_id: 'b' }], fx_fee_pct: 0, vat_country: 'TH', notes: 'Paid for Dana' });
   });
 
   it('no rate: nothing to save', () => {

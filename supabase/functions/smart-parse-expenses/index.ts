@@ -78,6 +78,7 @@ function systemPrompt(ctx: Context, imageCount: number) {
     '- category: the label of the best matching category below.',
     `- date: YYYY-MM-DD if the source gives it ("yesterday" is relative to ${ctx.today_iso}; a date said once applies to the items after it), else null.`,
     '- payer: the label of the participant the source says paid, else null. "I" or "me" is unknown: null. Never guess.',
+    `- note: only when the source names a person who is NOT in the participants list as the one who paid, or as the one it was paid for: a short note in ${lang} saying so (e.g. "${ctx.ui_language === 'he' ? 'שולם על ידי יוסי' : 'Paid by Yossi'}" or "${ctx.ui_language === 'he' ? 'שולם עבור דנה' : 'Paid for Dana'}"); else omit. Never put participants here.`,
     "- split: 'personal' if the source says it was only for the payer; 'equal' if it says it was shared; otherwise 'fallback'.",
     '- needs_review: true only when the amount, the date or the category is unclear. A missing currency or payer alone is not a reason.',
     `- review_reason: when needs_review is true, at most 8 words in ${lang} naming what to check; else omit.`,
@@ -108,10 +109,11 @@ function responseSchema(ctx: Context) {
             split: { type: 'STRING', enum: ['personal', 'equal', 'fallback'] },
             needs_review: { type: 'BOOLEAN' },
             review_reason: { type: 'STRING' },
+            note: { type: 'STRING' },
             image: { type: 'INTEGER', nullable: true },
           },
           required: ['title', 'amount', 'currency', 'category', 'date', 'payer', 'split', 'needs_review'],
-          propertyOrdering: ['title', 'amount', 'currency', 'category', 'date', 'payer', 'split', 'needs_review', 'review_reason', 'image'],
+          propertyOrdering: ['title', 'amount', 'currency', 'category', 'date', 'payer', 'split', 'needs_review', 'review_reason', 'note', 'image'],
         },
       },
     },
@@ -143,6 +145,7 @@ function clean(raw: unknown, ctx: Context, imageCount: number) {
       split_type: ['personal', 'equal'].includes(x.split) ? x.split : 'fallback',
       needs_review: !!x.needs_review || !categoryId,
       ...(x.needs_review && typeof x.review_reason === 'string' && x.review_reason.trim() ? { review_reason: x.review_reason.trim().slice(0, 120) } : {}),
+      ...(typeof x.note === 'string' && x.note.trim() ? { note: x.note.trim().slice(0, 200) } : {}),
       image_index: idx,
     });
   }

@@ -291,6 +291,10 @@ function DraftCard({
         </Row>
 
         <Field label={t('smartImport.titleLabel')} value={d.title} onChangeText={(v) => onChange({ title: v })} maxLength={120} />
+        {/* Someone outside the trip paid, or was paid for: kept in the expense's notes */}
+        {d.notes ? (
+          <Field label={t('form.notes')} value={d.notes} onChangeText={(v) => onChange({ notes: v })} multiline maxLength={1000} style={{ minHeight: 44, textAlignVertical: 'top' }} />
+        ) : null}
 
         <Row gap={space.sm} align="flex-end">
           <View style={[{ flex: 1 }]}>

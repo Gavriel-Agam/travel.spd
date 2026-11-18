@@ -23,6 +23,8 @@ export type ParsedExpenseCandidate = {
   split_type: 'personal' | 'equal' | 'fallback';
   needs_review: boolean;
   review_reason?: string;
+  /** Someone outside the trip who paid, or was paid for (in the UI language): goes into the expense's notes. */
+  note?: string;
   /** Which screenshot it came from (null: the text). */
   image_index?: number | null;
 };
@@ -58,6 +60,8 @@ export type SmartDraft = {
   taxFree: boolean;
   needsReview: boolean;
   reviewReason?: string;
+  /** Saved as the expense's notes (e.g. someone outside the trip paid). */
+  notes: string;
   /** Fields the phone filled in (not read from the source): shown with a warning border. */
   guessed: { currency: boolean; date: boolean; payer: boolean };
   imageIndex: number | null;
@@ -103,6 +107,7 @@ export function enrichCandidates(
       taxFree: false,
       needsReview: x.needs_review || !x.currency,
       reviewReason: x.review_reason,
+      notes: x.note?.trim() ?? '',
       guessed: { currency: !x.currency, date: !x.date, payer: useLast },
       imageIndex: x.image_index ?? null,
     };
@@ -171,7 +176,7 @@ export function draftToSaveInput(
     fx_is_manual: false,
     category_id: d.categoryId,
     description: d.title.trim(),
-    notes: null,
+    notes: d.notes.trim() || null,
     occurred_at: dateToOccurredAt(d.date, p.now),
     receipt_path: p.receiptPath,
     payment_method: p.paymentMethod,

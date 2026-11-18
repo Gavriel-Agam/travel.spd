@@ -46,6 +46,8 @@ const webStorage = {
 // Requests give up after a while instead of hanging on a weak signal (uploads get longer)
 const TIMEOUT = 15_000;
 const UPLOAD_TIMEOUT = 90_000;
+// Smart import waits for the AI to read the text and pictures (the server gives it up to 45 s)
+const SMART_PARSE_TIMEOUT = 60_000;
 
 // The guest demo never talks to the server: any request (read or write) is refused.
 // A request that fails at network level (or times out) switches the app to
@@ -56,7 +58,8 @@ const guardedFetch: typeof fetch = (input, init) => {
   const href = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
   const upload = /\/storage\/v1\/object/.test(href) && (init?.method ?? 'GET') !== 'GET';
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), upload ? UPLOAD_TIMEOUT : TIMEOUT);
+  const smartParse = /\/functions\/v1\/smart-parse-expenses/.test(href);
+  const timer = setTimeout(() => ctrl.abort(), upload ? UPLOAD_TIMEOUT : smartParse ? SMART_PARSE_TIMEOUT : TIMEOUT);
   // Keep the caller's own cancel signal working too
   init?.signal?.addEventListener('abort', () => ctrl.abort());
   return fetch(input, { ...init, signal: ctrl.signal })

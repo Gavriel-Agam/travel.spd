@@ -22,7 +22,7 @@ const MAX_TEXT = 2500;
 const MAX_IMAGES = 3;
 // ~1.5 MB per picture after base64 (the app sends them at most 1024 px wide)
 const MAX_IMAGE_CHARS = 2_000_000;
-const MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash';
+const MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.5-flash-lite';
 // minimal | low | medium | high (Gemini 3 Flash)
 const THINKING = Deno.env.get('GEMINI_THINKING') ?? 'minimal';
 
@@ -175,25 +175,25 @@ Deno.serve(async (req) => {
   const images = rawImages.map(readImage);
   if (images.some((i: unknown) => !i) || (!text && images.length === 0)) return json({ error: 'invalid_input' }, 400);
 
-  // Only someone on the trip (row-level security hides other trips)
-  const { data: trip } = await userClient.from('trips').select('id').eq('id', body.trip_id).maybeSingle();
-  if (!trip) return json({ error: 'not_member' }, 403);
-
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) return json({ error: 'not_configured' }, 503);
 
+  // Trip access and today's count at the same time (each is a round trip to the database)
   const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-  const { count, error: countError } = await admin
-    .from('smart_import_usage')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gte('created_at', since);
+  const [{ data: trip }, { count, error: countError }] = await Promise.all([
+    // Only someone on the trip (row-level security hides other trips)
+    userClient.from('trips').select('id').eq('id', body.trip_id).maybeSingle(),
+    admin.from('smart_import_usage').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', since),
+  ]);
+  if (!trip) return json({ error: 'not_member' }, 403);
   if (countError) return json({ error: 'parse_failed' }, 500);
   if ((count ?? 0) >= DAILY_LIMIT) return json({ error: 'RATE_LIMIT_EXCEEDED' }, 429);
-  await admin.from('smart_import_usage').insert({ user_id: userId });
-  // Older rows aren't needed for the limit
-  await admin.from('smart_import_usage').delete().eq('user_id', userId).lt('created_at', new Date(Date.now() - 48 * 3600_000).toISOString());
+  // Counted now; older rows aren't needed for the limit. Runs alongside the AI call.
+  const bookkeeping = Promise.all([
+    admin.from('smart_import_usage').insert({ user_id: userId }),
+    admin.from('smart_import_usage').delete().eq('user_id', userId).lt('created_at', new Date(Date.now() - 48 * 3600_000).toISOString()),
+  ]);
 
   console.log('smart-parse-expenses: ready', MODEL, THINKING, `${Date.now() - started}ms`);
   const parts: unknown[] = [];
@@ -220,6 +220,7 @@ Deno.serve(async (req) => {
         },
       }),
     });
+    await bookkeeping.catch(() => {});
     console.log('smart-parse-expenses: gemini answered', res.status, `${Date.now() - started}ms`);
     if (!res.ok) {
       console.error('smart-parse-expenses: gemini', res.status, (await res.text()).slice(0, 500));
@@ -231,6 +232,7 @@ Deno.serve(async (req) => {
     console.log('smart-parse-expenses: found', expenses.length);
     return json({ expenses });
   } catch (e) {
+    await bookkeeping.catch(() => {});
     console.error('smart-parse-expenses: failed', String(e), `${Date.now() - started}ms`);
     return json({ error: 'parse_failed' }, 502);
   }

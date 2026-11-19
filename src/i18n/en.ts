@@ -460,6 +460,11 @@ const en = {
     showLess: 'Show less',
   },
   ingestion: {
+    install: 'Install the SmartTrip shortcut',
+    install1: 'Your key is copied. Tap "Add Shortcut" and paste it when asked.',
+    install2: 'Shortcuts › Automation › + › Transaction: pick your cards, Run Immediately, then choose the SmartTrip shortcut.',
+    install3: 'Optional, for card SMS: Automation › + › Message, sender = your card company, Run Immediately, SmartTrip.',
+    manualTitle: 'Or build it yourself:',
     title: 'Automatic import (Shortcuts)',
     rowHint: 'Card and Apple Pay payments straight from your iPhone',
     intro: 'iPhone Shortcuts can send your card payments here as you pay. Each one waits on Home under "Pending review" until you confirm it, and only you see it until then.',

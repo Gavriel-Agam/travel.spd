@@ -9,6 +9,8 @@
 //   { source: 'shortcut_wallet', amount, currency?, merchant?, card_label?, occurred_at? }
 //   { source: 'shortcut_notification', raw_text, title?, subtitle?, card_label?, occurred_at? }
 //   { source: 'shortcut_share', text?, image_base64?, mime_type?, file_name? }
+//   { source: 'shortcut_auto', amount?, merchant?, card_label?, raw_text? }  (the shared shortcut:
+//     read as Wallet when it has an amount, else as a card SMS)
 // -> 200 { status: 'added', expense_id, trip_id, possible_duplicate }
 //    200 { status: 'ignored', reason }   (one-time codes, billing reminders, declines, refunds, not a payment)
 // Errors: 401 invalid_token, 429 rate_limited / RATE_LIMIT_EXCEEDED (AI reader: 15 a day,
@@ -116,7 +118,14 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: 'invalid_input' }, 400);
   }
-  const source = body?.source;
+  // 'shortcut_auto': the one shared SmartTrip shortcut, run by a Wallet or a Message
+  // automation. A Wallet run carries an amount; a Message run only its text.
+  let source = body?.source;
+  if (source === 'shortcut_auto') {
+    const hasAmount = (typeof body.amount === 'string' && body.amount.trim()) || typeof body.amount === 'number';
+    source = hasAmount && parseWallet({ amount: body.amount, currency: body.currency, merchant: body.merchant }) ? 'shortcut_wallet' : 'shortcut_notification';
+    if (source === 'shortcut_notification' && !short(body?.raw_text, 1000)) return json({ error: 'invalid_input' }, 400);
+  }
   const cardLabel = short(body?.card_label, 60);
   let item: Item | null = null;
 

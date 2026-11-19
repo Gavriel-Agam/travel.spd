@@ -17,3 +17,10 @@ export const FEATURES = {
    */
   appleWalletPasses: false,
 } as const;
+
+/**
+ * iCloud link of the ready-made "SmartTrip" shortcut (built once on an iPhone,
+ * shared with "Copy iCloud Link"). Empty: Settings › Automatic import shows only
+ * the manual steps. When set, a button creates a key, copies it and opens this.
+ */
+export const SHORTCUT_INSTALL_URL = '';

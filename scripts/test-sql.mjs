@@ -674,4 +674,12 @@ await as(A, 'select revoke_ingestion_token($1)', [tok.id]);
 await rejects(db.query('select ingestion_auth($1)', [tokHash]), /invalid_token/);
 ok('source, booking details and billed amount saved with an expense; bad values refused; revoked key stops working');
 
+// Security hardening (0025): internal helpers closed to signed-out visitors; no TRUNCATE for API roles
+await rejects(asAnon(`select is_private_to_other('${trip}')`), /permission denied/);
+await rejects(asAnon(`select receipt_private_to_other('x')`), /permission denied/);
+await rejects(as(A, 'truncate expenses'), /permission denied/);
+await rejects(asAnon('truncate trips'), /permission denied/);
+assert.equal((await as(A, 'select count(*)::int n from expenses where id = $1', [e1.id]))[0].n, 1);
+ok('hardening: helpers not callable signed out, TRUNCATE refused, RLS reads still work');
+
 console.log(`\n${passed} SQL checks passed`);

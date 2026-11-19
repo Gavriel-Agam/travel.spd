@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Linking, View } from 'react-native';
 import { useTrips } from '@/api/queries';
 import { useT } from '@/i18n';
 import { displayTripName } from '@/lib/defaultNames';
+import { SHORTCUT_INSTALL_URL } from '@/lib/features';
 import { goBack } from '@/lib/nav';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useUserId } from '@/providers/AuthProvider';
@@ -65,6 +66,19 @@ export default function Ingestion() {
       qc.invalidateQueries({ queryKey: ['ingestion-settings', userId] });
     },
   });
+
+  /** One tap: a new key, copied, then the ready-made shortcut opens (it asks for the key once). */
+  const install = async () => {
+    setError(null);
+    const { data, error } = await supabase.rpc('create_ingestion_token', { p_label: 'iPhone' });
+    if (error) return setError(errorCode(error) === 'too_many_tokens' ? t('ingestion.tooMany') : t('errors.unknown'));
+    const token = (data as { token: string }).token;
+    // The shortcut asks for the whole header value (its import question)
+    await Clipboard.setStringAsync(`Bearer ${token}`);
+    setFresh(token);
+    qc.invalidateQueries({ queryKey: ['ingestion-tokens', userId] });
+    Linking.openURL(SHORTCUT_INSTALL_URL);
+  };
 
   const create = async () => {
     setError(null);
@@ -205,6 +219,18 @@ export default function Ingestion() {
       {/* iPhone setup */}
       <Card>
         <Text variant="h2">{t('ingestion.setup')}</Text>
+        {SHORTCUT_INSTALL_URL ? (
+          <>
+            <Button title={t('ingestion.install')} icon="download-outline" onPress={install} />
+            <Step n={1} text={t('ingestion.install1')} />
+            <Step n={2} text={t('ingestion.install2')} />
+            <Step n={3} text={t('ingestion.install3')} />
+            <Divider />
+            <Text variant="caption" muted>
+              {t('ingestion.manualTitle')}
+            </Text>
+          </>
+        ) : null}
         <CopyBox id="url" label={t('ingestion.url')} value={ENDPOINT} />
         <Text style={{ fontWeight: '700' }}>💳 {t('ingestion.walletTitle')}</Text>
         <Step n={1} text={t('ingestion.wallet1')} />

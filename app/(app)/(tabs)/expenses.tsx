@@ -44,10 +44,12 @@ export default function Expenses() {
   const [payerId, setPayerId] = useState<string | null>(null);
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
+  // Quick filter: only expenses with a receipt, or with a flight / hotel booking
+  const [attach, setAttach] = useState<'receipt' | 'booking' | null>(null);
 
   const tz = trip?.timezone ?? 'UTC';
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
-  const activeFilters = [categoryId, payerId, from, to].filter(Boolean).length;
+  const activeFilters = [categoryId, payerId, from, to, attach].filter(Boolean).length;
 
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -55,6 +57,8 @@ export default function Expenses() {
     const toKey = to ? dayKey(to, tz) : null;
     const filtered = expenses.filter((e) => {
       if (categoryId && e.category_id !== categoryId) return false;
+      if (attach === 'receipt' && !e.receipt_path) return false;
+      if (attach === 'booking' && !e.booking_details) return false;
       // '__joint' filters for joint-money expenses (no payer)
       if (payerId && (payerId === '__joint' ? e.paid_by_member_id !== null : e.paid_by_member_id !== payerId)) return false;
       const d = dayKey(e.occurred_at, tz);
@@ -62,7 +66,7 @@ export default function Expenses() {
       if (toKey && d > toKey) return false;
       if (q) {
         const cat = e.category_id ? categoryById.get(e.category_id) : undefined;
-        const hay = `${e.description} ${e.notes ?? ''} ${categoryLabel(cat, t)} ${e.currency}`.toLowerCase();
+        const hay = `${e.description} ${e.notes ?? ''} ${e.merchant ?? ''} ${categoryLabel(cat, t)} ${e.currency}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -84,7 +88,7 @@ export default function Expenses() {
       fullDay: orderDay(all.get(day) ?? [], savedOrder?.[day]).map((e) => e.id),
       total: data.filter((e) => e.kind === 'expense').reduce((s, e) => s + e.amount_ils_minor, 0),
     }));
-  }, [expenses, query, categoryId, payerId, from, to, tz, categoryById, t, savedOrder]);
+  }, [expenses, query, categoryId, payerId, from, to, attach, tz, categoryById, t, savedOrder]);
 
   if (!trip) return null;
 
@@ -148,6 +152,10 @@ export default function Expenses() {
         {showFilters ? (
           <View style={{ gap: space.sm }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
+              <Chip label={t('expenses.withReceipt')} icon="🧾" selected={attach === 'receipt'} onPress={() => setAttach(attach === 'receipt' ? null : 'receipt')} />
+              <Chip label={t('expenses.withBooking')} icon="✈️" selected={attach === 'booking'} onPress={() => setAttach(attach === 'booking' ? null : 'booking')} />
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
               <Chip label={t('common.all')} selected={!payerId} onPress={() => setPayerId(null)} />
               {members.map((m) => (
                 <Chip key={m.id} label={m.display_name} selected={payerId === m.id} color={m.color} onPress={() => setPayerId(payerId === m.id ? null : m.id)} />
@@ -184,6 +192,7 @@ export default function Expenses() {
                     setPayerId(null);
                     setFrom(null);
                     setTo(null);
+                    setAttach(null);
                   }}
                 />
               ) : null}

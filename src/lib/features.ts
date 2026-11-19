@@ -10,4 +10,10 @@ export const FEATURES = {
    * enabled in the Supabase dashboard (Authentication > Passkeys).
    */
   passkeys: false,
+  /**
+   * "Add to Apple Wallet" on a flight's Smart Booking Card. Off until the Apple
+   * Pass Type ID certificate is set as secrets for the Edge Function
+   * generate-flight-pass (it answers 501 not_configured until then).
+   */
+  appleWalletPasses: false,
 } as const;

@@ -7,7 +7,7 @@
 //   images_base64?: string[] (<= 3; JPEG/WebP/PNG, data URL or bare base64),
 //   context: { default_currency, participants: [{id, name}], categories: [{id, name}], today_iso, ui_language: 'he' | 'en' }
 // }
-// -> { expenses: ParsedExpenseCandidate[] }
+// -> { expenses: ParsedExpenseCandidate[] } (each may carry a flight / hotel `booking`)
 //
 // Errors: 401 not_authenticated, 403 not_member, 400 invalid_input,
 // 429 RATE_LIMIT_EXCEEDED (15 per person per 24 h), 503 not_configured,
@@ -16,6 +16,7 @@
 // Nothing sent here is stored: only one usage row (who, when) for the limit.
 // The secret GEMINI_API_KEY is set in the project's Edge Function secrets.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { BOOKING_PROMPT, BOOKING_SCHEMA, cleanBooking } from '../_shared/booking.ts';
 
 const DAILY_LIMIT = 15;
 const MAX_TEXT = 2500;
@@ -82,6 +83,7 @@ function systemPrompt(ctx: Context, imageCount: number) {
     "- split: 'personal' if the source says it was only for the payer; 'equal' if it says it was shared; otherwise 'fallback'.",
     '- needs_review: true only when the amount or what was bought is unclear or unreadable. A missing currency, payer or date alone is not a reason.',
     `- review_reason: when needs_review is true, at most 8 words in ${lang} naming what to check; else omit.`,
+    BOOKING_PROMPT,
     imageCount > 1 ? `- image: which screenshot (0 to ${imageCount - 1}) the expense came from, or null for the message.` : imageCount === 1 ? '- image: 0 if it came from the screenshot, else null.' : '- image: null.',
     'Participants (label: name):',
     ...ctx.participants.map((p, i) => `  ${personLabel(i)}: ${p.name}`),
@@ -111,9 +113,10 @@ function responseSchema(ctx: Context) {
             review_reason: { type: 'STRING' },
             note: { type: 'STRING' },
             image: { type: 'INTEGER', nullable: true },
+            booking: BOOKING_SCHEMA,
           },
           required: ['title', 'amount', 'currency', 'category', 'date', 'payer', 'split', 'needs_review'],
-          propertyOrdering: ['title', 'amount', 'currency', 'category', 'date', 'payer', 'split', 'needs_review', 'review_reason', 'note', 'image'],
+          propertyOrdering: ['title', 'amount', 'currency', 'category', 'date', 'payer', 'split', 'needs_review', 'review_reason', 'note', 'image', 'booking'],
         },
       },
     },
@@ -135,6 +138,7 @@ function clean(raw: unknown, ctx: Context, imageCount: number) {
     const date = typeof x.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && !Number.isNaN(Date.parse(x.date)) ? x.date : null;
     const idx = Number.isInteger(x.image) && x.image >= 0 && x.image < imageCount ? x.image : null;
     const categoryId = cat.get(x.category);
+    const booking = cleanBooking(x.booking);
     out.push({
       title: x.title.trim().slice(0, 80),
       amount,
@@ -147,6 +151,7 @@ function clean(raw: unknown, ctx: Context, imageCount: number) {
       ...(x.needs_review && typeof x.review_reason === 'string' && x.review_reason.trim() ? { review_reason: x.review_reason.trim().slice(0, 120) } : {}),
       ...(typeof x.note === 'string' && x.note.trim() ? { note: x.note.trim().slice(0, 200) } : {}),
       image_index: idx,
+      ...(booking ? { booking } : {}),
     });
   }
   return out;

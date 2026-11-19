@@ -1,3 +1,4 @@
+import type { Booking } from '@/lib/booking';
 import type { SplitType } from '@/lib/split';
 
 export type Trip = {
@@ -79,6 +80,8 @@ export type ExpenseSplit = {
   share_ils_minor: number;
 };
 
+export type ExpenseSource = 'manual' | 'smart_import' | 'shortcut_notification' | 'shortcut_wallet' | 'shortcut_share' | 'statement_import';
+
 export type Expense = {
   id: string;
   trip_id: string;
@@ -113,6 +116,16 @@ export type Expense = {
   updated_at: string;
   deleted_at: string | null;
   client_id?: string | null;
+  /** Where it came from (0024). Older rows / app versions: 'manual'. */
+  source?: ExpenseSource;
+  /** Business name read from a card payment (0024). */
+  merchant?: string | null;
+  /** 'pending_review': added by a Shortcut, waiting for its owner's OK; only they see it. */
+  review_status?: 'confirmed' | 'pending_review';
+  /** What the card statement billed in the home currency (statement matcher). */
+  billed_ils_minor?: number | null;
+  /** Flight / hotel details (Smart Booking Card). */
+  booking_details?: Booking | null;
   expense_splits: ExpenseSplit[];
   /** Only on expenses with a change queued on this device and not yet saved on the server. */
   pending?: 'waiting' | 'failed';

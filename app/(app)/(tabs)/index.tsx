@@ -40,6 +40,9 @@ import { PasskeyOffer } from '@/ui/Passkeys';
 import { DraggableGrid } from '@/ui/DraggableGrid';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
+import { useConfirmPending } from '@/hooks/usePendingReview';
+import { pendingForMe } from '@/lib/pendingReview';
+import { PendingInbox } from '@/ui/PendingInbox';
 import {
   Avatar,
   Button,
@@ -92,6 +95,9 @@ export default function Home() {
   // device remembers it too, so it never asks the server again.
   const demo = useIsDemo();
   const userId = session?.user.id;
+  // Payments a Shortcut added, waiting for this person's OK (only they see them)
+  const pendingReview = useMemo(() => pendingForMe(expenses, userId), [expenses, userId]);
+  const confirmPending = useConfirmPending(trip?.id ?? '', members, me?.id ?? null);
   const canFeedback = !!session && !session.user.is_anonymous && !demo;
   const feedbackChecked = useFeedback((s) => s.shownThisSession);
   const feedbackPrompted = usePrefs((s) => !!userId && s.feedbackPrompted.includes(userId));
@@ -621,6 +627,7 @@ export default function Home() {
 
       <PasskeyOffer />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
+      <PendingInbox items={pendingReview} all={expenses} solo={members.length < 2} onConfirm={confirmPending} onEdit={actions.edit} onDismiss={(e) => actions.remove(e)} />
 
       {/* Hold a card to drag it; swipe it (right in Hebrew) for Hide. Rows inside a card swipe on their own. */}
       <DraggableGrid

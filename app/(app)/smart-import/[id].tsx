@@ -12,6 +12,7 @@ import { getCurrency, HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney, parseAmount } from '@/lib/money';
 import { goBack } from '@/lib/nav';
 import { lastPaymentFor, paymentLabel } from '@/lib/payments';
+import type { Booking } from '@/lib/booking';
 import { draftHome, draftToSaveInput, enrichCandidates, type SmartDraft } from '@/lib/smartImport';
 import { payerOrder } from '@/lib/split';
 import { dayKey } from '@/lib/stats';
@@ -29,6 +30,41 @@ import { confirmDialog } from '@/ui/Dialog';
 import { Sheet } from '@/ui/Sheet';
 import { Button, Card, Chip, EmptyState, Field, IconButton, Row, Screen, Segmented, Text, tap } from '@/ui/primitives';
 import type { Category, Member, RatesSnapshot, Trip } from '@/types/db';
+
+/** A flight or hotel found in the source: its main details, editable (kept on the expense). */
+function BookingFields({ booking: b, onChange }: { booking: Booking; onChange: (b: Booking | null) => void }) {
+  const c = useColors();
+  const { t } = useT();
+  const set = (patch: Record<string, string>) => onChange({ ...b, ...patch } as Booking);
+  const half = { flex: 1, minWidth: 120 };
+  return (
+    <View style={{ gap: space.sm, padding: space.sm, borderRadius: radius.md, backgroundColor: c.primarySoft }}>
+      <Row gap={space.sm}>
+        <Text style={{ fontWeight: '700', flex: 1 }}>
+          {b.kind === 'flight' ? `✈️ ${t('booking.flight')}` : `🏨 ${t('booking.hotel')}`}
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('booking.remove')} hitSlop={8} onPress={() => onChange(null)}>
+          <Ionicons name="close" size={18} color={c.textMuted} />
+        </Pressable>
+      </Row>
+      {b.kind === 'flight' ? (
+        <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+          <View style={half}><Field label={t('booking.flightNumber')} value={b.flight_number ?? ''} onChangeText={(v) => set({ flight_number: v.toUpperCase() })} maxLength={8} autoCapitalize="characters" /></View>
+          <View style={half}><Field label={t('booking.pnr')} value={b.pnr ?? ''} onChangeText={(v) => set({ pnr: v.toUpperCase() })} maxLength={20} autoCapitalize="characters" /></View>
+          <View style={half}><Field label={t('booking.from')} value={b.origin_iata ?? ''} onChangeText={(v) => set({ origin_iata: v.toUpperCase() })} maxLength={3} autoCapitalize="characters" /></View>
+          <View style={half}><Field label={t('booking.to')} value={b.destination_iata ?? ''} onChangeText={(v) => set({ destination_iata: v.toUpperCase() })} maxLength={3} autoCapitalize="characters" /></View>
+        </Row>
+      ) : (
+        <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+          <View style={{ width: '100%' }}><Field label={t('booking.property')} value={b.property_name ?? ''} onChangeText={(v) => set({ property_name: v })} maxLength={100} /></View>
+          <View style={half}><Field label={t('booking.checkIn')} value={b.check_in_date ?? ''} onChangeText={(v) => set({ check_in_date: v })} maxLength={10} placeholder="YYYY-MM-DD" /></View>
+          <View style={half}><Field label={t('booking.checkOut')} value={b.check_out_date ?? ''} onChangeText={(v) => set({ check_out_date: v })} maxLength={10} placeholder="YYYY-MM-DD" /></View>
+          <View style={{ width: '100%' }}><Field label={t('booking.confirmation')} value={b.confirmation_code ?? ''} onChangeText={(v) => set({ confirmation_code: v })} maxLength={20} /></View>
+        </Row>
+      )}
+    </View>
+  );
+}
 
 /** Step 2 of Smart import: check the expenses found, then add them all. */
 export default function SmartImportReview() {
@@ -294,6 +330,7 @@ function DraftCard({
         </Row>
 
         <Field label={t('smartImport.titleLabel')} value={d.title} onChangeText={(v) => onChange({ title: v })} maxLength={120} />
+        {d.booking ? <BookingFields booking={d.booking} onChange={(booking) => onChange({ booking })} /> : null}
         {/* Someone outside the trip paid, or was paid for: kept in the expense's notes */}
         {d.notes ? (
           <Field label={t('form.notes')} value={d.notes} onChangeText={(v) => onChange({ notes: v })} multiline maxLength={1000} style={{ minHeight: 44, textAlignVertical: 'top' }} />

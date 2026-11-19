@@ -10,6 +10,7 @@ const db = new PGlite();
 await db.exec(`
   create role anon nologin;
   create role authenticated nologin;
+  create role service_role nologin;
   create schema auth;
   create table auth.users (id uuid primary key, raw_user_meta_data jsonb default '{}'::jsonb);
   create function auth.jwt() returns jsonb language sql stable as
@@ -602,5 +603,75 @@ assert.equal((await db.query('select count(*)::int n from expenses where id = $1
 assert.equal((await db.query('select count(*)::int n from expense_splits where expense_id = $1', [rdMine.id])).rows[0].n, 0);
 await rejects(as(A, 'select purge_deleted_expenses($1)', [trip]), /permission denied/);
 ok('recently deleted: restore for 30 days (not someone else’s private one), then removed for good');
+
+// Automatic ingestion (0024): Shortcut keys, settings, learned categories, pending items
+const [{ create_ingestion_token: tok }] = await as(A, `select create_ingestion_token('iPhone')`);
+assert.match(tok.token, /^st_[0-9a-f]{64}$/);
+assert.equal((await as(A, 'select id, label, last_used_at from ingestion_tokens')).length, 1);
+assert.equal((await as(B, 'select id from ingestion_tokens')).length, 0);
+await rejects(as(A, 'select token_hash from ingestion_tokens'), /permission denied/);
+await rejects(as(A, `insert into ingestion_tokens (user_id, token_hash, label) values ($1, repeat('a', 64), 'x')`, [A]), /permission denied/);
+const hashOf = async (t) => (await db.query(`select encode(sha256(convert_to($1, 'UTF8')), 'hex') h`, [t])).rows[0].h;
+const tokHash = await hashOf(tok.token);
+await rejects(as(A, 'select ingestion_auth($1)', [tokHash]), /permission denied/);
+await rejects(as(A, `select ingest_expense($1, '{}'::jsonb)`, [A]), /permission denied/);
+assert.equal((await db.query('select ingestion_auth($1) u', [tokHash])).rows[0].u, A);
+await rejects(db.query('select ingestion_auth($1)', [await hashOf('st_wrong')]), /invalid_token/);
+await db.query(`update ingestion_tokens set window_count = 60 where id = $1`, [tok.id]);
+await rejects(db.query('select ingestion_auth($1)', [tokHash]), /rate_limited/);
+await db.query(`update ingestion_tokens set window_count = 0 where id = $1`, [tok.id]);
+await rejects(as(B, 'select revoke_ingestion_token($1)', [tok.id]), /not_found/);
+ok('ingestion keys: only a hash kept, own rows only, 60 uses an hour, checked only by the server');
+
+await as(A, `insert into ingestion_settings (default_trip_id, route_by_trip_dates) values ($1, false)`, [trip]);
+await rejects(as(C, `insert into ingestion_settings (default_trip_id) values ($1)`, [trip]), /row-level security/);
+assert.equal((await as(B, 'select * from ingestion_settings')).length, 0);
+const [{ id: catGroceries }] = (await db.query(`select id from expense_categories where key = 'groceries'`)).rows;
+await as(A, `insert into merchant_category_map (merchant_pattern, category_id) values ('7-eleven', $1)`, [catGroceries]);
+assert.equal((await as(B, 'select * from merchant_category_map')).length, 0);
+ok('ingestion settings and learned categories: own rows only; default trip must be one of yours');
+
+const item = (extra) => JSON.stringify({ client_id: '99999999-9999-4999-8999-999999999991', source: 'shortcut_wallet', amount: '89.00', currency: 'THB', merchant: '7-Eleven Silom', occurred_at: '2026-11-10T08:00:00Z', card_label: 'Max 1234', ...extra });
+const [{ r: ing }] = (await db.query('select ingest_expense($1, $2::jsonb) r', [A, item({})])).rows;
+assert.equal(ing.trip_id, trip);
+assert.equal(ing.possible_duplicate, false);
+const [pend] = await as(A, 'select * from expenses where id = $1', [ing.expense_id]);
+assert.equal(pend.review_status, 'pending_review');
+assert.equal(pend.source, 'shortcut_wallet');
+assert.equal(pend.merchant, '7-Eleven Silom');
+assert.equal(pend.created_by, A);
+assert.equal(pend.category_id, catGroceries);
+assert.equal(pend.payment_method, 'card');
+assert.equal(Number(pend.amount_minor), 8900);
+assert.equal(Number(pend.fx_fee_pct), Number((await db.query('select coalesce(m.card_fx_fee_pct, t.card_fx_fee_pct, 0) f from trip_members m join trips t on t.id = m.trip_id where m.id = $1', [mA])).rows[0].f));
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1', [ing.expense_id]))[0].n, 0);
+assert.equal((await as(B, 'select count(*)::int n from expense_splits where expense_id = $1', [ing.expense_id]))[0].n, 0);
+// The same payment sent again: the same expense
+const [{ r: again }] = (await db.query('select ingest_expense($1, $2::jsonb) r', [A, item({})])).rows;
+assert.equal(again.expense_id, ing.expense_id);
+// Same amount 5 minutes later from the notification: kept, flagged as a possible duplicate
+const [{ r: dup }] = (await db.query('select ingest_expense($1, $2::jsonb) r', [A, item({ client_id: '99999999-9999-4999-8999-999999999992', source: 'shortcut_notification', occurred_at: '2026-11-10T08:05:00Z' })])).rows;
+assert.notEqual(dup.expense_id, ing.expense_id);
+assert.equal(dup.possible_duplicate, true);
+await rejects(db.query('select ingest_expense($1, $2::jsonb)', [C, item({ client_id: '99999999-9999-4999-8999-999999999993' })]), /no_trip/);
+await rejects(db.query('select ingest_expense($1, $2::jsonb)', [A, item({ client_id: '99999999-9999-4999-8999-999999999994', source: 'manual' })]), /invalid_input/);
+// B can't change or delete it; A confirms it (shared) and then B sees it
+await rejects(as(B, 'select delete_expense($1, 1)', [ing.expense_id]), /not_found/);
+const [conf] = await as(A, `select * from save_expense($1::jsonb, $2)`, [JSON.stringify({ ...pend, id: pend.id, splits: [{ member_id: mA }, { member_id: mB }], split_type: 'equal', review_status: 'confirmed', fx_fee_pct: Number(pend.fx_fee_pct), expense_splits: undefined }), pend.version]);
+assert.equal(conf.review_status, 'confirmed');
+assert.equal(conf.source, 'shortcut_wallet');
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1', [ing.expense_id]))[0].n, 1);
+ok('ingested payments: pending and private until confirmed, idempotent, near-duplicates flagged, learned category');
+
+// New fields through save_expense, and their limits
+const [bk] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ source: 'smart_import', booking_details: { kind: 'flight', pnr: 'ABC123' }, billed_ils_minor: 12600 })]);
+assert.equal(bk.source, 'smart_import');
+assert.equal(bk.booking_details.pnr, 'ABC123');
+assert.equal(Number(bk.billed_ils_minor), 12600);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ source: 'hacked' })]), /check/);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ booking_details: { kind: 'x'.repeat(5000) } })]), /check/);
+await as(A, 'select revoke_ingestion_token($1)', [tok.id]);
+await rejects(db.query('select ingestion_auth($1)', [tokHash]), /invalid_token/);
+ok('source, booking details and billed amount saved with an expense; bad values refused; revoked key stops working');
 
 console.log(`\n${passed} SQL checks passed`);

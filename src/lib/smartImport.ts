@@ -7,6 +7,7 @@ import { convertToHomeMinor } from './money';
 import { toSplitEntries } from './split';
 import { cardFeeFor, countryForCurrency, memberFeePct, withFee } from './taxFree';
 import type { Member, RatesSnapshot, Trip } from '@/types/db';
+import { cleanBooking, type Booking } from './booking';
 
 export const SMART_TEXT_MAX = 2500;
 export const SMART_IMAGES_MAX = 3;
@@ -27,6 +28,8 @@ export type ParsedExpenseCandidate = {
   note?: string;
   /** Which screenshot it came from (null: the text). */
   image_index?: number | null;
+  /** A flight ticket or hotel booking: its details (Smart Booking Card). */
+  booking?: Booking | null;
 };
 
 export type SmartImportStatus = 'queued_offline' | 'processing' | 'ready_for_review' | 'error';
@@ -65,6 +68,7 @@ export type SmartDraft = {
   /** Fields the phone filled in (not read from the source): shown with a warning border. */
   guessed: { currency: boolean; date: boolean; payer: boolean };
   imageIndex: number | null;
+  booking: Booking | null;
 };
 
 /**
@@ -111,6 +115,7 @@ export function enrichCandidates(
       notes: x.note?.trim() ?? '',
       guessed: { currency: !x.currency, date: !x.date, payer: useLast },
       imageIndex: x.image_index ?? null,
+      booking: cleanBooking(x.booking),
     };
   });
 }
@@ -186,5 +191,7 @@ export function draftToSaveInput(
     vat_country: d.taxFree ? countryForCurrency(d.currency, p.trip.countries ?? []) : null,
     split_type: config.type,
     splits: toSplitEntries(config, d.payerId),
+    source: 'smart_import',
+    ...(d.booking ? { booking_details: cleanBooking(d.booking) } : {}),
   };
 }

@@ -51,6 +51,7 @@ import { CountryPicker } from './CountryPicker';
 import { FadeIn } from './FadeIn';
 import { InfoTip } from './InfoTip';
 import { UploadZone } from './UploadZone';
+import { learnMerchantCategory } from '@/hooks/usePendingReview';
 
 type RateMode = 'stored' | 'auto' | 'manual';
 
@@ -361,6 +362,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       vat_country: purchaseCountry,
       split_type: splitType,
       splits: toSplitEntries(effectiveSplit, payerId),
+      // Saving a payment a Shortcut added confirms it
+      ...(existing?.review_status === 'pending_review' ? { review_status: 'confirmed' as const } : {}),
     });
 
     const remember = () => {
@@ -374,6 +377,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
     };
     const done = () => {
       remember();
+      if (existing?.merchant && categoryId) learnMerchantCategory(existing.merchant, categoryId);
       // Saved for real: an older offline edit of this expense must not be sent later
       if (existing) useOutbox.getState().remove(editKey(existing.id));
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { AppState, Platform } from 'react-native';
 import { finishPendingTransfer, hasPendingTransfer } from '@/lib/auth';
 import { clearLaunchSnapshot } from '@/lib/launchSnapshot';
+import { clearReceiptCache } from '@/lib/receiptCache';
 import { errorCode, readStoredSession, readStoredSessionNow, supabase } from '@/lib/supabase';
 
 type AuthState = {
@@ -72,7 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // fallback); the library's own start-up event could briefly say "signed out"
       if (event === 'INITIAL_SESSION') return;
       if (event === 'PASSWORD_RECOVERY') setRecovery(true);
-      if (event === 'SIGNED_OUT') clearLaunchSnapshot();
+      if (event === 'SIGNED_OUT') {
+        clearLaunchSnapshot();
+        void clearReceiptCache();
+      }
       if (event === 'SIGNED_IN') void afterSignIn(s);
       setSession(s);
       setLoading(false);

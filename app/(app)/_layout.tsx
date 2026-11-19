@@ -67,6 +67,8 @@ export default function AppLayout() {
         <Stack.Screen name="categories" />
         <Stack.Screen name="settle" />
         <Stack.Screen name="deleted" />
+        <Stack.Screen name="ingestion" />
+        <Stack.Screen name="statement" />
         <Stack.Screen name="smart-import/[id]" />
       </Stack.Protected>
       <Stack.Screen name="onboarding/index" />

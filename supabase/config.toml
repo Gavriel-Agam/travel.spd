@@ -47,6 +47,13 @@ verify_jwt = true
 [functions.smart-parse-expenses]
 verify_jwt = true
 
+# Called by iOS Shortcuts with a personal key from Settings, not a Supabase session
+[functions.ingest-smart-item]
+verify_jwt = false
+
+[functions.generate-flight-pass]
+verify_jwt = true
+
 # Local QA stack only (scripts/qa-local.mjs): skip the services the app does not
 # use, so `supabase start` downloads and runs less. No effect on the live project.
 [studio]

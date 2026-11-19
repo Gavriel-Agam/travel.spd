@@ -1,14 +1,16 @@
 import { onlineManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
 import { mergeCategories } from '@/lib/categories';
 import { layoutSyncAction, sameOrder } from '@/lib/homeLayout';
 import { shrinkForUpload } from '@/lib/image';
+import { cacheReceiptBody, cacheReceiptFromUrl, cachedReceiptUrl } from '@/lib/receiptCache';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useIsDemo, usePrefs } from '@/store/prefs';
-import type { Budget, Category, CategoryOverride, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
+import type { Booking } from '@/lib/booking';
+import type { Budget, Category, CategoryOverride, Expense, ExpenseSource, Member, RatesSnapshot, Trip } from '@/types/db';
 import * as Crypto from 'expo-crypto';
 import {
   applyBudgetChanges,
@@ -351,6 +353,12 @@ export type SaveExpenseInput = {
   fx_fee_pct?: number;
   tax_free?: boolean;
   vat_country?: string | null;
+  /** 0024: sent only when set */
+  source?: ExpenseSource;
+  merchant?: string | null;
+  review_status?: 'confirmed' | 'pending_review';
+  billed_ils_minor?: number | null;
+  booking_details?: Booking | null;
 };
 
 export function useSaveExpense(tripId: string) {
@@ -432,6 +440,7 @@ export async function uploadReceipt(tripId: string, uri: string, mime = 'image/j
   const path = `${tripId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const body = await (await fetch(uri)).arrayBuffer();
   unwrap(await supabase.storage.from('receipts').upload(path, body, { contentType: mime }));
+  void cacheReceiptBody(path, body, mime);
   return path;
 }
 
@@ -441,6 +450,7 @@ export async function uploadReceiptBlob(tripId: string, blob: Blob) {
   const ext = mime.split('/')[1] ?? 'jpg';
   const path = `${tripId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   unwrap(await supabase.storage.from('receipts').upload(path, await blob.arrayBuffer(), { contentType: mime }));
+  void cacheReceiptBody(path, blob, mime);
   return path;
 }
 
@@ -503,6 +513,28 @@ export function useReceiptUrl(path: string | null | undefined) {
     staleTime: 50 * 60_000,
     queryFn: async () => unwrap(await supabase.storage.from('receipts').createSignedUrl(path!, 3600)).signedUrl,
   });
+}
+
+/**
+ * The receipt to show: the copy kept on this device when there is one (opens
+ * offline), else the server's link, which is then kept for next time.
+ */
+export function useReceiptSrc(path: string | null | undefined) {
+  const [local, setLocal] = useState<{ path: string; url: string | null } | null>(null);
+  const known = !!path && local?.path === path;
+  useEffect(() => {
+    if (!path) return;
+    let live = true;
+    cachedReceiptUrl(path).then((url) => live && setLocal({ path, url }));
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  const remote = useReceiptUrl(path && known && !local?.url ? path : null);
+  useEffect(() => {
+    if (path && remote.data) void cacheReceiptFromUrl(path, remote.data);
+  }, [path, remote.data]);
+  return { url: (known ? local?.url : null) ?? remote.data ?? null, loading: !!path && (!known || remote.isLoading) };
 }
 
 // ---------------------------------------------------------------- budgets

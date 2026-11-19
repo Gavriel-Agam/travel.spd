@@ -2,7 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { Image, View } from 'react-native';
-import { useReceiptUrl } from '@/api/queries';
+import { useReceiptSrc } from '@/api/queries';
+import { BookingCard } from '@/ui/BookingCard';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -26,7 +27,7 @@ export default function ExpenseDetails() {
   const actions = useExpenseActions(trip?.id ?? '');
   const qc = useQueryClient();
   const e = expenses.find((x) => x.id === id);
-  const receipt = useReceiptUrl(e?.receipt_path);
+  const receipt = useReceiptSrc(e?.receipt_path);
 
   if (isLoading) return <Loading />;
   if (!e)
@@ -76,6 +77,10 @@ export default function ExpenseDetails() {
         />
       ) : null}
 
+      {e.review_status === 'pending_review' ? <Banner text={t('pending.detailBanner')} color={c.warning} icon="hourglass-outline" /> : null}
+
+      {e.booking_details ? <BookingCard booking={e.booking_details} expenseId={e.id} /> : null}
+
       <View style={{ alignItems: 'center', gap: space.sm }}>
         <View
           style={{
@@ -119,6 +124,18 @@ export default function ExpenseDetails() {
             <Line label={t('form.paymentMethod')} value={paymentLabel(e.payment_method, t)} />
           </>
         ) : null}
+        {e.merchant && e.merchant !== e.description ? (
+          <>
+            <Divider />
+            <Line label={t('details.merchant')} value={e.merchant} />
+          </>
+        ) : null}
+        {e.source && e.source !== 'manual' ? (
+          <>
+            <Divider />
+            <Line label={t('details.source')} value={t(`details.sources.${e.source}`)} />
+          </>
+        ) : null}
       </Card>
 
       {!isHome ? (
@@ -135,6 +152,12 @@ export default function ExpenseDetails() {
             <>
               <Divider />
               <Line label={t('details.rateDate')} value={e.fx_rate_date} />
+            </>
+          ) : null}
+          {e.billed_ils_minor != null ? (
+            <>
+              <Divider />
+              <Line label={t('details.billed')} value={formatMoney(e.billed_ils_minor, HOME_CURRENCY, { lang, forceDecimals: true })} />
             </>
           ) : null}
           {Number(e.fx_fee_pct ?? 0) > 0 ? (
@@ -186,12 +209,12 @@ export default function ExpenseDetails() {
         </Card>
       ) : null}
 
-      {receipt.data ? (
+      {receipt.url ? (
         <Card>
           <Text variant="label" muted>
             {t('details.receipt')}
           </Text>
-          <Image source={{ uri: receipt.data }} style={{ width: '100%', height: 320, borderRadius: radius.md }} resizeMode="contain" />
+          <Image source={{ uri: receipt.url }} style={{ width: '100%', height: 320, borderRadius: radius.md }} resizeMode="contain" />
         </Card>
       ) : null}
 

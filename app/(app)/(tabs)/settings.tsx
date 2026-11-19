@@ -318,6 +318,10 @@ export default function Settings() {
         />
         <Divider />
         <ListRow icon={<Text style={{ fontSize: 20 }}>🏷️</Text>} title={t('categories.manage')} chevron onPress={() => router.push('/categories')} />
+        <Divider />
+        <ListRow icon={<Text style={{ fontSize: 20 }}>⚡</Text>} title={t('ingestion.title')} subtitle={t('ingestion.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/ingestion')} />
+        <Divider />
+        <ListRow icon={<Text style={{ fontSize: 20 }}>📄</Text>} title={t('statement.title')} subtitle={t('statement.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/statement')} />
       </Card>
 
       {/* Members + invite */}

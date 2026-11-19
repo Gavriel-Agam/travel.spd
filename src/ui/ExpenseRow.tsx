@@ -1,4 +1,8 @@
-import { Pressable, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
+import { Image, Pressable, View } from 'react-native';
+import { useReceiptSrc } from '@/api/queries';
+import { bookingTag } from '@/lib/booking';
 import { categoryLabel, UNCATEGORIZED } from '@/lib/categories';
 import { formatMoney } from '@/lib/money';
 import { HOME_CURRENCY } from '@/lib/currencies';
@@ -6,7 +10,27 @@ import { useT } from '@/i18n';
 import { space, useColors } from '@/theme';
 import type { Category, Expense, Member } from '@/types/db';
 import { CategoryIcon } from './CategoryIcon';
-import { Row, Text } from './primitives';
+import { Loading, Row, Text } from './primitives';
+import { Sheet } from './Sheet';
+
+/** The receipt photo, opened from the 🧾 on a row (works offline once it was opened or saved here). */
+function ReceiptSheet({ path, onClose }: { path: string; onClose: () => void }) {
+  const { t } = useT();
+  const src = useReceiptSrc(path);
+  return (
+    <Sheet visible onClose={onClose} title={t('details.receipt')}>
+      {src.url ? (
+        <Image source={{ uri: src.url }} style={{ width: '100%', height: 480 }} resizeMode="contain" accessibilityLabel={t('details.receipt')} />
+      ) : src.loading ? (
+        <Loading />
+      ) : (
+        <Text muted center>
+          {t('expenses.receiptOffline')}
+        </Text>
+      )}
+    </Sheet>
+  );
+}
 
 /**
  * One expense: category, description and the amount in both currencies. Under
@@ -33,11 +57,15 @@ export function ExpenseRow({
   const c = useColors();
   const { t, lang } = useT();
   const isHome = expense.currency === HOME_CURRENCY;
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const tag = bookingTag(expense.booking_details, lang === 'he' ? 'he-IL' : 'en-US');
+  const pendingReview = expense.review_status === 'pending_review';
   const title =
     expense.kind === 'settlement'
       ? t('settle.rowTitle', { name: recipient?.display_name ?? '' })
       : expense.description || categoryLabel(category, t);
   return (
+    <>
     <Pressable onPress={onPress} onLongPress={onLongPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       <Row gap={space.md} style={{ paddingVertical: 10 }}>
         <View
@@ -56,8 +84,24 @@ export function ExpenseRow({
           <Text style={{ fontWeight: '600' }} numberOfLines={1}>
             {title}
           </Text>
-          {payer || expense.pending ? (
+          {tag ? (
+            // A flight's codes and route read left to right in both languages; stay dates follow the language
+            <Text
+              variant="caption"
+              color={c.primary}
+              numberOfLines={1}
+              style={[{ fontWeight: '600' }, expense.booking_details?.kind === 'flight' ? { writingDirection: 'ltr', textAlign: lang === 'he' ? 'right' : 'left' } : null]}
+            >
+              {expense.booking_details?.kind === 'hotel' ? '🏨' : '✈️'} {tag}
+            </Text>
+          ) : null}
+          {payer || expense.pending || pendingReview ? (
             <Row gap={6}>
+              {pendingReview ? (
+                <Text variant="caption" color={c.warning} numberOfLines={1} style={{ fontWeight: '600' }}>
+                  {t('pending.rowBadge')}
+                </Text>
+              ) : null}
               {payer ? (
                 <View
                   accessibilityLabel={`${t('details.paidBy')}: ${payer.display_name}`}
@@ -76,6 +120,17 @@ export function ExpenseRow({
             </Row>
           ) : null}
         </View>
+        {expense.receipt_path ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('details.receipt')}
+            hitSlop={6}
+            onPress={() => setReceiptOpen(true)}
+            style={{ padding: 6, borderRadius: 999, backgroundColor: c.cardAlt }}
+          >
+            <Ionicons name="receipt-outline" size={16} color={c.textMuted} />
+          </Pressable>
+        ) : null}
         <View style={{ alignItems: 'flex-end', gap: 3 }}>
           <Text variant="mono">{formatMoney(expense.amount_ils_minor, HOME_CURRENCY, { lang })}</Text>
           {!isHome ? (
@@ -86,5 +141,8 @@ export function ExpenseRow({
         </View>
       </Row>
     </Pressable>
+    {/* Outside the row, so taps in the sheet don't open the expense */}
+    {receiptOpen && expense.receipt_path ? <ReceiptSheet path={expense.receipt_path} onClose={() => setReceiptOpen(false)} /> : null}
+    </>
   );
 }

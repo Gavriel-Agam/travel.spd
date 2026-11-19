@@ -40,6 +40,11 @@ function fromPayload(p: SaveExpenseInput, id: string, item: CreateItem | UpdateI
     fx_fee_pct: p.fx_fee_pct ?? 0,
     tax_free: p.tax_free ?? false,
     vat_country: p.vat_country ?? null,
+    source: p.source ?? base?.source,
+    merchant: p.merchant !== undefined ? p.merchant : base?.merchant,
+    review_status: p.review_status ?? base?.review_status,
+    billed_ils_minor: p.billed_ils_minor !== undefined ? p.billed_ils_minor : base?.billed_ils_minor,
+    booking_details: p.booking_details !== undefined ? p.booking_details : base?.booking_details,
     split_type: p.split_type as SplitType,
     // An edited expense keeps the version it was changed from: a further edit or a delete starts from it too
     version: item.kind === 'update' ? item.expectedVersion : 0,

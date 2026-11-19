@@ -2,6 +2,7 @@
 // using the no-login MVP has an anonymous identity; before it signs in we take
 // a one-time transfer token for that identity, and after sign-in we hand it
 // back so its trips and expenses move to the real account.
+import { FEATURES } from '@/lib/features';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { logError } from './log';
@@ -75,9 +76,9 @@ export async function setNewPassword(password: string) {
   if (error) throw error;
 }
 
-/** This browser can use passkeys (Face ID, fingerprint, device PIN). Web only for now. */
+/** Passkeys are switched on (feature flag) and this browser can use them (Face ID, fingerprint, device PIN). Web only for now. */
 export function passkeySupported() {
-  return Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function';
+  return FEATURES.passkeys && Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function';
 }
 
 /** Signs in with a passkey saved on this device: the device asks for Face ID / fingerprint and picks the account. */

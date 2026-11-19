@@ -2,6 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Sheet } from '@/ui/Sheet';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useDragScroll } from '@/hooks/useCardOrder';
 import { dayHeadingKey, dropAcrossDays, orderDay } from '@/lib/expenseOrder';
@@ -37,6 +39,7 @@ export default function Expenses() {
   const [query, setQuery] = useState('');
   const searchDir = useTextFieldDirection(query);
   const [showFilters, setShowFilters] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [payerId, setPayerId] = useState<string | null>(null);
   const [from, setFrom] = useState<Date | null>(null);
@@ -98,7 +101,13 @@ export default function Expenses() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
       <TripBackdrop />
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
-        <Text variant="title">{t('expenses.title')}</Text>
+        {/* ⋮ at the end of the title row (top left in Hebrew): Filter, Recently deleted */}
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Text variant="title">{t('expenses.title')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('expenses.moreOptions')} hitSlop={8} onPress={() => setMenuOpen(true)} style={{ padding: 6 }}>
+            <Ionicons name="ellipsis-vertical" size={22} color={c.text} />
+          </Pressable>
+        </Row>
         <Row gap={space.sm}>
           <Row gap={space.sm} style={{ flex: 1, backgroundColor: c.card, borderRadius: radius.md, paddingHorizontal: space.md }}>
             <Ionicons name="search" size={18} color={c.textMuted} />
@@ -117,6 +126,9 @@ export default function Expenses() {
             ) : null}
           </Row>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('expenses.filters')}
+            accessibilityState={{ expanded: showFilters }}
             onPress={() => setShowFilters((v) => !v)}
             style={{
               height: 44,
@@ -128,7 +140,7 @@ export default function Expenses() {
               gap: 4,
             }}
           >
-            <Ionicons name="options-outline" size={20} color={activeFilters ? c.primaryText : c.text} />
+            <Ionicons name="funnel-outline" size={20} color={activeFilters ? c.primaryText : c.text} />
             {activeFilters ? <Text variant="label" color={c.primaryText}>{activeFilters}</Text> : null}
           </Pressable>
         </Row>
@@ -256,6 +268,37 @@ export default function Expenses() {
           />
         </ScrollView>
       )}
+      <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)} title={t('expenses.moreOptions')}>
+        <View style={{ padding: space.lg, gap: space.xs }}>
+          {(
+            [
+              { key: 'filter', icon: 'funnel-outline', label: t('expenses.filters'), run: () => setShowFilters(true) },
+              { key: 'deleted', icon: 'trash-outline', label: t('deleted.title'), run: () => router.push('/deleted') },
+            ] as const
+          ).map((item) => (
+            <Pressable
+              key={item.key}
+              accessibilityRole="button"
+              onPress={() => {
+                setMenuOpen(false);
+                item.run();
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.md,
+                minHeight: 52,
+                paddingHorizontal: space.md,
+                borderRadius: radius.md,
+                backgroundColor: pressed ? c.cardAlt : 'transparent',
+              })}
+            >
+              <Ionicons name={item.icon} size={22} color={c.primary} />
+              <Text style={{ flex: 1, fontWeight: '600' }}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Sheet>
     </SafeAreaView>
   );
 }

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { onlineManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { registerCurrencies, type Currency } from '@/lib/currencies';
@@ -6,7 +6,7 @@ import { mergeCategories } from '@/lib/categories';
 import { layoutSyncAction, sameOrder } from '@/lib/homeLayout';
 import { shrinkForUpload } from '@/lib/image';
 import { displayMemberName, displayTripName } from '@/lib/defaultNames';
-import { supabase } from '@/lib/supabase';
+import { errorCode, supabase } from '@/lib/supabase';
 import { useIsDemo, usePrefs } from '@/store/prefs';
 import type { Budget, Category, CategoryOverride, Expense, Member, RatesSnapshot, Trip } from '@/types/db';
 import * as Crypto from 'expo-crypto';
@@ -28,6 +28,7 @@ export const keys = {
   members: (t: string) => ['members', t] as const,
   categories: (t: string) => ['categories', t] as const,
   expenses: (t: string) => ['expenses', t] as const,
+  deleted: (t: string) => ['deleted-expenses', t] as const,
   budgets: (t: string) => ['budgets', t] as const,
   invite: (t: string) => ['invite', t] as const,
   currencies: ['currencies'] as const,
@@ -379,6 +380,51 @@ export function useDeleteExpense(tripId: string) {
     onError: (_e, _p, ctx) => ctx?.prev && qc.setQueryData(keys.expenses(tripId), ctx.prev),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.expenses(tripId) }),
   });
+}
+
+/** Days a deleted expense can still be restored (the server removes it after that). */
+export const RESTORE_DAYS = 30;
+
+/** The trip's expenses deleted in the last 30 days, newest first (Recently deleted). */
+export function useDeletedExpenses(tripId: string | undefined) {
+  const demo = useIsDemo();
+  return useQuery({
+    queryKey: keys.deleted(tripId ?? ''),
+    enabled: !!tripId && !demo,
+    queryFn: async () =>
+      unwrap(
+        await supabase
+          .from('expenses')
+          .select('*, expense_splits(*)')
+          .eq('trip_id', tripId!)
+          .not('deleted_at', 'is', null)
+          .gte('deleted_at', new Date(Date.now() - RESTORE_DAYS * 86_400_000).toISOString())
+          .order('deleted_at', { ascending: false }),
+      ) as Expense[],
+  });
+}
+
+/** Restore: back in the lists at once; queued while offline (sent when the connection returns). */
+export function useRestoreExpense(tripId: string) {
+  const qc = useQueryClient();
+  return (e: Expense) => {
+    // Out of Recently deleted now
+    qc.setQueryData<Expense[]>(keys.deleted(tripId), (list) => list?.filter((x) => x.id !== e.id));
+    const queue = () =>
+      useOutbox.getState().queueRestore({ expenseId: e.id, tripId, createdBy: '', queuedAt: new Date().toISOString(), snapshot: { ...e, deleted_at: null } });
+    if (!onlineManager.isOnline()) return queue();
+    // Shown in the lists while the server is asked
+    qc.setQueryData<Expense[]>(keys.expenses(tripId), (list) => (list && !list.some((x) => x.id === e.id) ? [{ ...e, deleted_at: null }, ...list] : list));
+    supabase
+      .rpc('restore_expense', { p_id: e.id })
+      .then(({ error }) => {
+        if (error && errorCode(error) !== 'not_found') queue();
+      })
+      .then(() => {
+        qc.invalidateQueries({ queryKey: keys.expenses(tripId) });
+        qc.invalidateQueries({ queryKey: keys.deleted(tripId) });
+      });
+  };
 }
 
 export async function uploadReceipt(tripId: string, uri: string, mime = 'image/jpeg') {

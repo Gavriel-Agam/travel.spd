@@ -66,6 +66,7 @@ export default function AppLayout() {
         <Stack.Screen name="expense/[id]/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="categories" />
         <Stack.Screen name="settle" />
+        <Stack.Screen name="deleted" />
         <Stack.Screen name="smart-import/[id]" />
       </Stack.Protected>
       <Stack.Screen name="onboarding/index" />

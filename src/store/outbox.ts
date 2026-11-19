@@ -14,7 +14,7 @@ import { mergeChange } from '@/lib/pendingChanges';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { SaveExpenseInput } from '@/api/queries';
-import type { Budget, Category, CategoryOverride, Member, Trip } from '@/types/db';
+import type { Budget, Category, CategoryOverride, Expense, Member, Trip } from '@/types/db';
 
 type Base = {
   /** create: the new expense's client id. update: `edit:<expense id>`. delete: `del:<expense id>`. Settings: see lib/pendingChanges. */
@@ -29,7 +29,10 @@ type Base = {
 
 export type CreateItem = Base & { kind?: 'create'; payload: SaveExpenseInput & { client_id: string } };
 export type UpdateItem = Base & { kind: 'update'; expenseId: string; expectedVersion: number; payload: SaveExpenseInput };
-export type DeleteItem = Base & { kind: 'delete'; expenseId: string; expectedVersion: number };
+/** `snapshot`: the expense as it was, so Recently deleted can list it before the server has the delete. */
+export type DeleteItem = Base & { kind: 'delete'; expenseId: string; expectedVersion: number; snapshot?: Expense };
+/** Restore a deleted expense (Recently deleted); `snapshot` shows it in the lists until the server confirms. */
+export type RestoreItem = Base & { kind: 'restore'; expenseId: string; snapshot: Expense };
 
 export type TripPatch = Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'default_currency' | 'theme_color' | 'category_order' | 'payment_methods' | 'card_fx_fee_pct' | 'countries'>>;
 /** The trip's details, colour, category order or own payment methods. */
@@ -44,10 +47,11 @@ export type BudgetItem = Base & { kind: 'budget'; scope: Budget['scope']; catego
 export type MemberItem = Base & { kind: 'member'; memberId: string; patch: Partial<Pick<Member, 'display_name' | 'color' | 'card_fx_fee_pct'>> };
 
 export type ChangeItem = TripItem | CategoryItem | OverrideItem | BudgetItem | MemberItem;
-export type OutboxItem = CreateItem | UpdateItem | DeleteItem | ChangeItem;
+export type OutboxItem = CreateItem | UpdateItem | DeleteItem | RestoreItem | ChangeItem;
 
 export const editKey = (expenseId: string) => `edit:${expenseId}`;
 export const deleteKey = (expenseId: string) => `del:${expenseId}`;
+export const restoreKey = (expenseId: string) => `restore:${expenseId}`;
 
 type OutboxState = {
   items: OutboxItem[];
@@ -56,6 +60,8 @@ type OutboxState = {
   queueUpdate: (item: Omit<UpdateItem, 'kind' | 'clientId'>) => void;
   /** Queue a delete of a saved expense (drops any queued edit of it). */
   queueDelete: (item: Omit<DeleteItem, 'kind' | 'clientId'>) => void;
+  /** Restore a deleted expense: a delete not sent yet is just dropped; otherwise the restore is queued. */
+  queueRestore: (item: Omit<RestoreItem, 'kind' | 'clientId'>) => void;
   /** Queue a settings change, merged into an earlier one to the same thing (kept in its place). */
   queueChange: (item: ChangeItem) => void;
   /** Change a queued new expense in place (e.g. moved to another day before it was sent). */
@@ -83,6 +89,13 @@ export const useOutbox = create<OutboxState>()(
           const edit = s.items.find((i) => i.clientId === editKey(item.expenseId)) as UpdateItem | undefined;
           const next: DeleteItem = { ...item, kind: 'delete', clientId: deleteKey(item.expenseId), expectedVersion: edit?.expectedVersion ?? item.expectedVersion };
           return { items: [...s.items.filter((i) => i.clientId !== editKey(item.expenseId) && i.clientId !== next.clientId), next] };
+        }),
+      queueRestore: (item) =>
+        set((s) => {
+          const del = s.items.find((i) => i.clientId === deleteKey(item.expenseId) && !i.error);
+          if (del) return { items: s.items.filter((i) => i !== del) };
+          const next: RestoreItem = { ...item, kind: 'restore', clientId: restoreKey(item.expenseId) };
+          return { items: [...s.items.filter((i) => i.clientId !== next.clientId), next] };
         }),
       queueChange: (item) =>
         set((s) => {

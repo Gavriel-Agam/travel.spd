@@ -26,7 +26,7 @@ import { DialogHost } from '@/ui/Dialog';
 import { GestureRoot } from '@/ui/GestureRoot';
 import { ConfettiHost } from '@/ui/Confetti';
 import { Loading } from '@/ui/primitives';
-import { useColors } from '@/theme';
+import { useColorMode, useColors, useWebTheme } from '@/theme';
 import { themes } from '@/palette';
 
 // Saved data is kept a month: long trips can go days without a usable signal.
@@ -148,6 +148,12 @@ function RootNavigator() {
   );
 }
 
+/** Status bar text: light on dark mode, dark on light mode (also when chosen in the app). */
+function ThemedStatusBar() {
+  useWebTheme();
+  return <StatusBar style={useColorMode() === 'dark' ? 'light' : 'dark'} />;
+}
+
 export default function RootLayout() {
   const hydrated = usePrefsHydrated();
   // The live app has replaced the saved copy of Home shown at launch
@@ -163,7 +169,7 @@ export default function RootLayout() {
 
   const app = (
     <AuthProvider>
-      <StatusBar style="auto" />
+      <ThemedStatusBar />
       {hydrated ? <RootNavigator /> : <Loading />}
       <DialogHost />
       <ConfettiHost />

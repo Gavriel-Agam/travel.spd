@@ -55,7 +55,8 @@ function save() {
         css,
         dir: document.documentElement.dir,
         lang: document.documentElement.lang,
-        dark: !!window.matchMedia?.('(prefers-color-scheme: dark)').matches,
+        // The mode chosen in the app, else the device's (index.html checks the same)
+        dark: (ls.getItem('smarttrip-theme') ?? (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark',
         // Laid out for this screen size: not shown on another one
         w: window.innerWidth,
         h: window.innerHeight,

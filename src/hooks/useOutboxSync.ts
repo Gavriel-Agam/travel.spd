@@ -33,6 +33,13 @@ async function send(item: OutboxItem): Promise<string | null> {
     // Already gone (deleted on the other phone): nothing left to do
     return code === 'not_found' ? null : code;
   }
+  if (item.kind === 'restore') {
+    const { error } = await supabase.rpc('restore_expense', { p_id: item.expenseId });
+    if (!error) return null;
+    const code = errorCode(error);
+    // Gone for good (over 30 days) or not visible: nothing left to do
+    return code === 'not_found' ? null : code;
+  }
   if (item.kind === 'update') {
     const { version: _v, ...payload } = item.payload;
     const { error } = await supabase.rpc('save_expense', { p_expense: { ...payload, id: item.expenseId }, p_expected_version: item.expectedVersion });

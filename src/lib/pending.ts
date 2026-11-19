@@ -80,9 +80,14 @@ export function mergePending(saved: Expense[], outbox: OutboxItem[], tripId: str
   const edits = new Map<string, UpdateItem>();
   const deletes = new Map<string, OutboxItem>();
   const created: Expense[] = [];
+  const savedIds = new Set(saved.map((e) => e.id));
   for (const i of queue) {
     if (i.kind === 'update') edits.set(i.expenseId, i);
     else if (i.kind === 'delete') deletes.set(i.expenseId, i);
+    // Restored on this phone: back in the lists until the server's copy arrives
+    else if (i.kind === 'restore') {
+      if (!savedIds.has(i.expenseId)) created.push({ ...i.snapshot, deleted_at: null, pending: i.error ? 'failed' : 'waiting', pending_error: i.error, pending_op: 'restore' });
+    }
     else if (!savedClientIds.has(i.clientId)) created.push(pendingToExpense(i as CreateItem));
   }
   const merged: Expense[] = [];

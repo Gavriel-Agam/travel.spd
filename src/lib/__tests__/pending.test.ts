@@ -126,3 +126,19 @@ describe('mergePending: offline edits and deletes', () => {
     expect(list[0].pending).toBeUndefined();
   });
 });
+
+describe('restore (Recently deleted)', () => {
+  const deleted: Expense = { ...pendingToExpense(item('c9')), id: 'e9', client_id: 'c9', pending: undefined, pending_op: undefined, deleted_at: '2026-11-05T00:00:00Z' };
+  const restore = { kind: 'restore' as const, clientId: 'restore:e9', tripId: 't1', createdBy: 'u1', queuedAt: '2026-11-06T00:00:00Z', expenseId: 'e9', snapshot: deleted };
+
+  it('a restore queued offline shows the expense again, marked as waiting', () => {
+    const [e] = mergePending([], [restore], 't1');
+    expect(e).toMatchObject({ id: 'e9', deleted_at: null, pending: 'waiting', pending_op: 'restore' });
+  });
+
+  it('once the server has it back, it is shown once', () => {
+    const list = mergePending([{ ...deleted, deleted_at: null }], [restore], 't1');
+    expect(list.filter((e) => e.id === 'e9')).toHaveLength(1);
+    expect(list[0].pending).toBeUndefined();
+  });
+});

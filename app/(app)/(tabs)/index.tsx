@@ -180,6 +180,8 @@ export default function Home() {
   // Shown only to you, and only when there is some, so a couple on one joint budget sees just the shared numbers.
   const personal = me ? personalTotal(expenses.map((e) => ({ ...e, splits: e.expense_splits })), me.id) : 0;
   const myShare = personal > 0 ? personal : null;
+  // One traveller: "budget", not "shared budget"
+  const solo = members.length < 2;
 
   // Cards in the order chosen on this phone (Arrange)
   const hasData = expenses.length > 0;
@@ -247,7 +249,7 @@ export default function Home() {
             <Row style={{ borderTopWidth: 1, borderTopColor: onHero + '33', paddingTop: space.md, alignItems: 'flex-start' }}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="caption" color={onHero}>
-                  {t('home.sharedBudget')}
+                  {solo ? t('home.budgetSolo') : t('home.sharedBudget')}
                 </Text>
                 <Text color={onHero} style={{ fontWeight: '700', fontSize: 18 }}>
                   {stats.budget ? ils(stats.budget) : t('budget.notSet')}
@@ -273,10 +275,19 @@ export default function Home() {
               ) : null}
             </Row>
           ) : null}
+          {/* No budget yet: a link to the budget in Trip details */}
           {!stats.budget && !heroMine ? (
-            <Text variant="label" color={onHero}>
-              {t('home.noBudget')}
-            </Text>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push({ pathname: '/settings', params: { edit: 'trip' } })}
+              hitSlop={6}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.7 : 1 })}
+            >
+              <Text variant="label" color={onHero} style={{ textDecorationLine: 'underline', flexShrink: 1 }}>
+                {solo ? t('home.noBudgetSolo') : t('home.noBudget')}
+              </Text>
+              <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={14} color={onHero} />
+            </Pressable>
           ) : null}
         </View>
       </View>
@@ -624,6 +635,7 @@ export default function Home() {
                 style={{ borderRadius: k === 'hero' ? radius.xl : radius.lg }}
                 yieldToInner
                 clipWhenClosed={false}
+                autoCloseMs={4000}
                 actions={[{ key: 'hide', icon: 'eye-off-outline', color: c.textMuted, label: t('home.hideCard'), onPress: () => hideCard(k) }]}
               >
                 {() => sections[k]}
@@ -665,6 +677,10 @@ export default function Home() {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         importBadge={importBadge}
+        onDeleted={() => {
+          setMenuOpen(false);
+          router.push('/deleted');
+        }}
         onSmartImport={() => {
           setMenuOpen(false);
           setTimeout(() => setImportOpen(true), 300);

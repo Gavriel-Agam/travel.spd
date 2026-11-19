@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, PanResponder, Platform, Pressable, View, type ViewStyle } from 'react-native';
 import { useT } from '@/i18n';
 import { readableOn } from '@/lib/contrast';
@@ -32,6 +33,11 @@ function corners(style?: ViewStyle): ViewStyle {
   return out as ViewStyle;
 }
 
+/** Closes whichever row is open (e.g. when the page starts scrolling). */
+export function closeOpenSwipeRow() {
+  openRow?.close();
+}
+
 export type SwipeAction = {
   key: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -56,6 +62,7 @@ export function SwipeRow({
   contentStyle,
   yieldToInner = false,
   clipWhenClosed = true,
+  autoCloseMs,
 }: {
   actions: SwipeAction[];
   children: (guardTap: (onTap: () => void) => () => void) => ReactNode;
@@ -72,6 +79,8 @@ export function SwipeRow({
   yieldToInner?: boolean;
   /** False: nothing is clipped while closed, so a shadow around the content shows in full. */
   clipWhenClosed?: boolean;
+  /** Slide back after this long open without an action tapped. */
+  autoCloseMs?: number;
 }) {
   const { lang } = useT();
   const rtl = lang === 'he';
@@ -79,8 +88,9 @@ export function SwipeRow({
   const x = useRef(new Animated.Value(0)).current;
   const [revealed, setRevealed] = useState(false);
   const state = useRef({ base: 0, swipedAt: 0 });
-  const live = useRef({ rtl, width });
-  live.current = { rtl, width };
+  const live = useRef({ rtl, width, autoCloseMs });
+  live.current = { rtl, width, autoCloseMs };
+  const autoClose = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const self = useRef<RowHandle>({ close: () => {} }).current;
   const mounted = useRef(true);
@@ -92,16 +102,32 @@ export function SwipeRow({
       if (openRow && openRow !== self) openRow.close();
       openRow = self;
     } else if (openRow === self) openRow = null;
-    Animated.spring(x, { toValue: to, useNativeDriver: Platform.OS !== 'web', bounciness: 0, speed: 20 }).start(({ finished }) => {
-      if (finished && !open && mounted.current) setRevealed(false);
+    if (autoClose.current) clearTimeout(autoClose.current);
+    autoClose.current = null;
+    // Cards with a single Hide tile slide back by themselves if it isn't tapped
+    if (open && live.current.autoCloseMs) autoClose.current = setTimeout(() => self.close(), live.current.autoCloseMs);
+    Animated.spring(x, { toValue: to, useNativeDriver: Platform.OS !== 'web', bounciness: 0, speed: 20 }).start(() => {
+      // Closed (even if the spring was cut short): hide the tiles, unless a new swipe opened it meanwhile
+      if (!open && mounted.current && state.current.base === 0) {
+        x.setValue(0);
+        setRevealed(false);
+      }
     });
   };
   const close = () => animateTo(false);
   self.close = close;
 
+  // Leaving the screen closes it
+  useFocusEffect(
+    useCallback(() => () => {
+      if (state.current.base !== 0) self.close();
+    }, []),
+  );
+
   useEffect(
     () => () => {
       mounted.current = false;
+      if (autoClose.current) clearTimeout(autoClose.current);
       if (openRow === self) openRow = null;
     },
     [],
@@ -129,6 +155,7 @@ export function SwipeRow({
           state.current.swipedAt = Date.now();
           animateTo(settleOpen(state.current.base, g.dx, g.vx, live.current.width, live.current.rtl));
         },
+        // Cancelled (another gesture took over, the touch was cancelled): back to where it was, never half open
         onPanResponderTerminate: () => animateTo(state.current.base !== 0),
         onPanResponderTerminationRequest: () => false,
       }),
@@ -169,6 +196,12 @@ export function SwipeRow({
       </Row>
       <Animated.View
         {...pan.panHandlers}
+        // A tap anywhere on an open row closes it (and isn't passed to what's under the finger)
+        onStartShouldSetResponderCapture={() => {
+          if (state.current.base === 0) return false;
+          close();
+          return true;
+        }}
         // Native screen readers: the actions without swiping
         accessibilityActions={actions.map((a) => ({ name: a.key, label: a.label }))}
         onAccessibilityAction={(e) => actions.find((a) => a.key === e.nativeEvent.actionName)?.onPress()}

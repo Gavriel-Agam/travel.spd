@@ -495,6 +495,7 @@ export default function Stats() {
                     style={{ borderRadius: radius.lg }}
                     yieldToInner
                     clipWhenClosed={false}
+                autoCloseMs={4000}
                     actions={[{ key: 'hide', icon: 'eye-off-outline', color: c.textMuted, label: t('home.hideCard'), onPress: () => layout.hide(k) }]}
                   >
                     {() => sections[k]}

@@ -1,11 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useDeleteExpense } from '@/api/queries';
+import { keys, useDeleteExpense } from '@/api/queries';
 import { useT } from '@/i18n';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode } from '@/lib/supabase';
 import { inputFromExpense, moveToDay as sameTimeOnDay } from '@/lib/expenseOrder';
-import { deleteKey, editKey, useOutbox, type UpdateItem } from '@/store/outbox';
+import { deleteKey, editKey, restoreKey, useOutbox, type UpdateItem } from '@/store/outbox';
 import { onlineManager } from '@tanstack/react-query';
 import { useUserId } from '@/providers/AuthProvider';
 import type { Expense } from '@/types/db';
@@ -35,6 +35,12 @@ export function useExpenseActions(tripId: string) {
   const remove = async (e: Expense, onDone?: () => void) => {
     if (blockedInDemo(qc)) return;
     // A new expense that never reached the server: just drop it from the phone
+    // Restored on this phone and not sent yet: it just stays deleted
+    if (e.pending_op === 'restore') {
+      useOutbox.getState().remove(restoreKey(e.id));
+      onDone?.();
+      return;
+    }
     if (e.pending_op === 'create') {
       if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
         useOutbox.getState().remove(e.id);
@@ -46,7 +52,7 @@ export function useExpenseActions(tripId: string) {
     if (!ok) return;
     // No signal: hidden now (totals follow), deleted on the server when the connection returns
     const queue = () => {
-      useOutbox.getState().queueDelete({ expenseId: e.id, expectedVersion: e.version, tripId: e.trip_id, createdBy: userId ?? '', queuedAt: new Date().toISOString() });
+      useOutbox.getState().queueDelete({ expenseId: e.id, expectedVersion: e.version, tripId: e.trip_id, createdBy: userId ?? '', queuedAt: new Date().toISOString(), snapshot: e });
       onDone?.();
     };
     if (!onlineManager.isOnline()) return queue();
@@ -57,6 +63,7 @@ export function useExpenseActions(tripId: string) {
           // Nothing queued for it may be sent later
           useOutbox.getState().remove(editKey(e.id));
           useOutbox.getState().remove(deleteKey(e.id));
+          qc.invalidateQueries({ queryKey: keys.deleted(tripId) });
           onDone?.();
         },
         onError: (err) => (errorCode(err) === 'network' ? queue() : showDialog(t('errors.title'), t(`errors.${errorCode(err)}`))),

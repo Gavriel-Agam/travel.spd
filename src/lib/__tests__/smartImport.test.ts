@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dateToOccurredAt, draftToSaveInput, enrichCandidates, type ParsedExpenseCandidate } from '../smartImport';
 import { smartImportBadge } from '@/store/smartImports';
+import { payerOrder } from '../split';
 import type { Member, RatesSnapshot } from '@/types/db';
 
 const members = [{ id: 'a' }, { id: 'b' }];
@@ -37,6 +38,7 @@ describe('enrichCandidates', () => {
       const [d] = enrichCandidates([cand(p)], base);
       expect(d).toMatchObject({ payerId: 'b', split: 'personal' });
       expect(d.guessed.payer).toBe(true);
+      expect(d.needsReview).toBe(false);
     }
   });
 
@@ -47,9 +49,9 @@ describe('enrichCandidates', () => {
     expect(e.payerId).toBeNull();
   });
 
-  it('no currency: the trip default, flagged for review; no date: today', () => {
+  it('no currency: the trip default, not flagged; no date: today', () => {
     const [d] = enrichCandidates([cand({ currency: null, date: null })], base);
-    expect(d).toMatchObject({ currency: 'THB', date: '2026-11-16', needsReview: true });
+    expect(d).toMatchObject({ currency: 'THB', date: '2026-11-16', needsReview: false });
     expect(d.guessed).toMatchObject({ currency: true, date: true });
   });
 
@@ -120,5 +122,12 @@ describe('dateToOccurredAt / smartImportBadge', () => {
     expect(smartImportBadge([r('t', 'error'), r('t', 'queued_offline')], 't')).toBe('queued');
     expect(smartImportBadge([r('t', 'queued_offline'), r('t', 'ready_for_review')], 't')).toBe('ready');
     expect(smartImportBadge([r('x', 'ready_for_review')], 't')).toBeNull();
+  });
+});
+
+describe('payerOrder', () => {
+  it('you first, the others in trip order', () => {
+    expect(payerOrder([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 'b').map((m) => m.id)).toEqual(['b', 'a', 'c']);
+    expect(payerOrder([{ id: 'a' }, { id: 'b' }], null).map((m) => m.id)).toEqual(['a', 'b']);
   });
 });

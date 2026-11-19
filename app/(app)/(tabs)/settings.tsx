@@ -2,9 +2,9 @@ import { PasskeysCard } from '@/ui/Passkeys';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Platform, Pressable, Share, View, type ScrollViewInstance } from 'react-native';
 import { inviteLink, whatsappUrl } from '@/lib/inviteLink';
 import * as ImagePicker from 'expo-image-picker';
@@ -36,7 +36,7 @@ import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Chip, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
 import { CountryPicker } from '@/ui/CountryPicker';
 import { countryFlag, countryName } from '@/lib/countries';
-import { feeFromInput, feeToInput, memberFeePct } from '@/lib/taxFree';
+import { feeFromInput, feeToInput, memberFeePct, vatRule } from '@/lib/taxFree';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
 import type { Trip } from '@/types/db';
@@ -88,6 +88,29 @@ export default function Settings() {
   const coverUrl = useTripLook((s) => s.coverUrl);
   const [pickCurrency, setPickCurrency] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  /** Opens Trip details with the trip's current values. */
+  function openTripEdit() {
+    if (!trip) return;
+    setText(trip.name);
+    setHasDates(!!trip.start_date);
+    setStart(trip.start_date ? new Date(trip.start_date + 'T12:00:00') : new Date());
+    setEnd(trip.end_date ? new Date(trip.end_date + 'T12:00:00') : new Date(Date.now() + 14 * 86_400_000));
+    setCurrency(trip.default_currency);
+    setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
+    setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
+    setFeeText(feeToInput(memberFeePct(me, trip)));
+    setCountries(trip.countries ?? []);
+    setFormError(null);
+    setEdit('trip');
+  }
+  // Opened from Home's "No budget set" link: straight to Trip details
+  const { edit: editParam } = useLocalSearchParams<{ edit?: string }>();
+  useEffect(() => {
+    if (editParam !== 'trip' || !trip) return;
+    openTripEdit();
+    router.setParams({ edit: undefined });
+  }, [editParam, trip?.id]);
 
   /**
    * Swipe › Delete on a trip. Its creator is asked to confirm, then the trip
@@ -291,19 +314,7 @@ export default function Settings() {
               : undefined
           }
           chevron
-          onPress={() => {
-            setText(trip.name);
-            setHasDates(!!trip.start_date);
-            setStart(trip.start_date ? new Date(trip.start_date + 'T12:00:00') : new Date());
-            setEnd(trip.end_date ? new Date(trip.end_date + 'T12:00:00') : new Date(Date.now() + 14 * 86_400_000));
-            setCurrency(trip.default_currency);
-            setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
-            setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
-            setFeeText(feeToInput(memberFeePct(me, trip)));
-            setCountries(trip.countries ?? []);
-            setFormError(null);
-            setEdit('trip');
-          }}
+          onPress={openTripEdit}
         />
         <Divider />
         <ListRow icon={<Text style={{ fontSize: 20 }}>🏷️</Text>} title={t('categories.manage')} chevron onPress={() => router.push('/categories')} />
@@ -429,13 +440,13 @@ export default function Settings() {
               <Divider />
               {/* The whole trip's budget in shekels (Home shows progress against it); empty = none */}
               <Field
-                label={t('settings.tripBudget')}
+                label={members.length < 2 ? t('settings.tripBudgetSolo') : t('settings.tripBudget')}
                 value={budgetText}
                 onChangeText={setBudgetText}
                 amountDecimals={2}
                 keyboardType="decimal-pad"
                 placeholder={t('settings.tripBudgetPlaceholder')}
-                hint={t('settings.tripBudgetHint')}
+                hint={members.length < 2 ? t('settings.tripBudgetHintSolo') : t('settings.tripBudgetHint')}
               />
               <Field
                 label={t('taxFree.feeLabel')}
@@ -456,7 +467,14 @@ export default function Settings() {
                     {countries.map((code) => (
                       <Chip
                         key={code}
-                        label={`${countryFlag(code)} ${countryName(code, lang)}  ✕`}
+                        // A green check on destinations with a VAT refund
+                        icon={
+                          <Row gap={4}>
+                            {vatRule(code) && !vatRule(code)!.noRefund ? <Ionicons name="checkmark-circle" size={15} color={c.success} accessibilityLabel={t('countries.hasRefund')} /> : null}
+                            <Text style={{ fontSize: 15 }}>{countryFlag(code)}</Text>
+                          </Row>
+                        }
+                        label={`${countryName(code, lang)}  ✕`}
                         selected
                         onPress={() => setCountries((list) => list.filter((x) => x !== code))}
                       />

@@ -13,6 +13,7 @@ import { formatMoney, parseAmount } from '@/lib/money';
 import { goBack } from '@/lib/nav';
 import { lastPaymentFor, paymentLabel } from '@/lib/payments';
 import { draftHome, draftToSaveInput, enrichCandidates, type SmartDraft } from '@/lib/smartImport';
+import { payerOrder } from '@/lib/split';
 import { dayKey } from '@/lib/stats';
 import { countryForCurrency, meetsVatMinimum } from '@/lib/taxFree';
 import { useUserId } from '@/providers/AuthProvider';
@@ -26,7 +27,7 @@ import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { confirmDialog } from '@/ui/Dialog';
 import { Sheet } from '@/ui/Sheet';
-import { Button, Card, Chip, EmptyState, Field, IconButton, Row, Screen, Segmented, Text, Toggle, tap } from '@/ui/primitives';
+import { Button, Card, Chip, EmptyState, Field, IconButton, Row, Screen, Segmented, Text, tap } from '@/ui/primitives';
 import type { Category, Member, RatesSnapshot, Trip } from '@/types/db';
 
 /** Step 2 of Smart import: check the expenses found, then add them all. */
@@ -165,20 +166,6 @@ export default function SmartImportReview() {
         {header}
         <Text variant="title">✨ {t('smartImport.found', { count: drafts.length })}</Text>
 
-        {images.length ? (
-          <Card>
-            <Row gap={space.md}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ fontWeight: '600' }}>{t('smartImport.saveReceipts')}</Text>
-                <Text variant="caption" muted>
-                  {t('smartImport.saveReceiptsHint')}
-                </Text>
-              </View>
-              <Toggle value={saveReceipts} onValueChange={setSaveReceipts} label={t('smartImport.saveReceipts')} />
-            </Row>
-          </Card>
-        ) : null}
-
         {drafts.map((d) => (
           <DraftCard
             key={d.key}
@@ -199,6 +186,22 @@ export default function SmartImportReview() {
       </Screen>
 
       <View style={{ position: 'absolute', start: 0, end: 0, bottom: 0, padding: space.lg, paddingBottom: space.xl, backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.border, gap: space.sm }}>
+        {/* Screenshots sent: keep them as the expenses' receipts? (No unless chosen) */}
+        {images.length ? (
+          <Row gap={space.md}>
+            <Text style={{ flex: 1, fontWeight: '600' }}>{t('smartImport.saveReceipts')}</Text>
+            <View style={{ width: 150 }}>
+              <Segmented
+                options={[
+                  { value: 'yes', label: t('common.yes') },
+                  { value: 'no', label: t('common.no') },
+                ]}
+                value={saveReceipts ? 'yes' : 'no'}
+                onChange={(v) => setSaveReceipts(v === 'yes')}
+              />
+            </View>
+          </Row>
+        ) : null}
         {error ? <Text color={c.danger}>{error}</Text> : null}
         <Button title={t('smartImport.commit', { count: drafts.length })} icon="checkmark-done" onPress={commit} loading={busy} disabled={!drafts.length} />
       </View>
@@ -315,18 +318,12 @@ function DraftCard({
             }}
             style={[
               { height: 48, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: c.cardAlt, flexDirection: 'row', alignItems: 'center', gap: 4 },
-              flagged(d.guessed.currency),
             ]}
           >
             <Text style={{ fontWeight: '700' }}>{d.currency}</Text>
             <Ionicons name="chevron-down" size={14} color={c.textMuted} />
           </Pressable>
         </Row>
-        {d.guessed.currency ? (
-          <Text variant="caption" color={warn}>
-            {t('smartImport.guessedCurrency')}
-          </Text>
-        ) : null}
 
         <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
           <Pressable
@@ -355,13 +352,12 @@ function DraftCard({
         ) : null}
 
         {members.length > 1 ? (
-          <View style={[{ gap: space.sm, padding: d.guessed.payer ? space.sm : 0 }, flagged(d.guessed.payer)]}>
+          <View style={{ gap: space.sm }}>
             <Text variant="label" muted>
               {t('smartImport.payer')}
             </Text>
             <Row gap={space.xs} style={{ flexWrap: 'wrap' }}>
-              <Chip label={t('smartImport.joint')} icon="👥" selected={d.payerId === null} onPress={() => onChange({ payerId: null, split: 'equal', guessed: { ...d.guessed, payer: false } })} />
-              {members.map((mem) => (
+              {payerOrder(members, me?.id).map((mem) => (
                 <Chip
                   key={mem.id}
                   label={mem.display_name}
@@ -370,6 +366,7 @@ function DraftCard({
                   onPress={() => onChange({ payerId: mem.id, guessed: { ...d.guessed, payer: false } })}
                 />
               ))}
+              <Chip label={t('smartImport.joint')} icon="👥" selected={d.payerId === null} onPress={() => onChange({ payerId: null, split: 'equal', guessed: { ...d.guessed, payer: false } })} />
             </Row>
             {d.payerId ? (
               <Segmented
@@ -380,11 +377,6 @@ function DraftCard({
                 value={d.split}
                 onChange={(split) => onChange({ split, guessed: { ...d.guessed, payer: false } })}
               />
-            ) : null}
-            {d.guessed.payer ? (
-              <Text variant="caption" color={warn}>
-                {t('smartImport.guessedPayer')}
-              </Text>
             ) : null}
           </View>
         ) : null}

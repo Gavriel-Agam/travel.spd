@@ -15,6 +15,15 @@
     <meta name="theme-color" content="#F4F5F9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0E1020" media="(prefers-color-scheme: dark)" />
     <meta name="format-detection" content="telephone=no" />
+    <script>
+      // Light or dark mode chosen in the app (src/theme.ts): the page starts in it
+      try {
+        var chosenMode = localStorage.getItem('smarttrip-theme');
+        if (chosenMode === 'dark' || chosenMode === 'light') {
+          document.documentElement.setAttribute('data-theme', chosenMode);
+        }
+      } catch (e) {}
+    </script>
 
     <style id="expo-reset">
       html,
@@ -27,6 +36,16 @@
         body {
           background: #0e1020;
         }
+      }
+      html[data-theme='light'],
+      html[data-theme='light'] body {
+        background: #f4f5f9;
+        color-scheme: light;
+      }
+      html[data-theme='dark'],
+      html[data-theme='dark'] body {
+        background: #0e1020;
+        color-scheme: dark;
       }
       body {
         overflow: hidden;
@@ -123,7 +142,9 @@
           if (!s || s.v !== 1 || !s.html) return;
           if (Date.now() - s.at > 30 * 864e5) return localStorage.removeItem('smarttrip-launch');
           if (!s.session || !localStorage.getItem(s.session)) return;
-          if (!!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) !== s.dark) return;
+          var mode = localStorage.getItem('smarttrip-theme');
+          var isDark = mode ? mode === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark !== s.dark) return;
           if (s.w !== window.innerWidth || Math.abs(s.h - window.innerHeight) > 120) return;
           var css = document.createElement('style');
           css.id = 'launch-snapshot-css';

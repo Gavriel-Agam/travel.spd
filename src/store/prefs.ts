@@ -10,6 +10,9 @@ export type HomeView = 'trip' | 'mine';
 
 type PrefsState = {
   lang: Lang | null; // null = follow the device
+  /** Light or dark mode chosen on this device (null = follow the device). */
+  themeMode: 'light' | 'dark' | null;
+  setThemeMode: (mode: 'light' | 'dark' | null) => void;
   activeTripId: string | null;
   lastCurrency: Record<string, string>; // tripId -> code
   /** Payment method used last, per trip (trip id -> method), and in any trip. New expenses start with it. */
@@ -62,6 +65,8 @@ export const usePrefs = create<PrefsState>()(
   persist(
     (set) => ({
       lang: null,
+      themeMode: null,
+      setThemeMode: (themeMode) => set({ themeMode }),
       activeTripId: null,
       lastCurrency: {},
       lastPayment: {},
@@ -134,6 +139,7 @@ export const usePrefs = create<PrefsState>()(
         lastPayer: (persisted as Partial<PrefsState>)?.lastPayer ?? {},
         lastSplit: (persisted as Partial<PrefsState>)?.lastSplit ?? {},
         passkeyOffered: (persisted as Partial<PrefsState>)?.passkeyOffered ?? [],
+        themeMode: (persisted as Partial<PrefsState>)?.themeMode ?? null,
       }),
     },
   ),

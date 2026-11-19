@@ -14,7 +14,7 @@ export const isOverrideItem = (i: OutboxItem): i is OverrideItem => i.kind === '
 export const isBudgetItem = (i: OutboxItem): i is BudgetItem => i.kind === 'budget';
 export const isMemberItem = (i: OutboxItem): i is MemberItem => i.kind === 'member';
 /** A queued change to an expense (new, edit or delete) rather than to the trip's settings. */
-export const isExpenseItem = (i: OutboxItem) => !i.kind || i.kind === 'create' || i.kind === 'update' || i.kind === 'delete';
+export const isExpenseItem = (i: OutboxItem) => !i.kind || i.kind === 'create' || i.kind === 'update' || i.kind === 'delete' || i.kind === 'restore';
 
 // Queue keys: one entry per thing changed; a second change to it is merged into the first
 export const tripChangeKey = (tripId: string) => `trip:${tripId}`;

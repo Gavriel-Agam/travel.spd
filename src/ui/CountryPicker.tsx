@@ -5,7 +5,7 @@ import { countryFlag, countryName, searchCountries } from '@/lib/countries';
 import { vatRule } from '@/lib/taxFree';
 import { useT } from '@/i18n';
 import { radius, space, useColors } from '@/theme';
-import { Button, Text, tap, useTextFieldDirection } from './primitives';
+import { Button, Row, Text, tap, useTextFieldDirection } from './primitives';
 import { Sheet, SheetSectionList } from './Sheet';
 
 /**
@@ -122,9 +122,13 @@ export function CountryPicker({
                   {countryName(code, lang)}
                 </Text>
                 {rule ? (
-                  <Text variant="caption" muted>
-                    {rule.noRefund ? t('countries.noRefund') : t('countries.vatRefund', { vat: rule.vat })}
-                  </Text>
+                  <Row gap={4}>
+                    {/* A green check: shops here can refund VAT */}
+                    {!rule.noRefund ? <Ionicons name="checkmark-circle" size={14} color={c.success} accessibilityLabel={t('countries.hasRefund')} /> : null}
+                    <Text variant="caption" muted>
+                      {rule.noRefund ? t('countries.noRefund') : t('countries.vatRefund', { vat: rule.vat })}
+                    </Text>
+                  </Row>
                 ) : null}
               </View>
               {multi ? (

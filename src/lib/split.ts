@@ -111,3 +111,9 @@ export function previewShares(config: SplitConfig, payerId: string | null, homeT
   }
   return allocate(homeTotalMinor, weights, payerId);
 }
+
+/** Payer choices in a fixed order: you first, then the others in their trip order (Joint comes after them). */
+export function payerOrder<T extends { id: string }>(members: readonly T[], meId: string | null | undefined): T[] {
+  const mine = members.filter((m) => m.id === meId);
+  return [...mine, ...members.filter((m) => m.id !== meId)];
+}

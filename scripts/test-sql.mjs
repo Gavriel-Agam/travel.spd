@@ -580,4 +580,27 @@ await rejects(as(A, `delete from smart_import_usage`), /permission denied/);
 await rejects(asAnon('select * from smart_import_usage'), /permission denied/);
 ok('smart import usage: own rows readable, never added or removed by the app');
 
+// Recently deleted (0023): restore within 30 days; older ones are removed for good
+const [rd] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ description: 'Restore me' })]);
+await as(A, 'select delete_expense($1, 1)', [rd.id]);
+assert.equal((await as(B, 'select count(*)::int n from expenses where id = $1 and deleted_at is not null', [rd.id]))[0].n, 1);
+await as(B, 'select restore_expense($1)', [rd.id]);
+const [rdBack] = await as(A, 'select deleted_at, version from expenses where id = $1', [rd.id]);
+assert.equal(rdBack.deleted_at, null);
+assert.equal(rdBack.version, 2);
+await rejects(as(A, 'select restore_expense($1)', [rd.id]), /not_found/);
+await rejects(as(C, 'select restore_expense($1)', [rd.id]), /not_found/);
+// Someone else's private expense can't be restored by a partner
+const [rdMine] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ split_type: 'personal', splits: [{ member_id: mA }] })]);
+await as(A, 'select delete_expense($1, 1)', [rdMine.id]);
+await rejects(as(B, 'select restore_expense($1)', [rdMine.id]), /not_found/);
+// Over 30 days: can't be restored, and the next delete removes it
+await db.query(`update expenses set deleted_at = now() - interval '31 days' where id = $1`, [rdMine.id]);
+await rejects(as(A, 'select restore_expense($1)', [rdMine.id]), /not_found/);
+await as(A, 'select delete_expense($1, 2)', [rd.id]);
+assert.equal((await db.query('select count(*)::int n from expenses where id = $1', [rdMine.id])).rows[0].n, 0);
+assert.equal((await db.query('select count(*)::int n from expense_splits where expense_id = $1', [rdMine.id])).rows[0].n, 0);
+await rejects(as(A, 'select purge_deleted_expenses($1)', [trip]), /permission denied/);
+ok('recently deleted: restore for 30 days (not someone else’s private one), then removed for good');
+
 console.log(`\n${passed} SQL checks passed`);

@@ -118,7 +118,7 @@ export type Expense = {
   pending?: 'waiting' | 'failed';
   pending_error?: string;
   /** Which change is queued: a new expense, an edit of a saved one, or a delete that failed. */
-  pending_op?: 'create' | 'update' | 'delete';
+  pending_op?: 'create' | 'update' | 'delete' | 'restore';
 };
 
 export type Budget = {

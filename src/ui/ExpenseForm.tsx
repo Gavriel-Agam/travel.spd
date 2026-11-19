@@ -28,7 +28,7 @@ import {
   trimRate,
   type RateDirection,
 } from '@/lib/money';
-import { previewShares, toSplitEntries, validateSplit, type SplitConfig, type SplitType } from '@/lib/split';
+import { payerOrder, previewShares, toSplitEntries, validateSplit, type SplitConfig, type SplitType } from '@/lib/split';
 import { dayKey } from '@/lib/stats';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode, supabase } from '@/lib/supabase';
@@ -788,12 +788,16 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
               if (detailsOpen) formScroll.current?.scrollTo({ y: Math.max(0, Math.min(formScrollY.current, detailsY() - 200)), animated: true });
               setDetailsOpen((v) => !v);
             }}
+            // Open: the same colour and border as its panel, joined to it with no seam
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.sm,
-              backgroundColor: c.cardAlt,
+              backgroundColor: detailsOpen ? c.primarySoft : c.cardAlt,
               borderRadius: radius.md,
+              borderWidth: 1,
+              borderColor: detailsOpen ? c.primary + '33' : 'transparent',
+              ...(detailsOpen ? { borderBottomWidth: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : null),
               paddingHorizontal: space.md,
               paddingVertical: 12,
               opacity: pressed ? 0.8 : 1,
@@ -817,7 +821,18 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
             // Its own tinted panel, so it reads apart from the rest of the form
             <FadeIn
               duration={180}
-              style={{ gap: space.lg, backgroundColor: c.primarySoft, borderRadius: radius.lg, borderWidth: 1, borderColor: c.primary + '33', padding: space.md, marginTop: -space.sm }}
+              style={{
+                gap: space.lg,
+                backgroundColor: c.primarySoft,
+                borderRadius: radius.md,
+                borderTopLeftRadius: 0,
+                borderTopRightRadius: 0,
+                borderWidth: 1,
+                borderTopWidth: 0,
+                borderColor: c.primary + '33',
+                padding: space.md,
+                marginTop: -space.lg,
+              }}
             >
               {/* Who paid */}
               {members.length > 1 ? (
@@ -826,7 +841,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                     {t('form.paidBy')}
                   </Text>
                   <Segmented
-                    options={[{ value: JOINT, label: t('form.joint') }, ...members.map((m) => ({ value: m.id, label: m.display_name }))]}
+                    options={[...payerOrder(members, me?.id).map((m) => ({ value: m.id, label: m.display_name })), { value: JOINT, label: t('form.joint') }]}
                     value={payerId ?? JOINT}
                     onChange={(v) => {
                       setPayerId(v === JOINT ? null : v);

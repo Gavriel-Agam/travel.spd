@@ -71,7 +71,7 @@ export type SmartDraft = {
  * Completes what the parser couldn't tell:
  * - no payer, a payer not on the trip, or no clear split: the payer and split
  *   of the last expense saved in this trip (none yet: joint money, equal);
- * - no currency: the trip's default currency (still flagged for review);
+ * - no currency: the trip's default currency (not flagged: it's the expected default);
  * - no date: today.
  */
 export function enrichCandidates(
@@ -105,7 +105,8 @@ export function enrichCandidates(
       payerId,
       split,
       taxFree: false,
-      needsReview: x.needs_review || !x.currency,
+      // Only what the parser itself found unclear: a currency or payer filled in from the trip is not flagged
+      needsReview: x.needs_review,
       reviewReason: x.review_reason,
       notes: x.note?.trim() ?? '',
       guessed: { currency: !x.currency, date: !x.date, payer: useLast },

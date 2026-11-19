@@ -80,7 +80,7 @@ function systemPrompt(ctx: Context, imageCount: number) {
     '- payer: the label of the participant the source says paid, else null. "I" or "me" is unknown: null. Never guess.',
     `- note: only when the source names a person who is NOT in the participants list as the one who paid, or as the one it was paid for: a short note in ${lang} saying so (e.g. "${ctx.ui_language === 'he' ? 'שולם על ידי יוסי' : 'Paid by Yossi'}" or "${ctx.ui_language === 'he' ? 'שולם עבור דנה' : 'Paid for Dana'}"); else omit. Never put participants here.`,
     "- split: 'personal' if the source says it was only for the payer; 'equal' if it says it was shared; otherwise 'fallback'.",
-    '- needs_review: true only when the amount, the date or the category is unclear. A missing currency or payer alone is not a reason.',
+    '- needs_review: true only when the amount or what was bought is unclear or unreadable. A missing currency, payer or date alone is not a reason.',
     `- review_reason: when needs_review is true, at most 8 words in ${lang} naming what to check; else omit.`,
     imageCount > 1 ? `- image: which screenshot (0 to ${imageCount - 1}) the expense came from, or null for the message.` : imageCount === 1 ? '- image: 0 if it came from the screenshot, else null.' : '- image: null.',
     'Participants (label: name):',

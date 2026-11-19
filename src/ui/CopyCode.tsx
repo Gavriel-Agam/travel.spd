@@ -64,11 +64,15 @@ export function CopyCode({ code, onCopied }: { code: string | null | undefined; 
       accessibilityRole="button"
       accessibilityLabel={copied ? t('common.copied') : `${t('common.copy')} ${code ?? ''}`}
       onPress={copy}
+      // The same size as the buttons under it (52 high, full width); the copy mark at its end edge (left in Hebrew)
       style={{
         backgroundColor: c.cardAlt,
         borderRadius: radius.md,
-        padding: space.lg,
+        height: 52,
+        paddingHorizontal: space.lg,
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: copied ? c.primary : 'transparent',
@@ -96,18 +100,17 @@ export function CopyCode({ code, onCopied }: { code: string | null | undefined; 
           ],
         }}
       />
-      <Animated.View style={{ alignItems: 'center', transform: [{ scale: pop }] }}>
-        <Text variant="title" style={{ letterSpacing: 6 }}>
+      <Animated.View style={{ transform: [{ scale: pop }] }}>
+        <Text variant="h2" style={{ fontSize: 20, letterSpacing: 5 }}>
           {code ?? '········'}
         </Text>
-        <Row gap={4}>
-          {copied ? <Ionicons name="checkmark-circle" size={14} color={c.success} /> : <Ionicons name="copy-outline" size={13} color={c.textMuted} />}
-          <Text variant="caption" color={copied ? c.success : c.textMuted} style={{ fontWeight: copied ? '700' : '400' }}>
-            {copied ? t('common.copied') : t('common.copy')}
-          </Text>
-        </Row>
       </Animated.View>
-      <View />
+      <Row gap={4}>
+        <Text variant="caption" color={copied ? c.success : c.textMuted} style={{ fontWeight: copied ? '700' : '400' }}>
+          {copied ? t('common.copied') : t('common.copy')}
+        </Text>
+        {copied ? <Ionicons name="checkmark-circle" size={20} color={c.success} /> : <Ionicons name="copy-outline" size={20} color={c.textMuted} />}
+      </Row>
     </Pressable>
   );
 }

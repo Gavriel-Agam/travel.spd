@@ -6,10 +6,13 @@
 //   new version and can never find a file missing. Open pages are told so they
 //   can offer to reload.
 // - Built files (hashed names), icons, fonts: cache first.
-// - privacy.html and terms.html are never cached as the app page.
+// - Parts of the app loaded only when needed (Smart import's file readers) are
+//   found inside the scripts and stored with them, so they work offline too.
+// - privacy.html, terms.html and accessibility.html are never cached as the app page.
 // - Supabase and rate requests are never cached here; the app keeps its own
 //   copy of the data and queues new expenses while offline.
-const CACHE = 'travelspend-v1';
+// v2: also stores the parts the app loads later (the spreadsheet / Word readers)
+const CACHE = 'travelspend-v2';
 const BASE = '/travel.spd/';
 const SHELL = [BASE + 'manifest.webmanifest', BASE + 'icons/apple-touch-icon.png', BASE + 'icons/icon-192.png'];
 
@@ -59,6 +62,17 @@ function refreshApp() {
     const files = filesOf(html);
     // Every file first: if one can't be fetched, keep the old version
     for (const f of files) if (!(await c.match(f))) await c.add(f);
+    // Then the parts those scripts load later, named inside them
+    for (const f of [...files]) {
+      if (!f.endsWith('.js')) continue;
+      const hit = await c.match(f);
+      const js = hit ? await hit.text() : '';
+      for (const m of js.matchAll(/"(\/[^"]*?\/_expo\/static\/js\/[^"]+?\.js)"/g)) {
+        if (!m[1].startsWith(BASE) || files.includes(m[1])) continue;
+        files.push(m[1]);
+        if (!(await c.match(m[1]))) await c.add(m[1]);
+      }
+    }
     await c.put(BASE, res);
     const keep = new Set(files.map((f) => new URL(f, self.location.origin).href));
     for (const req of await c.keys()) {

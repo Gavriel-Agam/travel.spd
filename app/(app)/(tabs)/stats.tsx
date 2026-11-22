@@ -20,6 +20,8 @@ import { useCardOrder, useDragScroll } from '@/hooks/useCardOrder';
 import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { DateField } from '@/ui/DateField';
 import { Avatar, Card, EmptyState, ErrorView, IconButton, Loading, ScreenSkeleton, OfflineNoData, ProgressBar, Row, Screen, SectionHeader, Segmented, Text } from '@/ui/primitives';
+import { Topbar, tripSettingsItem, useThemeMenuItem } from '@/ui/Topbar';
+import { router } from 'expo-router';
 
 // The "budget vs actual" card was removed (2026-11-12): the trip budget lives in Settings › Trip details and on Home
 const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'partners', 'payment', 'distribution', 'currency'] as const;
@@ -59,6 +61,7 @@ function localDayKey(d: Date) {
 
 export default function Stats() {
   const { t, lang } = useT();
+  const themeItem = useThemeMenuItem();
   const c = useColors();
   const data = useTripData();
   const { trip, stats, expenses, categoryById, memberById, balances, isLoading } = data;
@@ -475,7 +478,15 @@ export default function Stats() {
 
   return (
     <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
-      <Text variant="title">{t('stats.title')}</Text>
+      <Topbar
+        title={t('stats.title')}
+        menuLabel={t('menu.statsTitle')}
+        menu={[
+          { key: 'settle', icon: 'swap-horizontal', label: t('menu.settle'), onPress: () => router.push('/settle') },
+          themeItem,
+          tripSettingsItem(t),
+        ]}
+      />
 
       {spendingCount === 0 ? (
         <Card>

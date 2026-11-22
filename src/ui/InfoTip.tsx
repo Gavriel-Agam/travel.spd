@@ -3,6 +3,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Modal, Pressable, useWindowDimensions, View, type ViewInstance } from 'react-native';
 import { useT } from '@/i18n';
 import { radius, space, useColors } from '@/theme';
+import { hitArea } from './primitives';
 
 const BUBBLE = 280;
 const EDGE = 12;
@@ -50,8 +51,8 @@ export function InfoTip({
         accessibilityRole="button"
         accessibilityLabel={label}
         onPress={open}
-        hitSlop={12}
-        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        accessibilityState={{ expanded: !!at }}
+        style={({ pressed }) => [hitArea(circled ? size + 8 : size), { opacity: pressed ? 0.6 : 1 }]}
       >
         {circled ? (
           <View style={{ width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, borderWidth: 1, borderColor: color ?? c.textMuted, alignItems: 'center', justifyContent: 'center' }}>
@@ -66,6 +67,7 @@ export function InfoTip({
           {at ? (
             <View
               accessibilityRole="text"
+              accessibilityLiveRegion="polite"
               style={{
                 position: 'absolute',
                 top: at.y + at.h + 8,

@@ -4,13 +4,14 @@ import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Image, Platform, Pressable, View } from 'react-native';
 import { compressScreenshot, processImport, useParseContext } from '@/hooks/useSmartImport';
 import { useT } from '@/i18n';
+import { IMPORT_FILE_ACCEPT, readImportFile, splitIntoParts } from '@/lib/importFiles';
 import { SMART_DAILY_LIMIT, SMART_IMAGES_MAX, SMART_TEXT_MAX, type SmartImportRecord } from '@/lib/smartImport';
 import { useSmartImports } from '@/store/smartImports';
 import { radius, space, useColors } from '@/theme';
-import { ImportBadge } from './HomeMenu';
+import { ImportBadge } from './ImportBadge';
 import { Button, Field, Row, Text, tap } from './primitives';
 import { Sheet } from './Sheet';
 
@@ -26,6 +27,9 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // A file longer than the limit, in parts: the box holds parts[index]; the rest wait here
+  const [file, setFile] = useState<{ name: string; parts: string[]; index: number; total: number } | null>(null);
+  const [reading, setReading] = useState(false);
 
   // Thumbnails are local addresses: let them go when removed or closed
   useEffect(() => () => images.forEach((i) => URL.revokeObjectURL?.(i.url)), []);
@@ -61,6 +65,26 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
     images.forEach((i) => URL.revokeObjectURL?.(i.url));
     setImages([]);
     setText('');
+    setFile(null);
+  }
+
+  /** Excel / CSV / Word / text file: read here, on this device, into the text box. */
+  async function pickFile() {
+    const picked = await chooseFile(IMPORT_FILE_ACCEPT);
+    if (!picked) return;
+    setError(null);
+    setNote(null);
+    setReading(true);
+    try {
+      const { text: read, kind } = await readImportFile(picked);
+      const parts = splitIntoParts(read, SMART_TEXT_MAX, kind === 'sheet');
+      setText(parts[0]);
+      setFile({ name: picked.name, parts, index: 0, total: read.length });
+    } catch (e) {
+      setError(t(`smartImport.errors.${(e as Error).message}`, { defaultValue: t('smartImport.errors.file_unreadable') }));
+    } finally {
+      setReading(false);
+    }
   }
 
   function openReview(id: string) {
@@ -93,7 +117,9 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
       await useSmartImports.getState().put({ ...rec, status: 'processing' });
       const out = await processImport(rec, ctx);
       if (out.status === 'ready_for_review') {
+        const next = nextPart();
         reset();
+        if (next) setFile(next);
         openReview(out.id);
       } else if (out.status === 'queued_offline') {
         reset();
@@ -107,6 +133,16 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
       setBusy(false);
     }
   }
+
+  /** After one part of a long file is read, the next one waits for the next time the sheet opens. */
+  function nextPart() {
+    if (!file || file.index + 1 >= file.parts.length) return null;
+    return { ...file, index: file.index + 1 };
+  }
+  // Coming back to a file with a part still waiting: that part goes in the box
+  useEffect(() => {
+    if (visible && file && !text) setText(file.parts[file.index]);
+  }, [visible, file]);
 
   const time = (ms: number) => new Date(ms).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const canParse = (text.trim().length > 0 || images.length > 0) && !busy;
@@ -153,6 +189,35 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
           </Text>
         </View>
 
+        {file ? (
+          <View style={{ gap: 6, padding: space.md, borderRadius: radius.md, backgroundColor: file.parts.length > 1 ? c.warning + '22' : c.cardAlt }}>
+            <Row gap={space.sm}>
+              <Ionicons name="document-text-outline" size={18} color={c.text} />
+              <Text style={{ flex: 1, fontWeight: '600' }} numberOfLines={1}>
+                {file.name}
+              </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('smartImport.removeFile')} hitSlop={8} onPress={() => { setFile(null); setText(''); }} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', margin: -12 }}>
+                <Ionicons name="close" size={18} color={c.textMuted} />
+              </Pressable>
+            </Row>
+            {file.parts.length > 1 ? (
+              <>
+                <Text variant="caption" color={c.text} accessibilityLiveRegion="polite">
+                  {t('smartImport.fileParts', { total: file.total.toLocaleString('en-US'), max: SMART_TEXT_MAX.toLocaleString('en-US'), n: file.index + 1, parts: file.parts.length })}
+                </Text>
+                <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+                  {file.index > 0 ? (
+                    <Button title={t('smartImport.prevPart')} variant="secondary" icon="chevron-back" onPress={() => { const i = file.index - 1; setFile({ ...file, index: i }); setText(file.parts[i]); }} />
+                  ) : null}
+                  {file.index + 1 < file.parts.length ? (
+                    <Button title={t('smartImport.nextPart')} variant="secondary" icon="chevron-forward" onPress={() => { const i = file.index + 1; setFile({ ...file, index: i }); setText(file.parts[i]); }} />
+                  ) : null}
+                </Row>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
           {images.map((img, i) => (
             <View key={img.url} style={{ width: 72, height: 72 }}>
@@ -160,15 +225,17 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('smartImport.removeImage')}
-                hitSlop={6}
                 onPress={() => {
                   tap();
                   URL.revokeObjectURL?.(img.url);
                   setImages((prev) => prev.filter((_, j) => j !== i));
                 }}
-                style={{ position: 'absolute', top: -6, end: -6, backgroundColor: c.text, borderRadius: 999, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}
+                // 44 x 44 to touch, a 22 circle to see
+                style={{ position: 'absolute', top: -17, end: -17, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Ionicons name="close" size={14} color={c.card} />
+                <View style={{ backgroundColor: c.text, borderRadius: 999, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="close" size={14} color={c.card} />
+                </View>
               </Pressable>
             </View>
           ))}
@@ -198,9 +265,44 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
               </Text>
             </Pressable>
           ) : null}
+          {/* Spreadsheets and documents, read on this device (browser) */}
+          {Platform.OS === 'web' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('smartImport.addFileLabel')}
+              disabled={reading}
+              onPress={() => {
+                tap();
+                void pickFile();
+              }}
+              style={{
+                height: 72,
+                minWidth: 72,
+                paddingHorizontal: space.md,
+                borderRadius: radius.md,
+                borderWidth: 1.5,
+                borderStyle: 'dashed',
+                borderColor: c.primary + '88',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                opacity: reading ? 0.6 : 1,
+              }}
+            >
+              <Ionicons name="document-attach-outline" size={22} color={c.primary} />
+              <Text variant="caption" color={c.primary} style={{ fontWeight: '600' }}>
+                {reading ? t('smartImport.readingFile') : t('smartImport.addFile')}
+              </Text>
+            </Pressable>
+          ) : null}
         </Row>
+        {Platform.OS === 'web' ? (
+          <Text variant="caption" muted>
+            {t('smartImport.fileTypes')}
+          </Text>
+        ) : null}
 
-        {error ? <Text color={c.danger}>{error}</Text> : null}
+        {error ? <Text color={c.danger} accessibilityLiveRegion="polite">{error}</Text> : null}
         {note ? <Text color={c.primary}>{note}</Text> : null}
         <Button title={busy ? t('smartImport.parsing') : t('smartImport.parse')} icon="sparkles" onPress={parse} disabled={!canParse} loading={busy} />
         <Text variant="caption" faint center>
@@ -210,6 +312,9 @@ export function SmartImportSheet({ visible, onClose, tripId }: { visible: boolea
     </Sheet>
   );
 }
+
+/** A small text link with a 44-high touch area that doesn't push the row apart. */
+const linkHit = { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center', marginVertical: -14 } as const;
 
 function PendingRow({ rec, time, onOpen, onRetry, onDiscard }: { rec: SmartImportRecord; time: string; onOpen: () => void; onRetry: () => void; onDiscard: () => void }) {
   const c = useColors();
@@ -233,19 +338,19 @@ function PendingRow({ rec, time, onOpen, onRetry, onDiscard }: { rec: SmartImpor
         <Text variant="caption" faint style={{ flex: 1 }}>
           {t('smartImport.queuedAt', { time })}
         </Text>
-        <Pressable accessibilityRole="button" hitSlop={8} onPress={onDiscard}>
+        <Pressable accessibilityRole="button" onPress={onDiscard} style={linkHit}>
           <Text variant="caption" color={c.textMuted} style={{ fontWeight: '700' }}>
             {t('smartImport.discard')}
           </Text>
         </Pressable>
         {rec.status === 'ready_for_review' ? (
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={onOpen}>
+          <Pressable accessibilityRole="button" onPress={onOpen} style={linkHit}>
             <Text variant="caption" color={c.primary} style={{ fontWeight: '700' }}>
               {t('smartImport.open')}
             </Text>
           </Pressable>
         ) : rec.status === 'error' ? (
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={onRetry}>
+          <Pressable accessibilityRole="button" onPress={onRetry} style={linkHit}>
             <Text variant="caption" color={c.primary} style={{ fontWeight: '700' }}>
               {t('smartImport.retry')}
             </Text>
@@ -254,4 +359,18 @@ function PendingRow({ rec, time, onOpen, onRetry, onDiscard }: { rec: SmartImpor
       </Row>
     </View>
   );
+}
+
+/** The browser's file picker; resolves with the chosen file, or null. Web only. */
+function chooseFile(accept: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return resolve(null);
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    // Closed without a file (browsers that report it)
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
 }

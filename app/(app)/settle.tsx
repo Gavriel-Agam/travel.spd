@@ -15,9 +15,11 @@ import { radius, space, useColors } from '@/theme';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import { Sheet } from '@/ui/Sheet';
 import { Avatar, Button, Card, Divider, EmptyState, ErrorView, Field, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
+import { Topbar, tripSettingsItem, useThemeMenuItem } from '@/ui/Topbar';
 
 export default function SettleUp() {
   const { t, lang } = useT();
+  const themeItem = useThemeMenuItem();
   const c = useColors();
   const data = useTripData();
   const { trip, balances, transfers, memberById, expenses, categoryById } = data;
@@ -80,10 +82,16 @@ export default function SettleUp() {
 
   return (
     <Screen>
-      <Row>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/')} />
-      </Row>
-      <Text variant="title">{t('settle.title')}</Text>
+      <Topbar
+        title={t('settle.title')}
+        onBack={() => goBack('/')}
+        menuLabel={t('menu.settleTitle')}
+        menu={[
+          { key: 'expenses', icon: 'receipt-outline', label: t('menu.allExpenses'), onPress: () => router.push('/expenses') },
+          themeItem,
+          tripSettingsItem(t),
+        ]}
+      />
 
       <Card>
         {balances.map((b, i) => {

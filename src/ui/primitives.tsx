@@ -33,6 +33,15 @@ import { radius, space, useColors } from '@/theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
+/**
+ * A 44 x 44 touch area around a small icon (WCAG 2.5.5) without moving the
+ * layout: the extra room is taken back with a negative margin.
+ */
+export function hitArea(size: number): ViewStyle {
+  const extra = Math.max(0, (44 - size) / 2);
+  return { minWidth: 44, minHeight: 44, margin: -extra, alignItems: 'center', justifyContent: 'center' };
+}
+
 export function tap() {
   if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
 }
@@ -284,12 +293,11 @@ export function IconButton({ name, onPress, size = 22, color, label }: {
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
-      hitSlop={10}
       onPress={onPress}
       style={({ pressed }) => ({
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: pressed ? c.cardAlt : 'transparent',
@@ -323,25 +331,29 @@ export function Chip({ label, selected, onPress, onLongPress, icon, color, size 
         onPress?.();
       }}
       onLongPress={onLongPress}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        // Taller, not wider: the payment line still fits card, cash and Bit on a phone
-        paddingHorizontal: 14,
-        height: size === 'lg' ? 44 : 36,
-        borderRadius: radius.pill,
-        // A tint of the colour with an outline: some category colours can't carry readable text
-        backgroundColor: selected ? flatten(accent + '2E', c.card) : c.cardAlt,
-        borderWidth: 1.5,
-        borderColor: selected ? accent : 'transparent',
-        opacity: pressed ? 0.8 : 1,
-      })}
+      // The touch area is always 44 high; a regular chip looks 36 high inside it
+      style={({ pressed }) => ({ height: 44, justifyContent: 'center', marginVertical: size === 'lg' ? 0 : -4, opacity: pressed ? 0.8 : 1 })}
     >
-      {typeof icon === 'string' ? <RNText style={{ fontSize: size === 'lg' ? 17 : 15 }}>{icon}</RNText> : icon ?? null}
-      <Text variant="label" color={c.text} style={selected ? { fontWeight: '700' } : undefined}>
-        {label}
-      </Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          // Taller, not wider: the payment line still fits card, cash and Bit on a phone
+          paddingHorizontal: 14,
+          height: size === 'lg' ? 44 : 36,
+          borderRadius: radius.pill,
+          // A tint of the colour with an outline: some category colours can't carry readable text
+          backgroundColor: selected ? flatten(accent + '2E', c.card) : c.cardAlt,
+          borderWidth: 1.5,
+          borderColor: selected ? accent : 'transparent',
+        }}
+      >
+        {typeof icon === 'string' ? <RNText style={{ fontSize: size === 'lg' ? 17 : 15 }}>{icon}</RNText> : icon ?? null}
+        <Text variant="label" color={c.text} style={selected ? { fontWeight: '700' } : undefined}>
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -366,23 +378,26 @@ export function Toggle({ value, onValueChange, label, disabled }: {
       aria-disabled={disabled}
       aria-label={label}
       disabled={disabled}
-      hitSlop={10}
       onPress={() => {
         tap();
         onValueChange(!value);
       }}
-      style={{
-        width: 46,
-        height: 28,
-        borderRadius: 14,
-        padding: 3,
-        justifyContent: 'center',
-        alignItems: value ? 'flex-end' : 'flex-start',
-        backgroundColor: value ? c.primary : c.track,
-        opacity: disabled ? 0.5 : 1,
-      }}
+      // 44 high to touch; the switch itself is drawn 28 high in the middle
+      style={{ height: 44, minWidth: 50, justifyContent: 'center', alignItems: 'center', marginVertical: -8, opacity: disabled ? 0.5 : 1 }}
     >
-      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+      <View
+        style={{
+          width: 46,
+          height: 28,
+          borderRadius: 14,
+          padding: 3,
+          justifyContent: 'center',
+          alignItems: value ? 'flex-end' : 'flex-start',
+          backgroundColor: value ? c.primary : c.track,
+        }}
+      >
+        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+      </View>
     </Pressable>
   );
 }
@@ -394,21 +409,25 @@ export function Segmented<T extends string>({ options, value, onChange }: {
 }) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: 'row', backgroundColor: c.cardAlt, borderRadius: radius.md, padding: 3 }}>
+    <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', backgroundColor: c.cardAlt, borderRadius: radius.md, padding: 3 }}>
       {options.map((o) => {
         const on = o.value === value;
         return (
           <Pressable
             key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
             onPress={() => {
               tap();
               onChange(o.value);
             }}
             style={{
               flex: 1,
+              minHeight: 38,
               paddingVertical: 9,
               borderRadius: radius.sm,
               alignItems: 'center',
+              justifyContent: 'center',
               backgroundColor: on ? c.card : 'transparent',
               shadowColor: '#000',
               shadowOpacity: on ? 0.08 : 0,
@@ -580,7 +599,14 @@ export function ListRow({ icon, iconBg, title, subtitle, right, onPress, onLongP
   const c = useColors();
   const { lang } = useT();
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} disabled={!onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : undefined}
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+    >
       <Row gap={space.md} style={{ paddingVertical: 10 }}>
         {icon ? (
           <View

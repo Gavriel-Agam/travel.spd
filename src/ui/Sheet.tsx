@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { closeDuration, closesSheet } from '@/lib/sheetGesture';
 import { radius, space, useColors } from '@/theme';
 import { Text } from './primitives';
+import { useT } from '@/i18n';
 
 const web = Platform.OS === 'web';
 const native = !web;
@@ -73,6 +74,7 @@ export function Sheet({
   dragContent?: boolean;
 }) {
   const c = useColors();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const drag = useRef(new Animated.Value(0)).current;
   const [sheetH, setSheetH] = useState(600);
@@ -148,7 +150,7 @@ export function Sheet({
     <Modal visible={visible} transparent animationType={instantHide ? 'none' : 'slide'} onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <Animated.View style={{ flex: 1, opacity: backdrop }}>
-          <Pressable style={{ flex: 1, backgroundColor: c.overlay }} onPress={onClose} accessibilityLabel="Close" />
+          <Pressable style={{ flex: 1, backgroundColor: c.overlay }} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('feedback.close')} />
         </Animated.View>
         <Animated.View
           onLayout={(e) => setSheetH(Math.round(e.nativeEvent.layout.height))}
@@ -168,7 +170,7 @@ export function Sheet({
               <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: c.border }} />
             </View>
             {title ? (
-              <Text variant="h2" center style={{ paddingVertical: space.md }}>
+              <Text variant="h2" center accessibilityRole="header" style={{ paddingVertical: space.md }}>
                 {title}
               </Text>
             ) : null}

@@ -13,6 +13,7 @@ import { useUserId } from '@/providers/AuthProvider';
 import { radius, space, useColors } from '@/theme';
 import { confirmDialog } from '@/ui/Dialog';
 import { Banner, Button, Card, Chip, Divider, Field, IconButton, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
+import { Topbar } from '@/ui/Topbar';
 
 type TokenRow = { id: string; label: string; created_at: string; last_used_at: string | null; revoked_at: string | null };
 type Settings = { default_trip_id: string | null; route_by_trip_dates: boolean; default_split_mode: 'equal' | 'personal'; notify_push: boolean };
@@ -131,12 +132,7 @@ export default function Ingestion() {
 
   return (
     <Screen>
-      <Row gap={space.sm}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/settings')} />
-        <Text variant="title" style={{ flex: 1 }}>
-          {t('ingestion.title')}
-        </Text>
-      </Row>
+      <Topbar title={t('ingestion.title')} onBack={() => goBack('/settings')} />
       <Text muted>{t('ingestion.intro')}</Text>
       {error ? <Banner text={error} color={c.danger} icon="alert-circle" /> : null}
 

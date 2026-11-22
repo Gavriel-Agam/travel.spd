@@ -24,7 +24,8 @@ import { SwipeRow } from '@/ui/SwipeRow';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
 import { InfoTip } from '@/ui/InfoTip';
-import { HomeMenu } from '@/ui/HomeMenu';
+import { ImportBadge } from '@/ui/ImportBadge';
+import { Topbar, TopbarIcon, useThemeMenuItem } from '@/ui/Topbar';
 import { SmartImportSheet } from '@/ui/SmartImportSheet';
 import { smartImportBadge, useSmartImports } from '@/store/smartImports';
 import { ViewSelect } from '@/ui/ViewSelect';
@@ -152,7 +153,7 @@ export default function Home() {
   const homeViews = usePrefs((s) => s.homeViews);
   const setHomeView = usePrefs((s) => s.setHomeView);
   const viewOf = (card: string): HomeView => (myStats && homeViews[card] === 'mine' ? 'mine' : 'trip');
-  const [menuOpen, setMenuOpen] = useState(false);
+  const themeItem = useThemeMenuItem();
   const [importOpen, setImportOpen] = useState(false);
   // A Smart import waiting on this device: a dot on the gear, a badge in the menu
   const importBadge = useSmartImports((s) => smartImportBadge(s.records, trip?.id));
@@ -577,53 +578,41 @@ export default function Home() {
           style={{ width: '100%', height: 140, borderRadius: radius.xl, backgroundColor: c.cardAlt }}
         />
       ) : null}
-      <Row style={{ justifyContent: 'space-between' }} align="flex-end">
-        <View style={{ gap: 2, flex: 1 }}>
-          <Text variant="caption" muted>
-            {dayN && (!trip.end_date || today <= trip.end_date)
-              ? t('home.dayN', { n: dayN })
-              : notStarted
-                ? t('home.startsOn', { date: new Date(trip.start_date + 'T12:00:00Z').toLocaleDateString(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }) })
-                : ' '}
-          </Text>
-          <Text variant="title" numberOfLines={1}>
-            {trip.name}
-          </Text>
-        </View>
-        {/* Subtle invite entry until the partner joins; the code itself lives in Settings */}
-        {members.length < 2 && !trip.shared && invite.data ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('home.invitePartner')}
-            onPress={() => router.push('/settings')}
-            hitSlop={8}
-            style={{ padding: 6 }}
-          >
-            <Ionicons name="person-add-outline" size={20} color={c.primary} />
-          </Pressable>
-        ) : null}
-        {/* Gear: Arrange, and what is coming (export, share, filter, light/dark) */}
-        <Pressable accessibilityRole="button" accessibilityLabel={t('home.menu.title')} onPress={() => setMenuOpen(true)} hitSlop={8} style={{ padding: 6 }}>
-          <Ionicons name="settings-outline" size={21} color={c.primary} />
-          {importBadge ? (
-            <View
-              style={{
-                position: 'absolute',
-                top: 4,
-                end: 3,
-                width: 9,
-                height: 9,
-                borderRadius: 5,
-                borderWidth: 1.5,
-                borderColor: c.bg,
-                backgroundColor: importBadge === 'ready' ? c.primary : importBadge === 'error' ? c.danger : c.textMuted,
-              }}
-            />
-          ) : null}
-        </Pressable>
-        {/* Last in the row: top left in Hebrew */}
-        {canFeedback ? <FeedbackBell /> : null}
-      </Row>
+      {/* ⚙ last in the bar (top left in Hebrew): Smart import, Arrange, light / dark, Recently deleted, Filter, and what is coming */}
+      <Topbar
+        eyebrow={
+          dayN && (!trip.end_date || today <= trip.end_date)
+            ? t('home.dayN', { n: dayN })
+            : notStarted
+              ? t('home.startsOn', { date: new Date(trip.start_date + 'T12:00:00Z').toLocaleDateString(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }) })
+              : undefined
+        }
+        title={trip.name}
+        menuLabel={t('home.menu.title')}
+        badge={importBadge ? (importBadge === 'ready' ? c.primary : importBadge === 'error' ? c.danger : c.textMuted) : null}
+        menu={[
+          {
+            key: 'smartImport',
+            icon: 'sparkles-outline',
+            label: t('home.menu.smartImport'),
+            right: importBadge ? <ImportBadge status={importBadge} /> : undefined,
+            onPress: () => setImportOpen(true),
+          },
+          { key: 'arrange', icon: 'swap-vertical', label: t('home.menu.arrange'), onPress: () => setArranging(true) },
+          themeItem,
+          { key: 'deleted', icon: 'trash-outline', label: t('home.menu.deleted'), onPress: () => router.push('/deleted') },
+          { key: 'filter', icon: 'funnel-outline', label: t('home.menu.filter'), onPress: () => router.push({ pathname: '/expenses', params: { filter: '1' } }) },
+          { key: 'export', icon: 'download-outline', label: t('home.menu.export'), disabled: true, hint: t('home.menu.soon') },
+          { key: 'share', icon: 'share-social-outline', label: t('home.menu.share'), disabled: true, hint: t('home.menu.soon') },
+        ]}
+        extra={
+          <>
+            {/* Subtle invite entry until the partner joins; the code itself lives in Settings */}
+            {members.length < 2 && !trip.shared && invite.data ? <TopbarIcon icon="person-add-outline" label={t('home.invitePartner')} onPress={() => router.push('/settings')} /> : null}
+            {canFeedback ? <FeedbackBell /> : null}
+          </>
+        }
+      />
 
       <PasskeyOffer />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
@@ -680,24 +669,6 @@ export default function Home() {
         </Pressable>
       ) : null}
 
-      <HomeMenu
-        visible={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        importBadge={importBadge}
-        onDeleted={() => {
-          setMenuOpen(false);
-          router.push('/deleted');
-        }}
-        onSmartImport={() => {
-          setMenuOpen(false);
-          setTimeout(() => setImportOpen(true), 300);
-        }}
-        onArrange={() => {
-          setMenuOpen(false);
-          // One sheet at a time: Arrange opens once the menu has slid away
-          setTimeout(() => setArranging(true), 300);
-        }}
-      />
       <SmartImportSheet visible={importOpen} onClose={() => setImportOpen(false)} tripId={trip.id} />
       <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false} dragContent={false}>
         <View style={{ padding: space.lg, gap: space.md }}>

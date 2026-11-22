@@ -34,7 +34,7 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
       {/* Floating add button, always one tap away */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add expense"
+        accessibilityLabel={t('form.newTitle')}
         onPress={() => {
           if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
           if (blockedInDemo(qc)) return;
@@ -66,7 +66,7 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
           <Text variant="caption" color={onWarning} style={{ flex: 1, fontWeight: '700' }} numberOfLines={2}>
             {t('demo.banner')}
           </Text>
-          <Pressable accessibilityRole="button" onPress={exitDemo} hitSlop={8} style={{ backgroundColor: onWarning, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
+          <Pressable accessibilityRole="button" onPress={exitDemo} style={{ backgroundColor: onWarning, borderRadius: 999, paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', marginVertical: -4 }}>
             <Text variant="caption" color={c.warning} style={{ fontWeight: '700' }}>
               {t('demo.exit')}
             </Text>
@@ -74,6 +74,7 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
         </View>
       ) : null}
       <View
+        accessibilityRole="tablist"
         style={{
           flexDirection: 'row',
           backgroundColor: c.card,
@@ -100,7 +101,7 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
                 if (focused) useTabTap.getState().tap(route.name);
                 else navigateToTab(route.key);
               }}
-              style={{ flex: 1, alignItems: 'center', gap: 2 }}
+              style={{ flex: 1, alignItems: 'center', gap: 2, minHeight: 44 }}
             >
               <Ionicons name={focused ? on : off} size={24} color={color} />
               <Text variant="caption" color={color} style={{ fontSize: 11 }} numberOfLines={1}>

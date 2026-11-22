@@ -24,6 +24,7 @@
     "expo-secure-store": "~58.0.2",
     "expo-status-bar": "~58.0.4",
     "i18next": "^26.6.0",
+    "mammoth": "^1.11.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-i18next": "^17.1.10",
@@ -35,6 +36,7 @@
     "react-native-svg": "15.16.0",
     "react-native-url-polyfill": "^4.0.0",
     "react-native-web": "^0.21.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zustand": "^5.0.16"
   },
   "devDependencies": {

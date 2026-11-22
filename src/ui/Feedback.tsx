@@ -50,8 +50,7 @@ export function FeedbackBell() {
       accessibilityRole="button"
       accessibilityLabel={t('feedback.bell')}
       onPress={() => setOpen(true)}
-      hitSlop={8}
-      style={{ padding: 6 }}
+      style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
     >
       <Animated.View
         style={{

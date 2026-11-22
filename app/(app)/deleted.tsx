@@ -9,6 +9,7 @@ import { space } from '@/theme';
 import type { Expense } from '@/types/db';
 import { ExpenseRow } from '@/ui/ExpenseRow';
 import { Button, Card, Divider, EmptyState, ErrorView, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
+import { Topbar } from '@/ui/Topbar';
 
 /** Days until a deleted expense is removed for good (at least 0). */
 function daysLeft(deletedAt: string | null | undefined, now = Date.now()) {
@@ -46,10 +47,7 @@ export default function RecentlyDeleted() {
 
   return (
     <Screen>
-      <Row>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} label={t('common.back')} onPress={() => goBack('/expenses')} />
-      </Row>
-      <Text variant="title">{t('deleted.title')}</Text>
+      <Topbar title={t('deleted.title')} onBack={() => goBack('/expenses')} />
       <Text variant="caption" muted>
         {t('deleted.hint', { days: RESTORE_DAYS })}
       </Text>

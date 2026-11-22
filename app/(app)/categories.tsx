@@ -20,6 +20,7 @@ import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
 import { SwipeRow } from '@/ui/SwipeRow';
 import { Button, Card, Field, IconButton, ListRow, Row, Screen, Text, tap } from '@/ui/primitives';
+import { Topbar } from '@/ui/Topbar';
 import { UploadZone } from '@/ui/UploadZone';
 
 const COLORS = ['#5B6CFF', '#FF7A59', '#FFB020', '#14B8A6', '#3B9EFF', '#E05BD8', '#8B5CF6', '#22C55E', '#EF4444', '#8E8E93'];
@@ -134,10 +135,7 @@ export default function Categories() {
 
   return (
     <Screen {...drag.scrollProps}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/settings')} />
-      </Row>
-      <Text variant="title">{t('categories.manage')}</Text>
+      <Topbar title={t('categories.manage')} onBack={() => goBack('/settings')} />
       <Text variant="caption" muted>
         {t('categories.editHint')}
       </Text>

@@ -13,6 +13,7 @@ import { billedRate, matchStatement, parseStatement, type StatementRow } from '@
 import { errorCode, supabase } from '@/lib/supabase';
 import { space, useColors } from '@/theme';
 import { Banner, Button, Card, Divider, Field, IconButton, Row, Screen, Text } from '@/ui/primitives';
+import { Topbar } from '@/ui/Topbar';
 
 const digitsOf = (c: string) => getCurrency(c).minor_units;
 
@@ -140,12 +141,7 @@ export default function Statement() {
 
   return (
     <Screen>
-      <Row gap={space.sm}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/settings')} />
-        <Text variant="title" style={{ flex: 1 }}>
-          {t('statement.title')}
-        </Text>
-      </Row>
+      <Topbar title={t('statement.title')} onBack={() => goBack('/settings')} />
       <Text muted>{t('statement.intro')}</Text>
       {msg ? <Banner text={msg.text} color={msg.ok ? c.success : c.danger} icon={msg.ok ? 'checkmark-circle' : 'alert-circle'} /> : null}
 

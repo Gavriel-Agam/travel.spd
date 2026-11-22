@@ -53,9 +53,11 @@ export function DialogHost() {
       >
         <Pressable
           onPress={() => {}}
+          role="alertdialog"
+          aria-label={dialog?.title}
           style={{ width: '100%', maxWidth: 340, backgroundColor: c.card, borderRadius: radius.lg, padding: space.xl, gap: space.md }}
         >
-          <Text variant="h2" center>
+          <Text variant="h2" center accessibilityRole="header">
             {dialog?.title}
           </Text>
           {dialog?.message ? (

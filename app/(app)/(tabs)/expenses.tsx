@@ -1,9 +1,11 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Sheet } from '@/ui/Sheet';
+import { router, useLocalSearchParams } from 'expo-router';
+import { blockedInDemo } from '@/lib/demoPrompt';
+import { SmartImportSheet } from '@/ui/SmartImportSheet';
+import { Topbar, tripSettingsItem } from '@/ui/Topbar';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useDragScroll } from '@/hooks/useCardOrder';
 import { dayHeadingKey, dropAcrossDays, orderDay } from '@/lib/expenseOrder';
@@ -20,7 +22,7 @@ import { radius, space, useColors } from '@/theme';
 import { DateField } from '@/ui/DateField';
 import { CategoryIcon } from '@/ui/CategoryIcon';
 import { SwipeableExpenseRow } from '@/ui/SwipeableExpenseRow';
-import { Chip, EmptyState, ErrorView, Row, ScreenSkeleton, Text, TripBackdrop, useTextFieldDirection } from '@/ui/primitives';
+import { Chip, EmptyState, IconButton, ErrorView, Row, ScreenSkeleton, Text, TripBackdrop } from '@/ui/primitives';
 import type { Expense } from '@/types/db';
 
 export default function Expenses() {
@@ -37,9 +39,16 @@ export default function Expenses() {
   const setExpenseOrder = usePrefs((s) => s.setExpenseOrder);
 
   const [query, setQuery] = useState('');
-  const searchDir = useTextFieldDirection(query);
+  // Home's menu › Filter opens this screen with the filters showing
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
   const [showFilters, setShowFilters] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (filterParam !== '1') return;
+    setShowFilters(true);
+    router.setParams({ filter: undefined });
+  }, [filterParam]);
+  const [importOpen, setImportOpen] = useState(false);
+  const qc = useQueryClient();
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [payerId, setPayerId] = useState<string | null>(null);
   const [from, setFrom] = useState<Date | null>(null);
@@ -104,53 +113,33 @@ export default function Expenses() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
       <TripBackdrop />
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
-        {/* ⋮ at the end of the title row (top left in Hebrew): Filter, Recently deleted */}
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Text variant="title">{t('expenses.title')}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('expenses.moreOptions')} hitSlop={8} onPress={() => setMenuOpen(true)} style={{ padding: 6 }}>
-            <Ionicons name="ellipsis-vertical" size={22} color={c.text} />
-          </Pressable>
-        </Row>
-        <Row gap={space.sm}>
-          <Row gap={space.sm} style={{ flex: 1, backgroundColor: c.card, borderRadius: radius.md, paddingHorizontal: space.md }}>
-            <Ionicons name="search" size={18} color={c.textMuted} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder={t('expenses.searchPlaceholder')}
-              placeholderTextColor={c.textFaint}
-              {...(searchDir.dir ? ({ dir: searchDir.dir } as object) : null)}
-              style={[{ flex: 1, height: 44, fontSize: 16, color: c.text }, searchDir.align]}
-            />
-            {query ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={t('common.clearText')} hitSlop={8} onPress={() => setQuery('')}>
-                <Ionicons name="close-circle" size={18} color={c.textFaint} />
-              </Pressable>
-            ) : null}
-          </Row>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('expenses.filters')}
-            accessibilityState={{ expanded: showFilters }}
-            onPress={() => setShowFilters((v) => !v)}
-            style={{
-              height: 44,
-              paddingHorizontal: space.md,
-              borderRadius: radius.md,
-              backgroundColor: activeFilters ? c.primary : c.card,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            <Ionicons name="funnel-outline" size={20} color={activeFilters ? c.primaryText : c.text} />
-            {activeFilters ? <Text variant="label" color={c.primaryText}>{activeFilters}</Text> : null}
-          </Pressable>
-        </Row>
-
+      <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.sm }}>
+        {/* ⚙ at the end of the bar (top left in Hebrew): Filter, Recently deleted, Smart import, Trip settings; 🔍 beside it */}
+        <Topbar
+          title={t('expenses.title')}
+          search={{ value: query, onChange: setQuery, placeholder: t('expenses.searchPlaceholder') }}
+          menuLabel={t('expenses.moreOptions')}
+          menu={[
+            {
+              key: 'filter',
+              icon: 'funnel-outline',
+              label: t('expenses.filters'),
+              right: activeFilters ? <CountBadge n={activeFilters} /> : undefined,
+              onPress: () => setShowFilters((v) => !v),
+            },
+            { key: 'deleted', icon: 'trash-outline', label: t('deleted.title'), onPress: () => router.push('/deleted') },
+            { key: 'smartImport', icon: 'sparkles-outline', label: t('home.menu.smartImport'), onPress: () => !blockedInDemo(qc) && setImportOpen(true) },
+            tripSettingsItem(t),
+          ]}
+        />
         {showFilters ? (
           <View style={{ gap: space.sm }}>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text variant="label" muted>
+                {t('expenses.filters')}
+              </Text>
+              <IconButton name="close" size={20} label={t('expenses.closeFilters')} onPress={() => setShowFilters(false)} />
+            </Row>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
               <Chip label={t('expenses.withReceipt')} icon="🧾" selected={attach === 'receipt'} onPress={() => setAttach(attach === 'receipt' ? null : 'receipt')} />
               <Chip label={t('expenses.withBooking')} icon="✈️" selected={attach === 'booking'} onPress={() => setAttach(attach === 'booking' ? null : 'booking')} />
@@ -277,37 +266,19 @@ export default function Expenses() {
           />
         </ScrollView>
       )}
-      <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)} title={t('expenses.moreOptions')}>
-        <View style={{ padding: space.lg, gap: space.xs }}>
-          {(
-            [
-              { key: 'filter', icon: 'funnel-outline', label: t('expenses.filters'), run: () => setShowFilters(true) },
-              { key: 'deleted', icon: 'trash-outline', label: t('deleted.title'), run: () => router.push('/deleted') },
-            ] as const
-          ).map((item) => (
-            <Pressable
-              key={item.key}
-              accessibilityRole="button"
-              onPress={() => {
-                setMenuOpen(false);
-                item.run();
-              }}
-              style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space.md,
-                minHeight: 52,
-                paddingHorizontal: space.md,
-                borderRadius: radius.md,
-                backgroundColor: pressed ? c.cardAlt : 'transparent',
-              })}
-            >
-              <Ionicons name={item.icon} size={22} color={c.primary} />
-              <Text style={{ flex: 1, fontWeight: '600' }}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </Sheet>
+      <SmartImportSheet visible={importOpen} onClose={() => setImportOpen(false)} tripId={trip.id} />
     </SafeAreaView>
+  );
+}
+
+/** How many filters are on, beside Filter in the menu. */
+function CountBadge({ n }: { n: number }) {
+  const c = useColors();
+  return (
+    <View style={{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}>
+      <Text variant="caption" color={c.primaryText} style={{ fontWeight: '700' }}>
+        {n}
+      </Text>
+    </View>
   );
 }

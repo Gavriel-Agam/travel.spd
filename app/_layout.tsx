@@ -214,7 +214,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
         {error.message}
       </Text>
       <Pressable onPress={retry} style={{ backgroundColor: '#3366FF', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 14, marginTop: 8 }}>
-        <Text style={{ color: '#fff', fontWeight: '700' }}>נסו שוב · Try again</Text>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>לנסות שוב · Try again</Text>
       </Pressable>
     </View>
   );

@@ -1,12 +1,14 @@
 import { PasskeysCard } from '@/ui/Passkeys';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Platform, Pressable, Share, View, type ScrollViewInstance } from 'react-native';
-import { inviteLink, whatsappUrl } from '@/lib/inviteLink';
+import { inviteLink, sitePage, whatsappUrl } from '@/lib/inviteLink';
+import { versionLabel } from '@/lib/version';
+import { DropdownButton } from '@/ui/Dropdown';
+import { Topbar, useThemeMenuItem } from '@/ui/Topbar';
 import * as ImagePicker from 'expo-image-picker';
 import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useTripChanges, useTrips } from '@/api/queries';
 import { errorCode } from '@/lib/supabase';
@@ -28,18 +30,22 @@ import { useIsDemo, usePrefs } from '@/store/prefs';
 import { useScrollTopOnTabTap } from '@/store/tabTap';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
-import { CopyCode } from '@/ui/CopyCode';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
 import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
-import { Avatar, Button, Card, Chip, Divider, Field, ListRow, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
+import { Avatar, Button, Card, Chip, Divider, Field, hitArea, ListRow, Row, Screen, Text, Toggle } from '@/ui/primitives';
 import { CountryPicker } from '@/ui/CountryPicker';
 import { countryFlag, countryName } from '@/lib/countries';
 import { feeFromInput, feeToInput, memberFeePct, vatRule } from '@/lib/taxFree';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
 import type { Trip } from '@/types/db';
+
+const LANGS: { value: Lang; label: string }[] = [
+  { value: 'he', label: 'עברית' },
+  { value: 'en', label: 'English' },
+];
 
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -69,7 +75,8 @@ export default function Settings() {
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollTopOnTabTap('settings', scrollRef);
   const [text, setText] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<null | 'code' | 'message'>(null);
+  const themeItem = useThemeMenuItem();
   const [hasDates, setHasDates] = useState(false);
   const [start, setStart] = useState(new Date());
   const [end, setEnd] = useState(new Date());
@@ -240,21 +247,60 @@ export default function Settings() {
     Linking.openURL(whatsappUrl(inviteMessage(invite.data))).catch(() => {});
   }
 
+  /** Says what was copied in the invite row for a moment. */
+  function flashCopied(what: 'code' | 'message') {
+    setCopied(what);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function copyInviteCode() {
+    if (!invite.data) return;
+    await Clipboard.setStringAsync(invite.data);
+    flashCopied('code');
+  }
+
+  /** The phone's share sheet where there is one; otherwise the invite message is copied. */
   async function shareInvite() {
     if (!invite.data) return;
     const message = inviteMessage(invite.data);
-    if (Platform.OS === 'web') {
-      await Clipboard.setStringAsync(message);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } else {
+    if (Platform.OS !== 'web') {
       await Share.share({ message });
+      return;
     }
+    const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { share?: (d: { text: string }) => Promise<void> }) : null;
+    if (nav?.share) {
+      try {
+        await nav.share({ text: message });
+        return;
+      } catch (e) {
+        // Closed without sharing: nothing to do
+        if ((e as { name?: string }).name === 'AbortError') return;
+      }
+    }
+    await Clipboard.setStringAsync(message);
+    flashCopied('message');
+  }
+
+  /** A legal page, in a new tab on the web. */
+  function openPage(file: string) {
+    const url = sitePage(file);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.open(url, '_blank', 'noopener');
+    else Linking.openURL(url).catch(() => {});
   }
 
   return (
     <Screen ref={scrollRef}>
-      <Text variant="title">{t('settings.title')}</Text>
+      <Topbar
+        title={t('settings.title')}
+        menuLabel={t('menu.settingsTitle')}
+        menu={[
+          { key: 'tripSettings', icon: 'options-outline', label: t('menu.tripSettings'), onPress: openTripEdit },
+          themeItem,
+          { key: 'a11y', icon: 'accessibility-outline', label: t('legal.accessibility'), onPress: () => openPage('accessibility.html') },
+          { key: 'privacy', icon: 'shield-checkmark-outline', label: t('legal.privacy'), onPress: () => openPage('privacy.html') },
+          { key: 'terms', icon: 'document-text-outline', label: t('legal.terms'), onPress: () => openPage('terms.html') },
+        ]}
+      />
 
       {/* Trips (not in the shared MVP trip: a separate trip would be invisible to the partner) */}
       {!trip.shared ? (
@@ -344,7 +390,7 @@ export default function Settings() {
                   setText(m.display_name);
                   setEdit('me');
                 }}
-                hitSlop={8}
+                style={hitArea(20)}
               >
                 <Ionicons name="create-outline" size={20} color={c.primary} />
               </Pressable>
@@ -355,7 +401,7 @@ export default function Settings() {
                 accessibilityLabel={t('settings.removeMember', { name: m.display_name })}
                 onPress={() => removePartner(m.id, m.display_name)}
                 disabled={removeMember.isPending}
-                hitSlop={8}
+                style={hitArea(18)}
               >
                 <Ionicons name="trash-outline" size={18} color={c.danger} />
               </Pressable>
@@ -365,20 +411,35 @@ export default function Settings() {
         {!trip.shared && !demo ? (
           <>
             <Divider />
-            <Text variant="h2">{t('settings.invite')}</Text>
-            <Text variant="caption" muted>
-              {t('settings.inviteBody')}
-            </Text>
-            <CopyCode code={invite.data} />
-            <Button title={t('settings.inviteWhatsapp')} icon="logo-whatsapp" onPress={whatsappInvite} disabled={!invite.data} />
-            {/* On the web "Share" copies the invite message: the button says so for a moment */}
-            <Button
-              title={copied ? t('common.copied') : t('common.share')}
-              icon={copied ? 'checkmark' : 'share-outline'}
-              variant="secondary"
-              onPress={shareInvite}
-              disabled={!invite.data}
-            />
+            {/* One row; + (at the end: top left in Hebrew) opens Copy code, WhatsApp, Share link */}
+            <DropdownButton
+              label={t('settings.invite')}
+              minWidth={240}
+              items={[
+                { key: 'copy', icon: 'copy-outline', label: t('settings.inviteCopyCode'), disabled: !invite.data, onPress: () => void copyInviteCode() },
+                { key: 'whatsapp', icon: 'logo-whatsapp', label: t('settings.inviteWhatsapp'), disabled: !invite.data, onPress: whatsappInvite },
+                { key: 'share', icon: 'share-outline', label: t('settings.inviteShareLink'), disabled: !invite.data, onPress: () => void shareInvite() },
+              ]}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 }}
+            >
+              {() => (
+                <>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ fontWeight: '600' }}>{t('settings.invite')}</Text>
+                    <Text variant="caption" muted>
+                      {copied
+                        ? t(copied === 'code' ? 'settings.codeCopied' : 'settings.inviteCopied')
+                        : invite.data
+                          ? t('settings.inviteCode', { code: invite.data })
+                          : t('common.loading')}
+                    </Text>
+                  </View>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={copied ? 'checkmark' : 'add'} size={24} color={c.primary} />
+                  </View>
+                </>
+              )}
+            </DropdownButton>
           </>
         ) : null}
       </Card>
@@ -386,19 +447,37 @@ export default function Settings() {
       {/* Face ID / passkey (only where supported and turned on) */}
       <PasskeysCard />
 
-      {/* Language */}
+      {/* Language: a globe and a dropdown like every other menu */}
       <Card>
+        <Row gap={space.md}>
+          <Ionicons name="globe-outline" size={22} color={c.primary} />
+          <Text style={{ flex: 1, fontWeight: '600' }}>{t('settings.language')}</Text>
+          <DropdownButton
+            label={t('settings.language')}
+            minWidth={180}
+            items={LANGS.map((l) => ({ key: l.value, label: l.label, selected: lang === l.value, onPress: () => lang !== l.value && changeLang(l.value) }))}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: c.cardAlt }}
+          >
+            {(open) => (
+              <>
+                <Text style={{ fontWeight: '600' }}>{LANGS.find((l) => l.value === lang)?.label}</Text>
+                <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.textMuted} />
+              </>
+            )}
+          </DropdownButton>
+        </Row>
+      </Card>
+
+      {/* Accessibility statement, Privacy Policy, Terms of Use (public pages next to the app) */}
+      <Card style={{ gap: 0 }}>
         <Text variant="label" muted>
-          {t('settings.language')}
+          {t('legal.title')}
         </Text>
-        <Segmented<Lang>
-          options={[
-            { value: 'he', label: 'עברית' },
-            { value: 'en', label: 'English' },
-          ]}
-          value={lang}
-          onChange={changeLang}
-        />
+        <ListRow icon={<Ionicons name="accessibility-outline" size={20} color={c.primary} />} title={t('legal.accessibility')} chevron onPress={() => openPage('accessibility.html')} />
+        <Divider />
+        <ListRow icon={<Ionicons name="shield-checkmark-outline" size={20} color={c.primary} />} title={t('legal.privacy')} chevron onPress={() => openPage('privacy.html')} />
+        <Divider />
+        <ListRow icon={<Ionicons name="document-text-outline" size={20} color={c.primary} />} title={t('legal.terms')} chevron onPress={() => openPage('terms.html')} />
       </Card>
 
       {/* Anonymous (MVP) devices would come back as a new traveller, so no sign-out */}
@@ -408,7 +487,7 @@ export default function Settings() {
         <Button title={t('settings.signOut')} variant="danger" icon="log-out-outline" onPress={signOut} />
       ) : null}
       <Text variant="caption" faint center>
-        {t('settings.version', { v: Constants.expoConfig?.version ?? '1.0.0' })}
+        {t('settings.version', { v: versionLabel() })}
       </Text>
 
       <Sheet visible={!!edit} onClose={() => setEdit(null)} title={edit === 'trip' ? t('settings.tripDetails') : t('settings.myName')}>
@@ -518,9 +597,9 @@ export default function Settings() {
                       accessibilityState={{ selected: themeColor === key }}
                       onPress={() => setThemeColor(key)}
                       style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
                         backgroundColor: TRIP_THEMES[key].light.primary,
                         borderWidth: 3,
                         borderColor: themeColor === key ? c.text : 'transparent',
@@ -578,7 +657,14 @@ export default function Settings() {
           {edit === 'me' ? (
             <Row style={{ justifyContent: 'center' }} gap={space.md}>
               {MEMBER_COLORS.map((col) => (
-                <Pressable key={col} onPress={() => me && !blockedInDemo(queryClient) && changes.updateMyMember(me.id, { color: col })}>
+                <Pressable
+                  key={col}
+                  accessibilityRole="radio"
+                  accessibilityLabel={t('settings.myColor')}
+                  accessibilityState={{ checked: me?.color === col }}
+                  style={hitArea(34)}
+                  onPress={() => me && !blockedInDemo(queryClient) && changes.updateMyMember(me.id, { color: col })}
+                >
                   <View
                     style={{
                       width: 34,

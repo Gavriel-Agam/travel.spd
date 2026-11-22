@@ -22,6 +22,11 @@ function appBase(): string {
   return `${location.origin}${base}`;
 }
 
+/** A page published next to the app (privacy.html, terms.html, accessibility.html). */
+export function sitePage(file: string): string {
+  return `${appBase()}/${file}`;
+}
+
 export function inviteLink(code: string): string {
   return `${appBase()}/join/${encodeURIComponent(code.toUpperCase())}`;
 }

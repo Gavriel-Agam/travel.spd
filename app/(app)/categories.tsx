@@ -8,6 +8,7 @@ import { useDragScroll } from '@/hooks/useCardOrder';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
 import { categoryLabel, EMOJI_CHOICES, isSelectable, nextCategoryOrder, normalizeEmoji } from '@/lib/categories';
+import { isBrandIcon } from '@/lib/categoryBank';
 import { categoryIconFromPick, encodeIcon } from '@/lib/image';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { goBack } from '@/lib/nav';
@@ -19,6 +20,7 @@ import { DraggableGrid } from '@/ui/DraggableGrid';
 import { ImageCropper } from '@/ui/ImageCropper';
 import { Sheet } from '@/ui/Sheet';
 import { SwipeRow } from '@/ui/SwipeRow';
+import { CategoryBankSheet } from '@/ui/CategoryBankSheet';
 import { Button, Card, Field, IconButton, ListRow, Row, Screen, Text, tap } from '@/ui/primitives';
 import { Topbar } from '@/ui/Topbar';
 import { UploadZone } from '@/ui/UploadZone';
@@ -45,10 +47,13 @@ export default function Categories() {
   const [picking, setPicking] = useState(false);
   // A picked picture waiting to be cropped (browser)
   const [cropUri, setCropUri] = useState<string | null>(null);
+  const [bankOpen, setBankOpen] = useState(false);
 
   const active = allCategories.filter(isSelectable);
   const hidden = allCategories.filter((x) => !isSelectable(x));
   const current = editing && editing !== 'new' ? editing : null;
+  // A brand logo from the bank stays as it is until another emoji is chosen
+  const iconValue = isBrandIcon(icon) ? icon : normalizeEmoji(icon) || '🏷️';
 
   function open(target: Editing) {
     setEditing(target);
@@ -68,7 +73,7 @@ export default function Categories() {
 
   function save() {
     if (!name.trim() || blockedInDemo(qc)) return;
-    const fields = { name: name.trim(), icon: normalizeEmoji(icon) || '🏷️', color, image };
+    const fields = { name: name.trim(), icon: iconValue, color, image };
     if (current) changes.updateCategory(current, fields);
     else changes.addCategory(fields);
     setEditing(null);
@@ -131,7 +136,7 @@ export default function Categories() {
     }
   }
 
-  const preview = { icon: normalizeEmoji(icon) || '🏷️', image };
+  const preview = { icon: iconValue, image };
 
   return (
     <Screen {...drag.scrollProps}>
@@ -176,7 +181,16 @@ export default function Categories() {
         scroll={drag.scroll}
         onDragging={drag.setDragging}
       />
-      <Button title={t('categories.add')} icon="add" variant="secondary" onPress={() => open('new')} />
+      <Row gap={space.sm}>
+        <Button title={t('categories.add')} icon="add" variant="secondary" onPress={() => open('new')} style={{ flex: 1 }} />
+        <Button title={t('bank.open')} icon="albums-outline" variant="secondary" onPress={() => setBankOpen(true)} style={{ flex: 1 }} />
+      </Row>
+      <CategoryBankSheet
+        visible={bankOpen}
+        onClose={() => setBankOpen(false)}
+        active={active.map((cat) => ({ icon: cat.icon, name: categoryLabel(cat, t) }))}
+        onAdd={(fields) => !blockedInDemo(qc) && !!changes.addCategory({ ...fields, image: null })}
+      />
 
       {hidden.length > 0 ? (
         <Card style={{ gap: 0 }}>
@@ -283,7 +297,7 @@ export default function Categories() {
           </ScrollView>
           <Field
             label={t('categories.ownEmoji')}
-            value={icon}
+            value={isBrandIcon(icon) ? '' : icon}
             onChangeText={(v) => {
               setIcon(normalizeEmoji(v));
               if (v.trim()) setImage(null);

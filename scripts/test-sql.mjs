@@ -682,4 +682,24 @@ await rejects(asAnon('truncate trips'), /permission denied/);
 assert.equal((await as(A, 'select count(*)::int n from expenses where id = $1', [e1.id]))[0].n, 1);
 ok('hardening: helpers not callable signed out, TRUNCATE refused, RLS reads still work');
 
+// Trip checklist (0026): shared lists for the trip, "what I brought" only for its owner
+const ck = (id, list, title) => as(A, 'insert into trip_checklist_items (id, trip_id, list_type, title) values ($1, $2, $3, $4) returning *', [id, trip, list, title]);
+const [pack] = await ck('aaaaaaaa-0000-4000-8000-000000000001', 'to_pack', 'Passport');
+assert.equal(pack.user_id, A);
+await ck('aaaaaaaa-0000-4000-8000-000000000002', 'brought', 'Charger');
+assert.equal((await as(B, 'select count(*)::int n from trip_checklist_items'))[0].n, 1);
+assert.equal((await as(C, 'select count(*)::int n from trip_checklist_items'))[0].n, 0);
+const [tick] = await as(B, 'update trip_checklist_items set is_checked = true where id = $1 returning is_checked', [pack.id]);
+assert.equal(tick.is_checked, true);
+assert.equal((await as(B, "update trip_checklist_items set title = 'x' where list_type = 'brought' returning id")).length, 0);
+await rejects(as(B, 'update trip_checklist_items set trip_id = trip_id where id = $1', [pack.id]), /permission denied/);
+await rejects(as(B, "insert into trip_checklist_items (trip_id, user_id, list_type, title) values ($1, $2, 'to_pack', 'x')", [trip, A]), /row-level security/);
+await rejects(as(C, "insert into trip_checklist_items (trip_id, list_type, title) values ($1, 'to_pack', 'x')", [trip]), /row-level security/);
+await rejects(as(A, "insert into trip_checklist_items (trip_id, list_type, title) values ($1, 'other', 'x')", [trip]), /check/);
+await rejects(as(A, "insert into trip_checklist_items (trip_id, list_type, title) values ($1, 'to_pack', '  ')", [trip]), /check/);
+await rejects(ck(pack.id, 'to_pack', 'Again'), /duplicate key/);
+await rejects(asAnon('select * from trip_checklist_items'), /permission denied/);
+assert.equal((await as(B, 'delete from trip_checklist_items where id = $1 returning id', [pack.id])).length, 1);
+ok('checklist: shared lists for members, own "brought" list private, owner fixed, bad values refused');
+
 console.log(`\n${passed} SQL checks passed`);

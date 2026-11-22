@@ -14,7 +14,7 @@ import { mergeChange } from '@/lib/pendingChanges';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { SaveExpenseInput } from '@/api/queries';
-import type { Budget, Category, CategoryOverride, Expense, Member, Trip } from '@/types/db';
+import type { Budget, Category, CategoryOverride, ChecklistItem, ChecklistList, Expense, Member, Trip } from '@/types/db';
 
 type Base = {
   /** create: the new expense's client id. update: `edit:<expense id>`. delete: `del:<expense id>`. Settings: see lib/pendingChanges. */
@@ -46,7 +46,22 @@ export type BudgetItem = Base & { kind: 'budget'; scope: Budget['scope']; catego
 /** Your own name or colour in the trip. */
 export type MemberItem = Base & { kind: 'member'; memberId: string; patch: Partial<Pick<Member, 'display_name' | 'color' | 'card_fx_fee_pct'>> };
 
-export type ChangeItem = TripItem | CategoryItem | OverrideItem | BudgetItem | MemberItem;
+/**
+ * A trip checklist item added (`create`), changed or removed (`remove`). Added
+ * and removed before it was sent: nothing is sent at all.
+ */
+export type ChecklistChange = Base & {
+  kind: 'checklist';
+  itemId: string;
+  listType: ChecklistList;
+  /** Who added it (the "brought" list is theirs only); shown at once before the server has it. */
+  userId: string;
+  create: boolean;
+  remove: boolean;
+  fields: Partial<Pick<ChecklistItem, 'title' | 'is_checked' | 'sort_order'>>;
+};
+
+export type ChangeItem = TripItem | CategoryItem | OverrideItem | BudgetItem | MemberItem | ChecklistChange;
 export type OutboxItem = CreateItem | UpdateItem | DeleteItem | RestoreItem | ChangeItem;
 
 export const editKey = (expenseId: string) => `edit:${expenseId}`;

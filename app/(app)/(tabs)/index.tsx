@@ -25,7 +25,7 @@ import { CategoryIcon } from '@/ui/CategoryIcon';
 import { DailyAverageSheet } from '@/ui/DailyAverageSheet';
 import { InfoTip } from '@/ui/InfoTip';
 import { ImportBadge } from '@/ui/ImportBadge';
-import { Topbar, TopbarIcon, useThemeMenuItem } from '@/ui/Topbar';
+import { checklistItem, Topbar, TopbarIcon, useThemeMenuItem } from '@/ui/Topbar';
 import { SmartImportSheet } from '@/ui/SmartImportSheet';
 import { smartImportBadge, useSmartImports } from '@/store/smartImports';
 import { ViewSelect } from '@/ui/ViewSelect';
@@ -282,7 +282,7 @@ export default function Home() {
               ) : null}
             </Row>
           ) : null}
-          {/* No budget yet: a link to the budget in Trip details */}
+          {/* No budget yet: a link to the budget in Trip settings */}
           {!stats.budget && !heroMine ? (
             <Pressable
               accessibilityRole="link"
@@ -569,7 +569,7 @@ export default function Home() {
     >
       {/* Feedback panel: takes its own space at the top and pushes the screen down */}
       {canFeedback ? <FeedbackBanner tripId={trip.id} /> : null}
-      {/* The trip photo (Settings › Trip details) */}
+      {/* The trip photo (Settings › Trip settings) */}
       {coverUrl ? (
         <Image
           source={{ uri: coverUrl }}
@@ -598,6 +598,7 @@ export default function Home() {
             right: importBadge ? <ImportBadge status={importBadge} /> : undefined,
             onPress: () => setImportOpen(true),
           },
+          checklistItem(t),
           { key: 'arrange', icon: 'swap-vertical', label: t('home.menu.arrange'), onPress: () => setArranging(true) },
           themeItem,
           { key: 'deleted', icon: 'trash-outline', label: t('home.menu.deleted'), onPress: () => router.push('/deleted') },

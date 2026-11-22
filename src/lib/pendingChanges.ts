@@ -5,7 +5,7 @@
 // expenses and applied on top of the saved data wherever it is shown, so the
 // screen shows the change at once and keeps showing it after a restart.
 import builtins from '@/data/categories.json';
-import type { BudgetItem, CategoryItem, MemberItem, OutboxItem, OverrideItem, TripItem } from '@/store/outbox';
+import type { BudgetItem, CategoryItem, ChecklistChange, MemberItem, OutboxItem, OverrideItem, TripItem } from '@/store/outbox';
 import type { Budget, Category, Member, Trip } from '@/types/db';
 
 export const isTripItem = (i: OutboxItem): i is TripItem => i.kind === 'trip';
@@ -13,6 +13,7 @@ export const isCategoryItem = (i: OutboxItem): i is CategoryItem => i.kind === '
 export const isOverrideItem = (i: OutboxItem): i is OverrideItem => i.kind === 'override';
 export const isBudgetItem = (i: OutboxItem): i is BudgetItem => i.kind === 'budget';
 export const isMemberItem = (i: OutboxItem): i is MemberItem => i.kind === 'member';
+export const isChecklistItem = (i: OutboxItem): i is ChecklistChange => i.kind === 'checklist';
 /** A queued change to an expense (new, edit or delete) rather than to the trip's settings. */
 export const isExpenseItem = (i: OutboxItem) => !i.kind || i.kind === 'create' || i.kind === 'update' || i.kind === 'delete' || i.kind === 'restore';
 
@@ -23,11 +24,15 @@ export const overrideChangeKey = (tripId: string, categoryId: string) => `ovr:${
 export const budgetChangeKey = (tripId: string, scope: string, categoryId: string | null, memberId: string | null) =>
   `budget:${tripId}:${scope}:${categoryId ?? ''}:${memberId ?? ''}`;
 export const memberChangeKey = (memberId: string) => `member:${memberId}`;
+export const checklistChangeKey = (itemId: string) => `ck:${itemId}`;
 
 /** Two queued changes to the same thing, as one: the later values win. */
 export function mergeChange(prev: OutboxItem, next: OutboxItem): OutboxItem {
   if (isTripItem(prev) && isTripItem(next)) return { ...next, patch: { ...prev.patch, ...next.patch } };
   if (isMemberItem(prev) && isMemberItem(next)) return { ...next, patch: { ...prev.patch, ...next.patch } };
+  // Added offline and then ticked or renamed: still has to be created; removed: stays removed
+  if (isChecklistItem(prev) && isChecklistItem(next))
+    return { ...next, create: prev.create || next.create, remove: prev.remove || next.remove, fields: { ...prev.fields, ...next.fields } };
   // Added offline and then edited: still has to be created
   if (isCategoryItem(prev) && isCategoryItem(next)) return { ...next, create: prev.create || next.create, fields: { ...prev.fields, ...next.fields } };
   // A reset wipes what came before it; edits after a reset still need the reset first

@@ -10,9 +10,10 @@ import {
   applyTripChanges,
   isExpenseItem,
 } from '@/lib/pendingChanges';
+import { applyChecklistChanges } from '@/lib/checklist';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useOutbox, useSyncFlash, type ChangeItem, type CreateItem, type OutboxItem } from '@/store/outbox';
-import type { Budget, Category, Member, Trip } from '@/types/db';
+import type { Budget, Category, ChecklistItem, Member, Trip } from '@/types/db';
 import { useIsDemo } from '@/store/prefs';
 
 /** Browser connectivity (React Query tracks the online/offline events). */
@@ -54,6 +55,26 @@ async function send(item: OutboxItem): Promise<string | null> {
 async function sendChange(item: ChangeItem): Promise<string | null> {
   const fail = (error: unknown) => (error ? errorCode(error) : null);
   switch (item.kind) {
+    case 'checklist': {
+      const table = supabase.from('trip_checklist_items');
+      // Added and removed before it was sent: nothing to send
+      if (item.remove) return item.create ? null : fail((await table.delete().eq('id', item.itemId)).error);
+      if (item.create) {
+        const { error } = await table.insert({
+          id: item.itemId,
+          trip_id: item.tripId,
+          list_type: item.listType,
+          title: item.fields.title ?? '',
+          is_checked: item.fields.is_checked ?? false,
+          sort_order: item.fields.sort_order ?? 0,
+        });
+        // 23505: already there (sent before, the answer was lost): send the latest values as an edit
+        if (!error) return null;
+        if ((error as { code?: string }).code !== '23505') return errorCode(error);
+      }
+      // Removed meanwhile by someone else on the trip: no row changes, nothing left to do
+      return fail((await table.update({ ...item.fields, updated_at: new Date().toISOString() }).eq('id', item.itemId)).error);
+    }
     case 'trip':
       return fail((await supabase.from('trips').update(item.patch).eq('id', item.tripId).select('id').single()).error);
     case 'member':
@@ -98,6 +119,7 @@ function keepInCache(qc: ReturnType<typeof useQueryClient>, item: ChangeItem) {
   if (item.kind === 'trip') qc.setQueryData<Trip[]>(keys.trips, (list) => list && applyTripChanges(list, [item]));
   else if (item.kind === 'member') qc.setQueryData<Member[]>(keys.members(item.tripId), (list) => list && applyMemberChanges(list, [item]));
   else if (item.kind === 'budget') qc.setQueryData<Budget[]>(keys.budgets(item.tripId), (list) => list && applyBudgetChanges(list, [item], item.tripId));
+  else if (item.kind === 'checklist') qc.setQueryData<ChecklistItem[]>(keys.checklist(item.tripId), (list) => list && applyChecklistChanges(list, [item], item.tripId));
   else qc.setQueryData<Category[]>(keys.categories(item.tripId), (list) => list && applyCategoryChanges(list, [item], item.tripId));
 }
 
@@ -107,6 +129,7 @@ function keysFor(item: OutboxItem) {
   if (item.kind === 'trip') return [keys.trips];
   if (item.kind === 'member') return [keys.members(item.tripId)];
   if (item.kind === 'budget') return [keys.budgets(item.tripId)];
+  if (item.kind === 'checklist') return [keys.checklist(item.tripId)];
   return [keys.categories(item.tripId)];
 }
 

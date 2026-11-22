@@ -32,6 +32,7 @@ export const keys = {
   expenses: (t: string) => ['expenses', t] as const,
   deleted: (t: string) => ['deleted-expenses', t] as const,
   budgets: (t: string) => ['budgets', t] as const,
+  checklist: (t: string) => ['checklist', t] as const,
   invite: (t: string) => ['invite', t] as const,
   currencies: ['currencies'] as const,
   rates: (d: string) => ['rates', d] as const,
@@ -619,6 +620,9 @@ export function useTripRealtime(tripId: string | undefined) {
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'category_overrides', filter }, () =>
         qc.invalidateQueries({ queryKey: keys.categories(tripId) }),
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_checklist_items', filter }, () =>
+        qc.invalidateQueries({ queryKey: keys.checklist(tripId) }),
       )
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, () =>
         qc.invalidateQueries({ queryKey: keys.trips }),

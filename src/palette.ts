@@ -52,7 +52,7 @@ export const themes = { light, dark };
 
 export const MEMBER_COLORS = ['#3366FF', '#FF4D88', '#12B76A', '#F79009', '#7A5AF8', '#06AED4'];
 
-// Trip accent colours (Settings › Trip details). Each one swaps the accent
+// Trip accent colours (Settings › Trip settings). Each one swaps the accent
 // tokens in light and dark mode; theme.test.ts checks every combination for
 // WCAG AA contrast, so only these can be chosen (the database allows the same list).
 type Accent = Pick<Colors, 'primary' | 'primaryText' | 'primarySoft' | 'heroFrom' | 'heroTo'>;

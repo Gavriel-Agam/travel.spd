@@ -151,3 +151,18 @@ export type RatesSnapshot = {
   fetched_at: string | null;
   rates: Record<string, RateEntry>;
 };
+
+/** The trip checklist's three lists (0026): two shared, "brought" only for its owner. */
+export type ChecklistList = 'to_pack' | 'to_buy_do' | 'brought';
+
+export type ChecklistItem = {
+  id: string;
+  trip_id: string;
+  user_id: string;
+  list_type: ChecklistList;
+  title: string;
+  is_checked: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at?: string;
+};

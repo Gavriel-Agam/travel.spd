@@ -23,7 +23,7 @@ import { Avatar, Card, EmptyState, ErrorView, IconButton, Loading, ScreenSkeleto
 import { Topbar, tripSettingsItem, useThemeMenuItem } from '@/ui/Topbar';
 import { router } from 'expo-router';
 
-// The "budget vs actual" card was removed (2026-11-12): the trip budget lives in Settings › Trip details and on Home
+// The "budget vs actual" card was removed (2026-11-12): the trip budget lives in Settings › Trip settings and on Home
 const STATS_SECTIONS = ['summary', 'categories', 'byDay', 'topDays', 'partners', 'payment', 'distribution', 'currency'] as const;
 type StatsSection = (typeof STATS_SECTIONS)[number];
 

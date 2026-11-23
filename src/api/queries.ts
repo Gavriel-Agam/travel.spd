@@ -363,6 +363,10 @@ export type SaveExpenseInput = {
   booking_details?: Booking | null;
   /** 0027: where each field of a voice expense came from */
   field_sources?: FieldSources | null;
+  /** 0028: where it was added (sent only when known) */
+  lat?: number | null;
+  lng?: number | null;
+  location_name?: string | null;
 };
 
 export function useSaveExpense(tripId: string) {

@@ -128,6 +128,10 @@ export type Expense = {
   booking_details?: Booking | null;
   /** Voice expenses (0027): where each field came from (spoken / inferred / default / unresolved / edited). */
   field_sources?: Record<string, string> | null;
+  /** Where it was added (0028), when the phone knew. */
+  lat?: number | null;
+  lng?: number | null;
+  location_name?: string | null;
   expense_splits: ExpenseSplit[];
   /** Only on expenses with a change queued on this device and not yet saved on the server. */
   pending?: 'waiting' | 'failed';

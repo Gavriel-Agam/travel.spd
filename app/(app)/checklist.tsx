@@ -56,8 +56,9 @@ export default function Checklist() {
       tap();
       setDraft('');
     }
-    // Keep typing the next item
+    // Keep typing the next item: focus now (still inside the tap, so a phone keeps its keyboard) and again after the list redraws
     input.current?.focus();
+    requestAnimationFrame(() => input.current?.focus());
   };
 
   const label = (l: ChecklistList) => {
@@ -82,6 +83,8 @@ export default function Checklist() {
           onChangeText={setDraft}
           onSubmitEditing={add}
           submitBehavior="submit"
+          // The web build ignores submitBehavior: without this, Enter blurs the field
+          blurOnSubmit={false}
           returnKeyType="done"
           maxLength={CHECKLIST_TITLE_MAX}
           placeholder={t(`checklist.placeholder.${list}`)}

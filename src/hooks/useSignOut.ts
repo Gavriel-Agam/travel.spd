@@ -19,6 +19,8 @@ export function useSignOut() {
     usePrefs.getState().setActiveTrip(null);
     clearLaunchSnapshot();
     useVoice.getState().clear();
+    // Places looked up on this device are personal
+    usePrefs.setState({ places: {}, lastPlace: null });
     void clearReceiptCache();
     await supabase.auth.signOut();
     useOutbox.setState({ items: [] });

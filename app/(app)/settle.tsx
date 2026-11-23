@@ -1,8 +1,11 @@
+import { BalanceBanner } from '@/ui/NetChips';
+import { PairSheet } from '@/ui/PairSheet';
+import { isRTL } from '@/ui/Dropdown';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSaveExpense } from '@/api/queries';
 import { useTripData } from '@/hooks/useTripData';
 import { useT } from '@/i18n';
@@ -22,7 +25,10 @@ export default function SettleUp() {
   const themeItem = useThemeMenuItem();
   const c = useColors();
   const data = useTripData();
-  const { trip, balances, transfers, memberById, expenses, categoryById } = data;
+  const { trip, balances, transfers, memberById, expenses, categoryById, me } = data;
+  // Settle up › a person: everything between you and them
+  const [pairWith, setPairWith] = useState<string | null>(null);
+  const myNet = balances.find((b) => b.memberId === me?.id)?.net ?? 0;
   const save = useSaveExpense(trip?.id ?? '');
   const [recording, setRecording] = useState<Transfer | null>(null);
   const [amount, setAmount] = useState('');
@@ -93,13 +99,23 @@ export default function SettleUp() {
         ]}
       />
 
+      {me && balances.length > 1 ? <BalanceBanner net={myNet} /> : null}
+
       <Card>
         {balances.map((b, i) => {
           const m = memberById.get(b.memberId);
           if (!m) return null;
+          const canOpen = !!me && b.memberId !== me.id;
           return (
             <View key={b.memberId} style={{ gap: space.sm }}>
               {i > 0 ? <Divider /> : null}
+              <Pressable
+                accessibilityRole={canOpen ? 'button' : undefined}
+                accessibilityHint={canOpen ? t('balance.openPair') : undefined}
+                disabled={!canOpen}
+                onPress={() => setPairWith(b.memberId)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+              >
               <Row gap={space.md}>
                 <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} />
                 <Text variant="h2" style={{ flex: 1 }}>
@@ -109,7 +125,9 @@ export default function SettleUp() {
                   {b.net > 0 ? '+' : b.net < 0 ? '−' : ''}
                   {ils(Math.abs(b.net))}
                 </Text>
+                {canOpen ? <Ionicons name={isRTL() ? 'chevron-back' : 'chevron-forward'} size={18} color={c.textMuted} /> : null}
               </Row>
+              </Pressable>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text variant="caption" muted>
                   {t('settle.paid')}: {ils(b.paid)}
@@ -181,6 +199,7 @@ export default function SettleUp() {
           </View>
         ) : null}
       </Sheet>
+      <PairSheet otherId={pairWith} onClose={() => setPairWith(null)} />
     </Screen>
   );
 }

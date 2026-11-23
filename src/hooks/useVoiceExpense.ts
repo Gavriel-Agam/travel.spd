@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { resolveVoiceItem, splitFromStored, voiceToSaveInput, type VoiceDraft, type VoiceParseResult } from '@/lib/voice';
 import { useUserId } from '@/providers/AuthProvider';
 import { useOutbox } from '@/store/outbox';
+import { capturePlace } from '@/hooks/useExpenseLocation';
 import { cachedRatesFor, useIsDemo, usePrefs } from '@/store/prefs';
 import { useVoice, type CardItem, type VoiceCapture } from '@/store/voice';
 import type { Expense, RatesSnapshot } from '@/types/db';
@@ -78,7 +79,7 @@ function notesFor(d: VoiceDraft, t: Deps['t']) {
 }
 
 /** Queues one draft with an amount; false without a rate for its currency. */
-async function queueDraft(d: VoiceDraft, deps: Deps, clientId: string): Promise<boolean> {
+async function queueDraft(d: VoiceDraft, deps: Deps, clientId: string, place?: VoiceCapture['place']): Promise<boolean> {
   const { trip, me, memberById } = deps.data;
   if (!trip) return false;
   const prefs = usePrefs.getState();
@@ -91,15 +92,24 @@ async function queueDraft(d: VoiceDraft, deps: Deps, clientId: string): Promise<
     snapshot,
     paymentMethod: lastPaymentFor(prefs.lastPayment, prefs.lastPaymentAny, trip.id, trip.payment_methods ?? []),
     notes: notesFor(d, deps.t),
+    place,
   });
   if (!payload) return false;
   useOutbox.getState().add({ clientId, tripId: trip.id, createdBy: deps.userId ?? '', queuedAt: new Date().toISOString(), payload });
   return true;
 }
 
+/** Place lookups still running for a capture (in memory only). */
+const placeLookups = new Map<string, Promise<VoiceCapture['place']>>();
+
 /** Saves the drafts that have an amount, keeps the rest waiting for one, and shows the card. */
-async function finish(cap: VoiceCapture, result: VoiceParseResult, deps: Deps) {
+async function finish(cap0: VoiceCapture, result: VoiceParseResult, deps: Deps) {
   const store = useVoice.getState();
+  // Give a place lookup still running a moment (never more than 1.5 s), then use the latest copy
+  const lookup = placeLookups.get(cap0.id);
+  if (lookup) await Promise.race([lookup, new Promise((r) => setTimeout(r, 1500))]);
+  placeLookups.delete(cap0.id);
+  const cap = useVoice.getState().captures.find((c) => c.id === cap0.id) ?? cap0;
   const { trip, members, me, categories } = deps.data;
   if (!trip) return;
   if (!result.items.length) {
@@ -130,7 +140,7 @@ async function finish(cap: VoiceCapture, result: VoiceParseResult, deps: Deps) {
       continue;
     }
     const clientId = Crypto.randomUUID();
-    if (!(await queueDraft(d, deps, clientId))) {
+    if (!(await queueDraft(d, deps, clientId, cap.place))) {
       noRate = true;
       waiting.push({ ...d, status: 'needs_amount' });
       continue;
@@ -153,6 +163,7 @@ async function finish(cap: VoiceCapture, result: VoiceParseResult, deps: Deps) {
       error: noRate && d.amount !== null ? 'no_rate' : undefined,
       transcript: result.transcript,
       draft: d,
+      place: cap.place,
     }),
   );
   if (items.length) store.showCard({ id: cap.id, tripId: trip.id, transcript: result.transcript, items });
@@ -238,6 +249,12 @@ export function useVoiceExpense() {
     if (!trip) return;
     const cap: VoiceCapture = { id: Crypto.randomUUID(), tripId: trip.id, createdAt: new Date().toISOString(), status: 'processing', ...input };
     useVoice.getState().add(cap);
+    // Where it was recorded: looked up alongside the reading, never waited for beyond it
+    const placed = capturePlace(deps.current.lang).then((place) => {
+      if (place) useVoice.getState().patch(cap.id, { place });
+      return place;
+    });
+    placeLookups.set(cap.id, placed);
     await processCapture(cap, deps.current);
   }, []);
 
@@ -254,7 +271,7 @@ export function useVoiceExpense() {
   async function completeDraft(cap: VoiceCapture, d: VoiceDraft) {
     const clientId = Crypto.randomUUID();
     const store = useVoice.getState();
-    if (!(await queueDraft(d, deps.current, clientId))) return store.patch(cap.id, { status: 'failed', error: 'no_rate', draft: d });
+    if (!(await queueDraft(d, deps.current, clientId, cap.place))) return store.patch(cap.id, { status: 'failed', error: 'no_rate', draft: d });
     const trip = deps.current.data.trip!;
     const item: CardItem = { clientId, draft: d };
     if (d.persist && d.stored) {

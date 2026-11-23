@@ -1,3 +1,5 @@
+import { expenseNets } from '@/lib/ledger';
+import { NetChips } from './NetChips';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import * as Crypto from 'expo-crypto';
@@ -34,6 +36,8 @@ import { blockedInDemo } from '@/lib/demoPrompt';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useUserId } from '@/providers/AuthProvider';
 import { editKey, useOutbox } from '@/store/outbox';
+import { placeFields, useExpenseLocation } from '@/hooks/useExpenseLocation';
+import { formatCoords } from '@/lib/location';
 import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import type { Category, Expense } from '@/types/db';
@@ -137,6 +141,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // when the partner saves, so using its live version would let a stale edit
   // pass the conflict check and silently overwrite their change (bug #1).
   const [baseVersion] = useState(existing?.version);
+  // Where a new expense is being added (looked up while the form is open; never waited for)
+  const place = useExpenseLocation(!existing, lang);
   const addToOutbox = useOutbox((s) => s.add);
   const queueUpdate = useOutbox((s) => s.queueUpdate);
   const userId = useUserId();
@@ -362,6 +368,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       vat_country: purchaseCountry,
       split_type: splitType,
       splits: toSplitEntries(effectiveSplit, payerId),
+      // Where a new expense was added (when the phone knew in time)
+      ...(existing ? {} : placeFields(place)),
       // Saving a payment a Shortcut added confirms it
       ...(existing?.review_status === 'pending_review' ? { review_status: 'confirmed' as const } : {}),
     });
@@ -748,6 +756,12 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </Text>
           <Ionicons name="chevron-down" size={14} color={c.textMuted} />
         </Pressable>
+        {/* The exact place found for a new expense (saved with it; Settings can turn this off) */}
+        {place ? (
+          <Text variant="caption" muted numberOfLines={1} style={{ marginTop: -space.sm, paddingHorizontal: space.md }} accessibilityLabel={`${t('location.label')}: ${place.name ?? formatCoords(place.lat, place.lng)}`}>
+            📍 {place.name ?? formatCoords(place.lat, place.lng)}
+          </Text>
+        ) : null}
 
         {/* Tax free: suggested for shopping; estimates the VAT refund */}
         {showTaxFree ? (
@@ -954,13 +968,22 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                     : null}
 
                   {shares ? (
-                    <Row style={{ flexWrap: 'wrap', backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }} gap={space.md}>
-                      {shares.map((s) => (
-                        <Text key={s.memberId} variant="caption">
-                          {t('split.shareOf', { name: memberById.get(s.memberId)?.display_name ?? '', amount: formatMoney(s.share, HOME_CURRENCY, { lang }) })}
-                        </Text>
-                      ))}
-                    </Row>
+                    <View style={{ gap: space.sm, backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md }}>
+                      <Row style={{ flexWrap: 'wrap' }} gap={space.md}>
+                        {shares.map((s) => (
+                          <Text key={s.memberId} variant="caption">
+                            {t('split.shareOf', { name: memberById.get(s.memberId)?.display_name ?? '', amount: formatMoney(s.share, HOME_CURRENCY, { lang }) })}
+                          </Text>
+                        ))}
+                      </Row>
+                      {/* Who gets back (+, green) and who owes (−, red) */}
+                      <NetChips
+                        nets={expenseNets({ paid_by_member_id: payerId, amount_ils_minor: homeMinor ?? 0, splits: shares.map((s) => ({ member_id: s.memberId, share_ils_minor: s.share })) })}
+                        memberById={memberById}
+                        meId={me?.id}
+                        size="md"
+                      />
+                    </View>
                   ) : amountMinor != null && !splitCheck.ok ? (
                     <Text variant="caption" color={c.danger}>
                       {t('errors.invalid_split')}

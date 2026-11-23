@@ -1,3 +1,6 @@
+import { expenseNets } from '@/lib/ledger';
+import { NetChips } from '@/ui/NetChips';
+import { LocationRow } from '@/ui/LocationRow';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
@@ -23,7 +26,7 @@ export default function ExpenseDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, lang } = useT();
   const c = useColors();
-  const { trip, isLoading, expenses, memberById, categoryById, members } = useTripData();
+  const { trip, isLoading, expenses, memberById, categoryById, members, me } = useTripData();
   const actions = useExpenseActions(trip?.id ?? '');
   const qc = useQueryClient();
   const e = expenses.find((x) => x.id === id);
@@ -115,6 +118,9 @@ export default function ExpenseDetails() {
         <Line label={t('details.when')} value={new Date(e.occurred_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })} />
         {e.vat_country ? <Line label={t('form.location')} value={`${countryFlag(e.vat_country)} ${countryName(e.vat_country, lang)}`} /> : null}
         <Divider />
+        {/* Where it was added: closed at first, opens a small map */}
+        <LocationRow lat={e.lat} lng={e.lng} name={e.location_name} />
+        <Divider />
         <Line label={t('details.paidBy')} value={e.paid_by_member_id === null ? t('details.jointMoney') : payer?.display_name ?? '?'} />
         <Divider />
         <Line label={t('details.enteredBy')} value={creator?.display_name ?? '?'} />
@@ -183,6 +189,7 @@ export default function ExpenseDetails() {
 
       <Card>
         <Text variant="h2">{t('details.splitTitle')}</Text>
+        {e.kind === 'expense' ? <NetChips nets={expenseNets({ ...e, splits: e.expense_splits })} memberById={memberById} meId={me?.id} size="md" /> : null}
         {e.expense_splits.map((s) => {
           const m = memberById.get(s.member_id);
           return (

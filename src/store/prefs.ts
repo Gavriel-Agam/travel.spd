@@ -27,6 +27,13 @@ type PrefsState = {
   noteSplitUsed: (tripId: string, split: 'equal' | 'personal') => void;
   /** The split your next voice expense uses when you don't say one, per trip (lib/voice). */
   voiceSplit: Record<string, StoredSplit>;
+  /** Save where new expenses are added (Settings; on unless turned off). */
+  saveLocation: boolean;
+  setSaveLocation: (on: boolean) => void;
+  /** Place names already looked up (~1 km cells), and the last place, for offline use. */
+  places: Record<string, string>;
+  lastPlace: { lat: number; lng: number; name: string | null; at: number } | null;
+  notePlace: (lat: number, lng: number, name: string | null) => void;
   setVoiceSplit: (tripId: string, split: StoredSplit | null) => void;
   notePayerUsed: (tripId: string, payer: string | null) => void;
   /** Country of the last expense, per trip (trip id -> ISO code). New expenses start there. */
@@ -80,6 +87,21 @@ export const usePrefs = create<PrefsState>()(
       lastSplit: {},
       noteSplitUsed: (tripId, split) => set((s) => ({ lastSplit: { ...s.lastSplit, [tripId]: split } })),
       voiceSplit: {},
+      saveLocation: true,
+      setSaveLocation: (saveLocation) => set({ saveLocation }),
+      places: {},
+      lastPlace: null,
+      notePlace: (lat, lng, name) =>
+        set((s) => {
+          const places = { ...s.places };
+          if (name) {
+            places[`${lat.toFixed(2)},${lng.toFixed(2)}`] = name;
+            // Keep the newest 200
+            const keys = Object.keys(places);
+            if (keys.length > 200) delete places[keys[0]];
+          }
+          return { places, lastPlace: { lat, lng, name, at: Date.now() } };
+        }),
       setVoiceSplit: (tripId, split) =>
         set((s) => {
           const next = { ...s.voiceSplit };
@@ -151,6 +173,9 @@ export const usePrefs = create<PrefsState>()(
         lastPayer: (persisted as Partial<PrefsState>)?.lastPayer ?? {},
         lastSplit: (persisted as Partial<PrefsState>)?.lastSplit ?? {},
         voiceSplit: (persisted as Partial<PrefsState>)?.voiceSplit ?? {},
+        saveLocation: (persisted as Partial<PrefsState>)?.saveLocation ?? true,
+        places: (persisted as Partial<PrefsState>)?.places ?? {},
+        lastPlace: (persisted as Partial<PrefsState>)?.lastPlace ?? null,
         passkeyOffered: (persisted as Partial<PrefsState>)?.passkeyOffered ?? [],
         themeMode: (persisted as Partial<PrefsState>)?.themeMode ?? null,
       }),

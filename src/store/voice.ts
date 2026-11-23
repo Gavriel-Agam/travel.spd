@@ -24,6 +24,8 @@ export type VoiceCapture = {
   draft?: VoiceDraft;
   /** failed: an error code (parse_failed, RATE_LIMIT_EXCEEDED, no_rate, ...). */
   error?: string;
+  /** Where it was recorded (0028), when known. */
+  place?: { lat: number; lng: number; name: string | null } | null;
 };
 
 /** One expense on the confirmation card. */

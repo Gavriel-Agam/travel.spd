@@ -1,3 +1,5 @@
+import { expenseNets } from '@/lib/ledger';
+import { NetChips } from './NetChips';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
@@ -42,6 +44,8 @@ export function ExpenseRow({
   category,
   payer,
   recipient,
+  memberById,
+  meId,
   onPress,
   onLongPress,
 }: {
@@ -50,6 +54,9 @@ export function ExpenseRow({
   payer?: Member;
   /** For settlement payments: who received the money. */
   recipient?: Member;
+  /** With it, a shared expense shows who gets back (+, green) and who owes (−, red) instead of the payer badge. */
+  memberById?: Map<string, Member>;
+  meId?: string | null;
   onPress?: () => void;
   /** Set when the row can be held to drag it (so the hold doesn't also open it). */
   onLongPress?: () => void;
@@ -60,6 +67,8 @@ export function ExpenseRow({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const tag = bookingTag(expense.booking_details, lang === 'he' ? 'he-IL' : 'en-US');
   const pendingReview = expense.review_status === 'pending_review';
+  // Who gets back and who owes (two people at most, then +N), for shared expenses
+  const nets = memberById && expense.kind === 'expense' && !pendingReview ? expenseNets({ ...expense, splits: expense.expense_splits }) : [];
   const title =
     expense.kind === 'settlement'
       ? t('settle.rowTitle', { name: recipient?.display_name ?? '' })
@@ -102,7 +111,11 @@ export function ExpenseRow({
                   {t('pending.rowBadge')}
                 </Text>
               ) : null}
-              {payer ? (
+              {nets.length ? (
+                <View style={{ flexShrink: 1 }}>
+                  <NetChips nets={nets} memberById={memberById!} meId={meId} max={3} />
+                </View>
+              ) : payer ? (
                 <View
                   accessibilityLabel={`${t('details.paidBy')}: ${payer.display_name}`}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: payer.color + '1F', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, flexShrink: 1 }}

@@ -54,6 +54,8 @@ function isoDate(d: Date) {
 
 export default function Settings() {
   const { t, lang } = useT();
+  const saveLocation = usePrefs((s) => s.saveLocation);
+  const setSaveLocation = usePrefs((s) => s.setSaveLocation);
   const c = useColors();
   const { trip, members, me, budgets } = useTripData();
   const trips = useTrips();
@@ -475,6 +477,20 @@ export default function Settings() {
               </>
             )}
           </DropdownButton>
+        </Row>
+      </Card>
+
+      {/* Save where new expenses are added (the phone's position and a place name) */}
+      <Card>
+        <Row gap={space.md}>
+          <Ionicons name="location-outline" size={22} color={c.primary} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontWeight: '600' }}>{t('location.setting')}</Text>
+            <Text variant="caption" muted>
+              {t('location.settingHint')}
+            </Text>
+          </View>
+          <Toggle value={saveLocation} onValueChange={setSaveLocation} label={t('location.setting')} />
         </Row>
       </Card>
 

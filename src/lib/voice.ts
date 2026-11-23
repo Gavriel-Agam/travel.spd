@@ -306,6 +306,8 @@ export function voiceToSaveInput(
     snapshot: RatesSnapshot | null | undefined;
     paymentMethod: string | null;
     notes: string | null;
+    /** Where it was recorded. */
+    place?: { lat: number; lng: number; name: string | null } | null;
     now?: Date;
   },
 ): (SaveExpenseInput & { client_id: string }) | null {
@@ -338,6 +340,7 @@ export function voiceToSaveInput(
     source: 'voice',
     merchant: d.merchant,
     field_sources: d.sources,
+    ...(p.place ? { lat: p.place.lat, lng: p.place.lng, location_name: p.place.name } : {}),
     // A payer we couldn't match: only the sender sees it until they say who it was
     ...(d.status === 'pending_payer' ? { review_status: 'pending_review' as const } : {}),
   };

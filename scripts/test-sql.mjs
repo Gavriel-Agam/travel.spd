@@ -719,4 +719,17 @@ await db.query('select purge_voice_captures()');
 assert.equal((await db.query('select count(*)::int n from voice_captures')).rows[0].n, 1);
 ok('voice: source and field sources saved, captures server-written, own-only, expired ones purged');
 
+// Expense location (0028): optional position and place name, both or neither, sane ranges
+const [loc] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ client_id: 'bbbbbbbb-0000-4000-8000-000000000002', lat: 13.7563, lng: 100.5018, location_name: 'Silom, Bangkok' })]);
+assert.equal(loc.lat, 13.7563);
+assert.equal(loc.location_name, 'Silom, Bangkok');
+const [noLoc] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ client_id: 'bbbbbbbb-0000-4000-8000-000000000003' })]);
+assert.equal(noLoc.lat, null);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ lat: 95, lng: 10 })]), /check/);
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ lat: 10 })]), /check|location_pair/);
+// An edit that doesn't send the location keeps it
+const [kept] = await as(A, `select * from save_expense($1::jsonb, $2)`, [JSON.stringify({ ...JSON.parse(expense({})), id: loc.id }), loc.version]);
+assert.equal(kept.location_name, 'Silom, Bangkok');
+ok('location: saved with an expense, kept on edits, both-or-neither, ranges checked');
+
 console.log(`\n${passed} SQL checks passed`);

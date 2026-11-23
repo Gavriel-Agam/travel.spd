@@ -1,12 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { SmartImportSheet } from '@/ui/SmartImportSheet';
 import { Topbar, tripSettingsItem } from '@/ui/Topbar';
 import { VoiceInbox } from '@/ui/VoiceInbox';
+import { ExportSheet } from '@/ui/ExportSheet';
+import { PullRefresh } from '@/ui/PullRefresh';
+import { BalanceBanner } from '@/ui/NetChips';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useDragScroll } from '@/hooks/useCardOrder';
 import { dayHeadingKey, dropAcrossDays, orderDay } from '@/lib/expenseOrder';
@@ -35,6 +39,8 @@ export default function Expenses() {
   // Hold an expense and drag it to another place in its day or onto another day.
   // The order within a day is kept on this device; a new day changes the date.
   const drag = useDragScroll();
+  // Pull down at the top: skeleton rows until the refresh has finished
+  const pull = usePullToRefresh(data.refetch, { getY: () => drag.scroll.current.y, enabled: drag.scrollProps.scrollEnabled });
   useScrollTopOnTabTap('expenses', drag.scrollRef);
   const savedOrder = usePrefs((s) => s.expenseOrder[trip?.id ?? '']);
   const setExpenseOrder = usePrefs((s) => s.setExpenseOrder);
@@ -49,6 +55,7 @@ export default function Expenses() {
     router.setParams({ filter: undefined });
   }, [filterParam]);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const qc = useQueryClient();
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [payerId, setPayerId] = useState<string | null>(null);
@@ -130,6 +137,7 @@ export default function Expenses() {
             },
             { key: 'deleted', icon: 'trash-outline', label: t('deleted.title'), onPress: () => router.push('/deleted') },
             { key: 'smartImport', icon: 'sparkles-outline', label: t('home.menu.smartImport'), onPress: () => !blockedInDemo(qc) && setImportOpen(true) },
+            { key: 'export', icon: 'download-outline', label: t('export.menu'), onPress: () => setExportOpen(true) },
             tripSettingsItem(t),
           ]}
         />
@@ -200,9 +208,18 @@ export default function Expenses() {
       ) : (
         <ScrollView
           {...drag.scrollProps}
+          {...pull.touchProps}
+          style={Platform.OS === 'web' ? ({ overscrollBehaviorY: 'contain' } as object) : undefined}
           refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
           contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}
         >
+          <PullRefresh pull={pull.pull} refreshing={pull.refreshing} result={pull.result} />
+          {/* Your running balance in the trip (green: owed to you, red: you owe); opens Settle up */}
+          {data.me && members.length > 1 ? (
+            <View style={{ marginBottom: space.md }}>
+              <BalanceBanner net={data.balances.find((b) => b.memberId === data.me!.id)?.net ?? 0} onPress={() => router.push('/settle')} />
+            </View>
+          ) : null}
           <VoiceInbox tripId={trip?.id} />
           {sections.length ? null : expenses.length === 0 ? (
             <EmptyState emoji="🧾" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
@@ -242,6 +259,8 @@ export default function Expenses() {
                     last={index === section.data.length - 1}
                     category={item.category_id ? categoryById.get(item.category_id) : undefined}
                     payer={memberById.get(item.paid_by_member_id ?? '')}
+                    memberById={memberById}
+                    meId={data.me?.id}
                     recipient={memberById.get(item.expense_splits[0]?.member_id)}
                     onOpen={() => actions.open(item)}
                     onEdit={() => actions.edit(item)}
@@ -269,6 +288,7 @@ export default function Expenses() {
         </ScrollView>
       )}
       <SmartImportSheet visible={importOpen} onClose={() => setImportOpen(false)} tripId={trip.id} />
+      <ExportSheet visible={exportOpen} onClose={() => setExportOpen(false)} />
     </SafeAreaView>
   );
 }

@@ -2,7 +2,7 @@ import { onlineManager } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, Pressable, RefreshControl, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import { Image, Platform, Pressable, RefreshControl, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { HERO_GLOW_OPACITY } from '@/palette';
 import { claimFeedbackPrompt, useHomeLayout, useInviteCode } from '@/api/queries';
@@ -45,6 +45,9 @@ import { useConfirmPending } from '@/hooks/usePendingReview';
 import { pendingForMe } from '@/lib/pendingReview';
 import { PendingInbox } from '@/ui/PendingInbox';
 import { VoiceInbox } from '@/ui/VoiceInbox';
+import { ExportSheet } from '@/ui/ExportSheet';
+import { PullRefresh } from '@/ui/PullRefresh';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import {
   Avatar,
   Button,
@@ -79,6 +82,7 @@ export default function Home() {
   const hideCard = (key: HomeSection) => setHomeOrder(homeLayoutValue(order.filter((k) => k !== key), [...hidden, key]));
   const showCard = (key: HomeSection) => setHomeOrder(homeLayoutValue([...order, key], hidden.filter((k) => k !== key)));
   const [arranging, setArranging] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   // For dragging cards: the page scrolls along and stops scrolling by itself meanwhile
   const scrollRef = useRef<ScrollViewInstance>(null);
   const scroll = useRef({ y: 0, max: 0, contentH: 0, viewH: 0 });
@@ -88,6 +92,8 @@ export default function Home() {
   };
   const [draggingCard, setDraggingCard] = useState(false);
   useScrollTopOnTabTap('index', scrollRef);
+  // Pull down at the top: skeleton until the refresh has finished
+  const pull = usePullToRefresh(data.refetch, { getY: () => scroll.current.y, enabled: !draggingCard });
   const [avgOpen, setAvgOpen] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const actions = useExpenseActions(trip?.id ?? '');
@@ -547,6 +553,8 @@ export default function Home() {
             inset={false}
             category={e.category_id ? categoryById.get(e.category_id) : undefined}
             payer={memberById.get(e.paid_by_member_id ?? '')}
+            memberById={memberById}
+            meId={data.me?.id}
             recipient={memberById.get(e.expense_splits[0]?.member_id)}
             onOpen={() => actions.open(e)}
             onEdit={() => actions.edit(e)}
@@ -567,7 +575,10 @@ export default function Home() {
       onContentSizeChange={(_w, h) => measure({ contentH: h })}
       onLayout={(e) => measure({ viewH: e.nativeEvent.layout.height })}
       refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
+      {...pull.touchProps}
+      style={Platform.OS === 'web' ? ({ overscrollBehaviorY: 'contain' } as object) : undefined}
     >
+      <PullRefresh pull={pull.pull} refreshing={pull.refreshing} result={pull.result} />
       {/* Feedback panel: takes its own space at the top and pushes the screen down */}
       {canFeedback ? <FeedbackBanner tripId={trip.id} /> : null}
       {/* The trip photo (Settings › Trip settings) */}
@@ -604,7 +615,7 @@ export default function Home() {
           themeItem,
           { key: 'deleted', icon: 'trash-outline', label: t('home.menu.deleted'), onPress: () => router.push('/deleted') },
           { key: 'filter', icon: 'funnel-outline', label: t('home.menu.filter'), onPress: () => router.push({ pathname: '/expenses', params: { filter: '1' } }) },
-          { key: 'export', icon: 'download-outline', label: t('home.menu.export'), disabled: true, hint: t('home.menu.soon') },
+          { key: 'export', icon: 'download-outline', label: t('export.menu'), onPress: () => setExportOpen(true) },
           { key: 'share', icon: 'share-social-outline', label: t('home.menu.share'), disabled: true, hint: t('home.menu.soon') },
         ]}
         extra={
@@ -673,6 +684,7 @@ export default function Home() {
       ) : null}
 
       <SmartImportSheet visible={importOpen} onClose={() => setImportOpen(false)} tripId={trip.id} />
+      <ExportSheet visible={exportOpen} onClose={() => setExportOpen(false)} />
       <Sheet visible={arranging} onClose={() => setArranging(false)} title={t('home.arrangeTitle')} scroll={false} dragContent={false}>
         <View style={{ padding: space.lg, gap: space.md }}>
           <Text variant="caption" muted center>

@@ -15,6 +15,8 @@ export function SwipeableExpenseRow({
   category,
   payer,
   recipient,
+  memberById,
+  meId,
   onOpen,
   onEdit,
   onDelete,
@@ -27,6 +29,9 @@ export function SwipeableExpenseRow({
   category?: Category;
   payer?: Member;
   recipient?: Member;
+  /** Everyone in the trip, for who-owes chips (+ green, − red). */
+  memberById?: Map<string, Member>;
+  meId?: string | null;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -57,7 +62,7 @@ export function SwipeableExpenseRow({
       ]}
     >
       {(guardTap) => (
-        <ExpenseRow expense={expense} category={category} payer={payer} recipient={recipient} onPress={guardTap(onOpen)} onLongPress={holdToDrag ? () => {} : undefined} />
+        <ExpenseRow expense={expense} category={category} payer={payer} recipient={recipient} memberById={memberById} meId={meId} onPress={guardTap(onOpen)} onLongPress={holdToDrag ? () => {} : undefined} />
       )}
     </SwipeRow>
   );

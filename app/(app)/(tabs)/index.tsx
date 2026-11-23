@@ -44,6 +44,7 @@ import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useConfirmPending } from '@/hooks/usePendingReview';
 import { pendingForMe } from '@/lib/pendingReview';
 import { PendingInbox } from '@/ui/PendingInbox';
+import { VoiceInbox } from '@/ui/VoiceInbox';
 import {
   Avatar,
   Button,
@@ -617,6 +618,7 @@ export default function Home() {
 
       <PasskeyOffer />
       <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
+      <VoiceInbox tripId={trip?.id} />
       <PendingInbox items={pendingReview} all={expenses} solo={members.length < 2} onConfirm={confirmPending} onEdit={actions.edit} onDismiss={(e) => actions.remove(e)} />
 
       {/* Hold a card to drag it; swipe it (right in Hebrew) for Hide. Rows inside a card swipe on their own. */}

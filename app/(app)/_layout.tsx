@@ -7,6 +7,7 @@ import { useActiveTrip, useCurrencyList, useRates, useTripCoverUrl, useTripRealt
 import { useTripLook } from '@/store/tripLook';
 import { useOutboxSync } from '@/hooks/useOutboxSync';
 import { useSmartImportSync } from '@/hooks/useSmartImport';
+import { useVoiceSync } from '@/hooks/useVoiceExpense';
 import { dayKey } from '@/lib/stats';
 import { ErrorView, OfflineNoData, Screen, ScreenSkeleton } from '@/ui/primitives';
 import { useOnline } from '@/hooks/useOutboxSync';
@@ -25,6 +26,8 @@ export default function AppLayout() {
   useOutboxSync();
   // Smart imports queued offline: read them once the connection is back
   useSmartImportSync();
+  // Voice expenses recorded offline: read them once the connection is back
+  useVoiceSync();
   // Fetch today's rates on launch so conversion keeps working if the connection drops later
   useRates(dayKey(new Date(), trip?.timezone ?? 'UTC'));
 

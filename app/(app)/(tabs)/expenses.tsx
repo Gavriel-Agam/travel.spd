@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { blockedInDemo } from '@/lib/demoPrompt';
 import { SmartImportSheet } from '@/ui/SmartImportSheet';
 import { Topbar, tripSettingsItem } from '@/ui/Topbar';
+import { VoiceInbox } from '@/ui/VoiceInbox';
 import { useExpenseActions } from '@/hooks/useExpenseActions';
 import { useDragScroll } from '@/hooks/useCardOrder';
 import { dayHeadingKey, dropAcrossDays, orderDay } from '@/lib/expenseOrder';
@@ -202,6 +203,7 @@ export default function Expenses() {
           refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
           contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}
         >
+          <VoiceInbox tripId={trip?.id} />
           {sections.length ? null : expenses.length === 0 ? (
             <EmptyState emoji="🧾" title={t('home.emptyTitle')} body={t('home.emptyBody')} />
           ) : (

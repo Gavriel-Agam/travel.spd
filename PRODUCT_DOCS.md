@@ -64,6 +64,7 @@ Last updated: 2026-11-17
 | Version | Settings bottom line "גרסה 1.N (sha)": `app.config.js` sets the version to 1.<commit count> and `extra.build` to the short commit at build time (CI checks out full history); the same version goes into feedback and error logs. |
 | Hebrew wording | Gender-neutral: actions as nouns (שמירה, ביטול, הוספה), instructions as "יש ל…" / "אפשר ל…", no slash forms (שילם/ה, בן/בת הזוג); tooltips 1-2 sentences. |
 | Trip settings (הגדרות טיול) | Was "פרטי טיול". Settings › הגדרות טיול (or any ⚙ › הגדרות טיול) opens one sheet in four groups, each a soft card with an icon and heading: **כללי** (name, dates, trip colour, photo), **יעדים והחזר מע"מ** (destinations, own card fee), **תקציב ומטבע** (main currency as a dropdown row, shared trip budget), **משתתפים והזמנה** (member chips, the same invite row and + dropdown as the Members card). One Save at the bottom. |
+| Voice expenses (אמירת הוצאה) | 🎙 beside + on every tab. Tap, speak, Send (or 30 s); "או להקליד" types it instead (also when the mic is blocked). A waiting row ("מעבד הקלטה…") shows at the top of Home and Expenses, then the expense is saved through the offline queue and a card shows chips per field: 🎙 heard, ✨ filled in (trip currency, you as payer, your last split), ⚠ to check. Card closes after 6 s (not while touched or when something needs checking); Edit opens the form, Undo deletes it (restorable) and restores the default split. No amount heard: the row asks for it (Enter saves). Payer name not on the trip: saved as Pending review (only you see it). VND / IDR / KRW said without "thousand" are read as thousands (✨). A split of 3+ people (or "from now on") becomes your default for voice. Offline: kept and sent later. Function `voice-parse` (Gemini), table `voice_captures` (7 days), `expenses.field_sources` (0027). Spec: `docs/VOICE_EXPENSE_SPEC.md`. |
 | Trip checklist (צ'ק ליסט לטיול) | Home ⚙, Settings ⚙ or Settings › Trip › צ'ק ליסט לטיול (`/checklist`). Three tabs with done/total: **להביא** and **לקנות ולעשות** (shared with everyone on the trip) and **מה הבאתי** (personal, only its owner sees it; enforced by RLS). One-line field: Enter adds and keeps the keyboard open; tap a row to tick (moves to the bottom, struck through); ✕ removes. Table `trip_checklist_items` (0026). Every change shows at once and goes through the outbox (kind `checklist`, merged per item; added and removed before sending = nothing sent), so it works offline; live updates from others via realtime. Guest demo: sign-up prompt. |
 | Reliability | Every client error logged to `public.client_errors`; expired sessions recover automatically. |
 | Feedback | Floating panel ("the app is in beta…") with text + Send; X shrinks it into a bell (top left of Home header in Hebrew), bell reopens it. Opens by itself **once per account, ever** (first Home with a trip after signing up, any device): server claim `claim_feedback_prompt()` (0017; accounts that existed before were marked as already asked) plus a per-device flag. Afterwards only from the bell. Saved to `app_feedback` (0015, write-only); ntfy.sh push/email to the developer via Vault secrets. |
@@ -122,6 +123,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 
 | Horizon | Item | Notes |
 |---|---|---|
+| Next | Voice expenses P1: quick edit per chip, 📌 toggle, Redo, hold-to-talk, corrections loop (`voice_corrections`), aliases | P0 built 2026-11-23; spec `docs/VOICE_EXPENSE_SPEC.md` |
 | Next | 13 more languages: ar (RTL), ru, es, fr, de, pt, it, ja, ko, zh-Hans, hi, tr, th; auto-detect | Today only he / en |
 | Later | Focus themes for this track: drag & drop UX, real-time couple sync, smart budgeting | To be specced in section 4 |
 
@@ -131,6 +133,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 
 | Date | Decision |
 |---|---|
+| 2026-11-23 | Voice expenses spec: in-app recording only (no WhatsApp / Telegram / Siri), one server function; last split per member, persisted only for an explicit cue or an equal split of 3+ people (confirmed); unknown payer saved private to the sender; audio never stored. |
 | 2026-11-22 | Expenses search opens on its own top row (title and ⚙ move under it) instead of squeezing beside the title. |
 | 2026-11-22 | "פרטי טיול" renamed "הגדרות טיול", laid out in four groups. |
 | 2026-11-22 | Trip checklist: two shared lists + one private "מה הבאתי" list per person (0026). |

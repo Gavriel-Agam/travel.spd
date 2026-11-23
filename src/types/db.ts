@@ -80,7 +80,7 @@ export type ExpenseSplit = {
   share_ils_minor: number;
 };
 
-export type ExpenseSource = 'manual' | 'smart_import' | 'shortcut_notification' | 'shortcut_wallet' | 'shortcut_share' | 'statement_import';
+export type ExpenseSource = 'manual' | 'smart_import' | 'shortcut_notification' | 'shortcut_wallet' | 'shortcut_share' | 'statement_import' | 'voice';
 
 export type Expense = {
   id: string;
@@ -126,6 +126,8 @@ export type Expense = {
   billed_ils_minor?: number | null;
   /** Flight / hotel details (Smart Booking Card). */
   booking_details?: Booking | null;
+  /** Voice expenses (0027): where each field came from (spoken / inferred / default / unresolved / edited). */
+  field_sources?: Record<string, string> | null;
   expense_splits: ExpenseSplit[];
   /** Only on expenses with a change queued on this device and not yet saved on the server. */
   pending?: 'waiting' | 'failed';

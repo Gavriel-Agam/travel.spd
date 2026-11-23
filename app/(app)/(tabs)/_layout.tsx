@@ -13,6 +13,9 @@ import { blockedInDemo } from '@/lib/demoPrompt';
 import { useIsDemo } from '@/store/prefs';
 import { useTabTap } from '@/store/tabTap';
 import { Text, type IconName } from '@/ui/primitives';
+import { VoiceCard } from '@/ui/VoiceCard';
+import { VoiceButton } from '@/ui/VoiceRecorder';
+import { useState } from 'react';
 
 const ICONS: Record<string, [IconName, IconName]> = {
   index: ['home-outline', 'home'],
@@ -29,8 +32,12 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
   const exitDemo = useExitDemo();
   const qc = useQueryClient();
   const onWarning = readableOn(c.warning);
+  const [recording, setRecording] = useState(false);
   return (
     <View>
+      {/* Voice: the confirmation card (hidden while recording) and the 🎙 button beside + */}
+      <VoiceCard hidden={recording} />
+      <VoiceButton onOpenChange={setRecording} />
       {/* Floating add button, always one tap away */}
       <Pressable
         accessibilityRole="button"

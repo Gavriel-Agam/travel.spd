@@ -1,4 +1,5 @@
 // Per-device preferences and caches (not shared between partners).
+import type { StoredSplit } from '@/lib/voice';
 import { persistStorage } from '@/lib/deviceStorage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -24,6 +25,9 @@ type PrefsState = {
   /** How the last expense saved was split, per trip (Smart import uses it when the text doesn't say). */
   lastSplit: Record<string, 'equal' | 'personal'>;
   noteSplitUsed: (tripId: string, split: 'equal' | 'personal') => void;
+  /** The split your next voice expense uses when you don't say one, per trip (lib/voice). */
+  voiceSplit: Record<string, StoredSplit>;
+  setVoiceSplit: (tripId: string, split: StoredSplit | null) => void;
   notePayerUsed: (tripId: string, payer: string | null) => void;
   /** Country of the last expense, per trip (trip id -> ISO code). New expenses start there. */
   lastCountry: Record<string, string>;
@@ -75,6 +79,14 @@ export const usePrefs = create<PrefsState>()(
       lastPayer: {},
       lastSplit: {},
       noteSplitUsed: (tripId, split) => set((s) => ({ lastSplit: { ...s.lastSplit, [tripId]: split } })),
+      voiceSplit: {},
+      setVoiceSplit: (tripId, split) =>
+        set((s) => {
+          const next = { ...s.voiceSplit };
+          if (split) next[tripId] = split;
+          else delete next[tripId];
+          return { voiceSplit: next };
+        }),
       notePayerUsed: (tripId, payer) => set((s) => ({ lastPayer: { ...s.lastPayer, [tripId]: payer ?? 'joint' } })),
       noteCountryUsed: (tripId, code) => set((s) => ({ lastCountry: { ...s.lastCountry, [tripId]: code } })),
       notePaymentUsed: (tripId, method) => set((s) => ({ lastPayment: { ...s.lastPayment, [tripId]: method }, lastPaymentAny: method })),
@@ -138,6 +150,7 @@ export const usePrefs = create<PrefsState>()(
         lastPaymentAny: (persisted as Partial<PrefsState>)?.lastPaymentAny ?? null,
         lastPayer: (persisted as Partial<PrefsState>)?.lastPayer ?? {},
         lastSplit: (persisted as Partial<PrefsState>)?.lastSplit ?? {},
+        voiceSplit: (persisted as Partial<PrefsState>)?.voiceSplit ?? {},
         passkeyOffered: (persisted as Partial<PrefsState>)?.passkeyOffered ?? [],
         themeMode: (persisted as Partial<PrefsState>)?.themeMode ?? null,
       }),

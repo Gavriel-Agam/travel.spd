@@ -702,4 +702,21 @@ await rejects(asAnon('select * from trip_checklist_items'), /permission denied/)
 assert.equal((await as(B, 'delete from trip_checklist_items where id = $1 returning id', [pack.id])).length, 1);
 ok('checklist: shared lists for members, own "brought" list private, owner fixed, bad values refused');
 
+// Voice expenses (0027): 'voice' source and field_sources saved; captures written by the server only, read by their sender
+const [ve] = await as(A, `select * from save_expense($1::jsonb)`, [expense({ client_id: 'bbbbbbbb-0000-4000-8000-000000000001', source: 'voice', field_sources: { amount: 'spoken', currency: 'default' } })]);
+assert.equal(ve.source, 'voice');
+assert.equal(ve.field_sources.currency, 'default');
+await rejects(as(A, `select * from save_expense($1::jsonb)`, [expense({ field_sources: { x: 'y'.repeat(600) } })]), /check/);
+await rejects(as(A, "insert into voice_captures (client_id, trip_id, user_id, input, status) values (gen_random_uuid(), $1, $2, 'audio', 'parsed')", [trip, A]), /permission denied/);
+await db.query("insert into voice_captures (client_id, trip_id, user_id, input, status, transcript) values (gen_random_uuid(), $1, $2, 'audio', 'parsed', 'paid 85')", [trip, A]);
+await db.query("insert into voice_captures (client_id, trip_id, user_id, input, status, expires_at) values (gen_random_uuid(), $1, $2, 'text', 'parsed', now() - interval '1 day')", [trip, A]);
+assert.equal((await as(A, 'select count(*)::int n from voice_captures'))[0].n, 2);
+assert.equal((await as(B, 'select count(*)::int n from voice_captures'))[0].n, 0);
+await rejects(as(A, 'delete from voice_captures'), /permission denied/);
+await rejects(as(A, 'select purge_voice_captures()'), /permission denied/);
+await rejects(asAnon('select * from voice_captures'), /permission denied/);
+await db.query('select purge_voice_captures()');
+assert.equal((await db.query('select count(*)::int n from voice_captures')).rows[0].n, 1);
+ok('voice: source and field sources saved, captures server-written, own-only, expired ones purged');
+
 console.log(`\n${passed} SQL checks passed`);

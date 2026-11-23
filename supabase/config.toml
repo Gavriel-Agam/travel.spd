@@ -54,6 +54,9 @@ verify_jwt = false
 [functions.generate-flight-pass]
 verify_jwt = true
 
+[functions.voice-parse]
+verify_jwt = true
+
 # Local QA stack only (scripts/qa-local.mjs): skip the services the app does not
 # use, so `supabase start` downloads and runs less. No effect on the live project.
 [studio]

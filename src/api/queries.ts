@@ -1,3 +1,4 @@
+import type { FieldSources } from '@/lib/voice';
 import { onlineManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -360,6 +361,8 @@ export type SaveExpenseInput = {
   review_status?: 'confirmed' | 'pending_review';
   billed_ils_minor?: number | null;
   booking_details?: Booking | null;
+  /** 0027: where each field of a voice expense came from */
+  field_sources?: FieldSources | null;
 };
 
 export function useSaveExpense(tripId: string) {

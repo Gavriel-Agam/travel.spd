@@ -1,6 +1,6 @@
 # Voice expenses: PRD, data model, system prompt, UI spec
 
-Status: **P0 built 2026-11-23** (not live yet: migration 0027 and the `voice-parse` function need approval). Written against migrations 0001 to 0026.
+Status: **P0 live 2026-11-23** (commit 8d0fbf4, migration 0027, function `voice-parse`). Written against migrations 0001 to 0026.
 
 **As built (P0), where it differs from the sections below:**
 - The function is `voice-parse`: it reads and returns what it found (ids, not labels); the **app** runs the resolver (`src/lib/voice.ts`, 19 tests) and saves through the existing offline queue, like Smart import. Rates, card fee, offline and Undo reuse what the app already does.

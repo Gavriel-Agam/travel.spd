@@ -1,3 +1,4 @@
+import { useRefreshAll } from '@/hooks/useRefreshAll';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
@@ -61,6 +62,7 @@ function localDayKey(d: Date) {
 
 export default function Stats() {
   const { t, lang } = useT();
+  const refreshAll = useRefreshAll();
   const themeItem = useThemeMenuItem();
   const c = useColors();
   const data = useTripData();
@@ -477,7 +479,7 @@ export default function Stats() {
   };
 
   return (
-    <Screen {...drag.scrollProps} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
+    <Screen {...drag.scrollProps} onRefresh={refreshAll} refreshEnabled={drag.scrollProps.scrollEnabled} refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}>
       <Topbar
         title={t('stats.title')}
         menuLabel={t('menu.statsTitle')}

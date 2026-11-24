@@ -25,19 +25,32 @@ export async function capturePlace(lang: string): Promise<Place | null> {
   return { ...pos, name };
 }
 
-/** The place for a new expense, found while the form is open (never waited for). */
-export function useExpenseLocation(active: boolean, lang: string): Place | null {
+/**
+ * The place for a new expense, found while the form is open (never waited
+ * for). `locating` while the phone is still looking; `clear` drops it from
+ * this expense.
+ */
+export function useExpenseLocation(active: boolean, lang: string): { place: Place | null; locating: boolean; clear: () => void } {
   const [place, setPlace] = useState<Place | null>(null);
+  const [locating, setLocating] = useState(false);
   const on = usePrefs((s) => s.saveLocation);
   useEffect(() => {
-    if (!active || !on) return setPlace(null);
+    if (!active || !on) {
+      setLocating(false);
+      return setPlace(null);
+    }
     let alive = true;
-    capturePlace(lang).then((p) => alive && setPlace(p));
+    setLocating(true);
+    capturePlace(lang).then((p) => {
+      if (!alive) return;
+      setPlace(p);
+      setLocating(false);
+    });
     return () => {
       alive = false;
     };
   }, [active, on]);
-  return place;
+  return { place, locating, clear: () => setPlace(null) };
 }
 
 /** The fields sent with a new expense. */

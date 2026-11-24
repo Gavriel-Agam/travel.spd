@@ -3,6 +3,7 @@ import { radius, space, useColors } from '@/theme';
 import type { Category, Expense, Member } from '@/types/db';
 import { ExpenseRow } from './ExpenseRow';
 import { SwipeRow } from './SwipeRow';
+import { Dissolve } from './Dissolve';
 
 /**
  * One expense row (Expenses list, Home › Recent). Swipe towards the start to reveal
@@ -46,6 +47,7 @@ export function SwipeableExpenseRow({
   const canEdit = expense.kind === 'expense' && (!expense.pending || expense.pending_op === 'update');
 
   return (
+    <Dissolve id={expense.id}>
     <SwipeRow
       background={c.card}
       style={{
@@ -65,5 +67,6 @@ export function SwipeableExpenseRow({
         <ExpenseRow expense={expense} category={category} payer={payer} recipient={recipient} memberById={memberById} meId={meId} onPress={guardTap(onOpen)} onLongPress={holdToDrag ? () => {} : undefined} />
       )}
     </SwipeRow>
+    </Dissolve>
   );
 }

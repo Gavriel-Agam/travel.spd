@@ -1,5 +1,6 @@
 const en = {
   common: {
+    close: 'Close',
     save: 'Save',
     cancel: 'Cancel',
     delete: 'Delete',
@@ -549,6 +550,10 @@ const en = {
     daysLeft_other: 'Removed for good in {{count}} days',
   },
   location: {
+    locating: 'Finding where you are…',
+    showMap: 'Show on map',
+    hideMap: 'Hide map',
+    clear: 'Leave the place out',
     label: 'Place',
     none: 'No location saved',
     openMap: 'Open map',
@@ -585,7 +590,12 @@ const en = {
     summary: { app: 'App', trip: 'Trip', dates: 'Dates', destinations: 'Destinations', total: 'Total spend (ILS)', exported: 'Exported on' },
     split: { equal: 'Equal', personal: 'Personal', treat: 'Treat', percent: 'Percent', amount: 'Amounts', settlement: 'Payback' },
   },
+  fab: {
+    type: 'Type',
+    voice: 'Voice',
+  },
   pull: {
+    done: 'Up to date',
     pull: 'Pull to refresh',
     release: 'Release to refresh',
     refreshing: 'Refreshing',
@@ -611,6 +621,11 @@ const en = {
     payback: 'Payback',
   },
   voice: {
+    holdHint: 'Hold to record, slide up to lock',
+    releaseHint: 'Let go to send, slide up to lock',
+    lockedHint: 'Recording hands-free',
+    starting: 'Starting the mic…',
+    discardRecording: 'Delete the recording',
     record: 'Say an expense',
     recording: 'Listening…',
     hint: 'For example: "Paid 85 for breakfast"',

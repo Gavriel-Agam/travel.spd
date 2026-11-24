@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { useEffect, useLayoutEffect, useRef, type ComponentProps, type ReactNode, type Ref } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   Image,
   Platform,
   Pressable,
@@ -30,6 +31,8 @@ import { useT } from '@/i18n';
 import { useTripLook } from '@/store/tripLook';
 import { useMemberPhotoUrl } from '@/api/queries';
 import { radius, space, useColors } from '@/theme';
+import { PULL_TRIGGER, usePullToRefresh, type PullState } from '@/hooks/usePullToRefresh';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -138,6 +141,8 @@ export function Screen({
   scroll = true,
   edges = ['top'],
   contentStyle,
+  onRefresh,
+  refreshEnabled = true,
   ...rest
 }: {
   children: ReactNode;
@@ -145,16 +150,31 @@ export function Screen({
   edges?: Edge[];
   contentStyle?: StyleProp<ViewStyle>;
   ref?: Ref<ScrollViewInstance>;
+  /** Pull down at the top to run it: a spinner header until it finishes, then a green ✓. */
+  onRefresh?: () => Promise<unknown>;
+  /** False while something on the screen is being dragged. */
+  refreshEnabled?: boolean;
 } & ScrollViewProps) {
   const c = useColors();
+  const y = useRef(0);
+  const pull = usePullToRefresh(onRefresh ?? noRefresh, { getY: () => y.current, enabled: !!onRefresh && refreshEnabled });
+  const touch = onRefresh ? pull.touchProps : {};
   return (
     <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: c.bg }}>
       <TripBackdrop />
+      {onRefresh ? <PullHeader pull={pull.pull} phase={pull.phase} /> : null}
       {scroll ? (
         <ScrollView
           contentContainerStyle={[{ padding: space.lg, paddingBottom: 120, gap: space.lg }, contentStyle]}
           keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
           {...rest}
+          {...touch}
+          style={[onRefresh && Platform.OS === 'web' ? ({ overscrollBehaviorY: 'contain' } as object) : null, rest.style]}
+          onScroll={(e) => {
+            y.current = e.nativeEvent.contentOffset.y;
+            rest.onScroll?.(e);
+          }}
         >
           {children}
         </ScrollView>
@@ -164,6 +184,8 @@ export function Screen({
     </SafeAreaView>
   );
 }
+
+const noRefresh = async () => {};
 
 export function Row({ children, gap = space.sm, style, align = 'center' }: {
   children: ReactNode;
@@ -779,7 +801,7 @@ export function ErrorView({ error, onRetry }: { error: unknown; onRetry?: () => 
   );
 }
 
-export function Banner({ text, color, icon = 'alert-circle', onPress }: { text: string; color: string; icon?: IconName; onPress?: () => void }) {
+export function Banner({ text, color, icon = 'alert-circle', onPress, onClose, closeLabel }: { text: string; color: string; icon?: IconName; onPress?: () => void; onClose?: () => void; closeLabel?: string }) {
   const c = useColors();
   // The colour marks the icon; the words stay in the main text colour so they read on any tint
   const body = (
@@ -788,6 +810,7 @@ export function Banner({ text, color, icon = 'alert-circle', onPress }: { text: 
         backgroundColor: color + '1A',
         borderRadius: radius.md,
         padding: space.md,
+        paddingEnd: onClose ? space.sm : space.md,
         gap: space.sm,
       }}
     >
@@ -796,6 +819,12 @@ export function Banner({ text, color, icon = 'alert-circle', onPress }: { text: 
         {text}
       </Text>
       {onPress ? <Ionicons name="refresh" size={18} color={color} /> : null}
+      {/* × at the end (the left edge in Hebrew) */}
+      {onClose ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} hitSlop={10} onPress={onClose} style={({ pressed }) => ({ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+          <Ionicons name="close" size={18} color={c.textMuted} />
+        </Pressable>
+      ) : null}
     </Row>
   );
   if (!onPress) return body;
@@ -833,5 +862,76 @@ export function Avatar({ name, color, size = 32, photoPath }: { name: string; co
         </Text>
       )}
     </View>
+  );
+}
+
+// ---------------------------------------------------------------- pull to refresh
+
+/** Height of the open header while refreshing. */
+export const PULL_HEADER_H = 56;
+
+/**
+ * The space above a screen's content while pulling to refresh: it opens with
+ * the finger and pushes the content down, holds a spinner until the refresh
+ * has finished, turns into a green ✓ for a moment (or a short note when
+ * offline or it failed) and closes again.
+ */
+export function PullHeader({ pull, phase }: PullState) {
+  const c = useColors();
+  const { t } = useT();
+  const still = useReducedMotion();
+  const h = useRef(new Animated.Value(0)).current;
+  const check = useRef(new Animated.Value(0)).current;
+  const [shown, setShown] = useState(false);
+
+  const target = phase === 'pulling' ? pull : phase === 'idle' ? 0 : PULL_HEADER_H;
+  useEffect(() => {
+    if (target > 0) setShown(true);
+    // Follows the finger exactly; everything else eases
+    if (phase === 'pulling') return h.setValue(pull);
+    Animated.timing(h, { toValue: target, duration: still ? 0 : target ? 180 : 240, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
+      if (finished && target === 0) setShown(false);
+    });
+  }, [target, phase]);
+
+  useEffect(() => {
+    if (phase !== 'done') return check.setValue(0);
+    if (still) return check.setValue(1);
+    Animated.spring(check, { toValue: 1, friction: 5, tension: 160, useNativeDriver: false }).start();
+  }, [phase]);
+
+  if (!shown && target === 0) return null;
+  const ready = pull >= PULL_TRIGGER;
+  return (
+    <Animated.View style={{ height: h, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+      {phase === 'refreshing' ? (
+        <ActivityIndicator color={c.primary} accessibilityLabel={t('pull.refreshing')} />
+      ) : phase === 'done' ? (
+        <Animated.View
+          accessibilityLabel={t('pull.done')}
+          accessibilityLiveRegion="polite"
+          style={{ opacity: check, transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }] }}
+        >
+          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="checkmark" size={20} color="#fff" />
+          </View>
+        </Animated.View>
+      ) : phase === 'offline' || phase === 'error' ? (
+        <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <Ionicons name={phase === 'offline' ? 'cloud-offline-outline' : 'alert-circle-outline'} size={16} color={phase === 'offline' ? c.warning : c.danger} />
+          <Text variant="caption" color={phase === 'offline' ? c.warning : c.danger} style={{ fontWeight: '600' }}>
+            {t(phase === 'offline' ? 'pull.offline' : 'pull.failed')}
+          </Text>
+        </View>
+      ) : (
+        // Pulling: the wheel turns with the finger and lights up once letting go will refresh
+        <View
+          accessibilityLabel={t(ready ? 'pull.release' : 'pull.pull')}
+          style={{ opacity: Math.min(1, pull / PULL_TRIGGER), transform: [{ rotate: `${Math.round((pull / PULL_TRIGGER) * 270)}deg` }] }}
+        >
+          <Ionicons name="refresh" size={22} color={ready ? c.primary : c.textMuted} />
+        </View>
+      )}
+    </Animated.View>
   );
 }

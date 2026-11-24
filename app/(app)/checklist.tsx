@@ -1,3 +1,6 @@
+import { useRefreshAll } from '@/hooks/useRefreshAll';
+import { Dissolve } from '@/ui/Dissolve';
+import { dissolveThen } from '@/store/dissolve';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
@@ -28,6 +31,7 @@ const EMOJI: Record<ChecklistList, string> = { to_pack: '🧳', to_buy_do: '🛍
  */
 export default function Checklist() {
   const { t } = useT();
+  const refreshAll = useRefreshAll();
   const c = useColors();
   const qc = useQueryClient();
   const params = useLocalSearchParams<{ list?: string }>();
@@ -67,7 +71,7 @@ export default function Checklist() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={refreshAll}>
       <Topbar title={t('checklist.title')} onBack={() => goBack('/')} menu={[themeItem]} />
       <Segmented options={CHECKLIST_LISTS.map((l) => ({ value: l, label: label(l) }))} value={list} onChange={setList} />
       <Text variant="caption" muted>
@@ -108,7 +112,7 @@ export default function Checklist() {
       {items.length ? (
         <Card style={{ gap: 0, paddingVertical: space.xs }}>
           {items.map((item, i) => (
-            <View key={item.id}>
+            <Dissolve key={item.id} id={item.id}>
               {i > 0 ? <Divider /> : null}
               <ItemRow
                 item={item}
@@ -119,10 +123,11 @@ export default function Checklist() {
                 }}
                 onRemove={() => {
                   if (blockedInDemo(qc)) return;
-                  actions.remove(item);
+                  // Turns to dust, then leaves the list
+                  dissolveThen(item.id, () => actions.remove(item));
                 }}
               />
-            </View>
+            </Dissolve>
           ))}
         </Card>
       ) : (

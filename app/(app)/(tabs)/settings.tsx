@@ -1,3 +1,4 @@
+import { useRefreshAll } from '@/hooks/useRefreshAll';
 import { PasskeysCard } from '@/ui/Passkeys';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
@@ -54,6 +55,7 @@ function isoDate(d: Date) {
 
 export default function Settings() {
   const { t, lang } = useT();
+  const refreshAll = useRefreshAll();
   const saveLocation = usePrefs((s) => s.saveLocation);
   const setSaveLocation = usePrefs((s) => s.setSaveLocation);
   const c = useColors();
@@ -326,7 +328,7 @@ export default function Settings() {
   }
 
   return (
-    <Screen ref={scrollRef}>
+    <Screen ref={scrollRef} onRefresh={refreshAll}>
       <Topbar
         title={t('settings.title')}
         menuLabel={t('menu.settingsTitle')}

@@ -1,3 +1,4 @@
+import { useRefreshAll } from '@/hooks/useRefreshAll';
 import { BalanceBanner } from '@/ui/NetChips';
 import { PairSheet } from '@/ui/PairSheet';
 import { isRTL } from '@/ui/Dropdown';
@@ -22,6 +23,7 @@ import { Topbar, tripSettingsItem, useThemeMenuItem } from '@/ui/Topbar';
 
 export default function SettleUp() {
   const { t, lang } = useT();
+  const refreshAll = useRefreshAll();
   const themeItem = useThemeMenuItem();
   const c = useColors();
   const data = useTripData();
@@ -87,7 +89,7 @@ export default function SettleUp() {
   }
 
   return (
-    <Screen>
+    <Screen onRefresh={refreshAll}>
       <Topbar
         title={t('settle.title')}
         onBack={() => goBack('/')}

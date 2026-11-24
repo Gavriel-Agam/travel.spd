@@ -34,6 +34,9 @@ type PrefsState = {
   places: Record<string, string>;
   lastPlace: { lat: number; lng: number; name: string | null; at: number } | null;
   notePlace: (lat: number, lng: number, name: string | null) => void;
+  /** Budget alerts closed with ×, per trip (trip id -> alert keys like "total:50"). They stay closed for that trip. */
+  dismissedAlerts: Record<string, string[]>;
+  dismissAlert: (tripId: string, key: string) => void;
   setVoiceSplit: (tripId: string, split: StoredSplit | null) => void;
   notePayerUsed: (tripId: string, payer: string | null) => void;
   /** Country of the last expense, per trip (trip id -> ISO code). New expenses start there. */
@@ -91,6 +94,9 @@ export const usePrefs = create<PrefsState>()(
       setSaveLocation: (saveLocation) => set({ saveLocation }),
       places: {},
       lastPlace: null,
+      dismissedAlerts: {},
+      dismissAlert: (tripId, key) =>
+        set((s) => ({ dismissedAlerts: { ...s.dismissedAlerts, [tripId]: [...new Set([...(s.dismissedAlerts[tripId] ?? []), key])] } })),
       notePlace: (lat, lng, name) =>
         set((s) => {
           const places = { ...s.places };
@@ -176,6 +182,7 @@ export const usePrefs = create<PrefsState>()(
         saveLocation: (persisted as Partial<PrefsState>)?.saveLocation ?? true,
         places: (persisted as Partial<PrefsState>)?.places ?? {},
         lastPlace: (persisted as Partial<PrefsState>)?.lastPlace ?? null,
+        dismissedAlerts: (persisted as Partial<PrefsState>)?.dismissedAlerts ?? {},
         passkeyOffered: (persisted as Partial<PrefsState>)?.passkeyOffered ?? [],
         themeMode: (persisted as Partial<PrefsState>)?.themeMode ?? null,
       }),

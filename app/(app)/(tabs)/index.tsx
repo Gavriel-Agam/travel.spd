@@ -46,8 +46,7 @@ import { pendingForMe } from '@/lib/pendingReview';
 import { PendingInbox } from '@/ui/PendingInbox';
 import { VoiceInbox } from '@/ui/VoiceInbox';
 import { ExportSheet } from '@/ui/ExportSheet';
-import { PullRefresh } from '@/ui/PullRefresh';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useRefreshAll } from '@/hooks/useRefreshAll';
 import {
   Avatar,
   Button,
@@ -93,7 +92,7 @@ export default function Home() {
   const [draggingCard, setDraggingCard] = useState(false);
   useScrollTopOnTabTap('index', scrollRef);
   // Pull down at the top: skeleton until the refresh has finished
-  const pull = usePullToRefresh(data.refetch, { getY: () => scroll.current.y, enabled: !draggingCard });
+  const refreshAll = useRefreshAll();
   const [avgOpen, setAvgOpen] = useState(false);
   const coverUrl = useTripLook((s) => s.coverUrl);
   const actions = useExpenseActions(trip?.id ?? '');
@@ -575,10 +574,9 @@ export default function Home() {
       onContentSizeChange={(_w, h) => measure({ contentH: h })}
       onLayout={(e) => measure({ viewH: e.nativeEvent.layout.height })}
       refreshControl={<RefreshControl refreshing={data.isRefetching} onRefresh={data.refetch} />}
-      {...pull.touchProps}
-      style={Platform.OS === 'web' ? ({ overscrollBehaviorY: 'contain' } as object) : undefined}
+      onRefresh={refreshAll}
+      refreshEnabled={!draggingCard}
     >
-      <PullRefresh pull={pull.pull} refreshing={pull.refreshing} result={pull.result} />
       {/* Feedback panel: takes its own space at the top and pushes the screen down */}
       {canFeedback ? <FeedbackBanner tripId={trip.id} /> : null}
       {/* The trip photo (Settings › Trip settings) */}
@@ -628,7 +626,7 @@ export default function Home() {
       />
 
       <PasskeyOffer />
-      <BudgetAlertBanner status={data.topAlert} categories={categoryById} members={memberById} />
+      <BudgetAlertBanner tripId={trip.id} status={data.topAlert} categories={categoryById} members={memberById} />
       <VoiceInbox tripId={trip?.id} />
       <PendingInbox items={pendingReview} all={expenses} solo={members.length < 2} onConfirm={confirmPending} onEdit={actions.edit} onDismiss={(e) => actions.remove(e)} />
 

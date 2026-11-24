@@ -14,7 +14,8 @@ import { useIsDemo } from '@/store/prefs';
 import { useTabTap } from '@/store/tabTap';
 import { Text, type IconName } from '@/ui/primitives';
 import { VoiceCard } from '@/ui/VoiceCard';
-import { VoiceButton } from '@/ui/VoiceRecorder';
+import { VoiceBar } from '@/ui/VoiceRecorder';
+import { SpeedDial } from '@/ui/SpeedDial';
 import { useState } from 'react';
 
 const ICONS: Record<string, [IconName, IconName]> = {
@@ -32,41 +33,12 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
   const exitDemo = useExitDemo();
   const qc = useQueryClient();
   const onWarning = readableOn(c.warning);
-  const [recording, setRecording] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [dial, setDial] = useState(false);
   return (
     <View>
-      {/* Voice: the confirmation card (hidden while recording) and the 🎙 button beside + */}
-      <VoiceCard hidden={recording} />
-      <VoiceButton onOpenChange={setRecording} />
-      {/* Floating add button, always one tap away */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('form.newTitle')}
-        onPress={() => {
-          if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-          if (blockedInDemo(qc)) return;
-          router.push('/expense/new');
-        }}
-        style={({ pressed }) => ({
-          position: 'absolute',
-          end: space.lg,
-          top: -76,
-          width: 62,
-          height: 62,
-          borderRadius: 31,
-          backgroundColor: c.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
-          shadowColor: c.primary,
-          shadowOpacity: 0.4,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 6,
-          transform: [{ scale: pressed ? 0.94 : 1 }],
-        })}
-      >
-        <Ionicons name="add" size={34} color={c.primaryText} />
-      </Pressable>
+      {/* Voice: the confirmation card (hidden while the voice bar is open) */}
+      <VoiceCard hidden={voiceOpen} />
       {demo ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: c.warning, paddingHorizontal: space.lg, paddingVertical: 8 }}>
           <Ionicons name="eye-outline" size={16} color={onWarning} />
@@ -118,6 +90,25 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
           );
         })}
       </View>
+      {/* + opens a small menu (type it or say it) over a dimmed screen */}
+      <SpeedDial
+        open={dial}
+        hidden={voiceOpen}
+        onToggle={(open) => {
+          if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          if (open && blockedInDemo(qc)) return;
+          setDial(open);
+        }}
+        onType={() => {
+          setDial(false);
+          router.push('/expense/new');
+        }}
+        onVoice={() => {
+          setDial(false);
+          setVoiceOpen(true);
+        }}
+      />
+      {voiceOpen ? <VoiceBar onClose={() => setVoiceOpen(false)} /> : null}
     </View>
   );
 }

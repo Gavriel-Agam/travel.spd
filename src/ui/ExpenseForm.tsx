@@ -37,7 +37,8 @@ import { errorCode, supabase } from '@/lib/supabase';
 import { useUserId } from '@/providers/AuthProvider';
 import { editKey, useOutbox } from '@/store/outbox';
 import { placeFields, useExpenseLocation } from '@/hooks/useExpenseLocation';
-import { formatCoords } from '@/lib/location';
+import { validCoords } from '@/lib/location';
+import { PlaceField } from './LocationRow';
 import { cachedRatesFor, usePrefs } from '@/store/prefs';
 import { radius, space, useColors } from '@/theme';
 import type { Category, Expense } from '@/types/db';
@@ -142,7 +143,11 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   // pass the conflict check and silently overwrite their change (bug #1).
   const [baseVersion] = useState(existing?.version);
   // Where a new expense is being added (looked up while the form is open; never waited for)
-  const place = useExpenseLocation(!existing, lang);
+  const found = useExpenseLocation(!existing, lang);
+  // Editing: the place saved with it, which × can remove
+  const [placeCleared, setPlaceCleared] = useState(false);
+  const savedPlace = existing && !placeCleared && validCoords(existing.lat, existing.lng) ? { lat: existing.lat!, lng: existing.lng!, name: existing.location_name ?? null } : null;
+  const place = existing ? savedPlace : found.place;
   const addToOutbox = useOutbox((s) => s.add);
   const queueUpdate = useOutbox((s) => s.queueUpdate);
   const userId = useUserId();
@@ -369,7 +374,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
       split_type: splitType,
       splits: toSplitEntries(effectiveSplit, payerId),
       // Where a new expense was added (when the phone knew in time)
-      ...(existing ? {} : placeFields(place)),
+      ...(existing ? (placeCleared ? { lat: null, lng: null, location_name: null } : {}) : placeFields(place)),
       // Saving a payment a Shortcut added confirms it
       ...(existing?.review_status === 'pending_review' ? { review_status: 'confirmed' as const } : {}),
     });
@@ -756,12 +761,8 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
           </Text>
           <Ionicons name="chevron-down" size={14} color={c.textMuted} />
         </Pressable>
-        {/* The exact place found for a new expense (saved with it; Settings can turn this off) */}
-        {place ? (
-          <Text variant="caption" muted numberOfLines={1} style={{ marginTop: -space.sm, paddingHorizontal: space.md }} accessibilityLabel={`${t('location.label')}: ${place.name ?? formatCoords(place.lat, place.lng)}`}>
-            📍 {place.name ?? formatCoords(place.lat, place.lng)}
-          </Text>
-        ) : null}
+        {/* Place: the exact spot (name and coordinates inside the field, map and × at its end) */}
+        <PlaceField place={place} locating={!existing && found.locating} onClear={existing ? () => setPlaceCleared(true) : found.clear} />
 
         {/* Tax free: suggested for shopping; estimates the VAT refund */}
         {showTaxFree ? (

@@ -104,3 +104,67 @@ function MapPreview({ lat, lng, still }: { lat: number; lng: number; still: bool
     </Animated.View>
   );
 }
+
+/**
+ * The expense form's Place field: the place found (name, coordinates) sits
+ * inside the field with a pin; at its end, a map button opens the small map
+ * inside the same box and × leaves the place out of this expense.
+ */
+export function PlaceField({ place, locating, onClear }: { place: { lat: number; lng: number; name: string | null } | null; locating?: boolean; onClear?: () => void }) {
+  const c = useColors();
+  const { t } = useT();
+  const still = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const has = !!place && validCoords(place.lat, place.lng);
+  if (!has && !locating) return null;
+  const name = has ? place!.name || formatCoords(place!.lat, place!.lng) : t('location.locating');
+  return (
+    <View style={{ borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.cardAlt, overflow: 'hidden' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingStart: space.md, paddingEnd: space.xs, minHeight: 52 }}>
+        <Ionicons name={has ? 'location' : 'locate-outline'} size={18} color={has ? c.danger : c.textMuted} />
+        <View style={{ flex: 1, minWidth: 0 }} accessibilityLabel={`${t('location.label')}: ${name}`}>
+          <Text variant="caption" muted style={{ fontSize: 11 }}>
+            {t('location.label')}
+          </Text>
+          <Text style={{ fontWeight: '600' }} numberOfLines={1} color={has ? c.text : c.textMuted}>
+            {name}
+          </Text>
+          {has && place!.name ? (
+            <Text variant="caption" faint numberOfLines={1} style={{ fontSize: 11 }}>
+              {formatCoords(place!.lat, place!.lng)}
+            </Text>
+          ) : null}
+        </View>
+        {has ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            accessibilityLabel={t(open ? 'location.hideMap' : 'location.showMap')}
+            onPress={() => setOpen((o) => !o)}
+            style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: open || pressed ? c.card : 'transparent' })}
+          >
+            <Ionicons name={open ? 'map' : 'map-outline'} size={19} color={c.primary} />
+          </Pressable>
+        ) : null}
+        {has && onClear ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('location.clear')}
+            onPress={() => {
+              setOpen(false);
+              onClear();
+            }}
+            style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+          >
+            <Ionicons name="close-circle" size={20} color={c.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+      {open && has ? (
+        <View style={{ paddingHorizontal: space.sm, paddingBottom: space.sm }}>
+          <MapPreview lat={place!.lat} lng={place!.lng} still={still} />
+        </View>
+      ) : null}
+    </View>
+  );
+}

@@ -10,6 +10,7 @@ import { onlineManager } from '@tanstack/react-query';
 import { useUserId } from '@/providers/AuthProvider';
 import type { Expense } from '@/types/db';
 import { confirmDialog, showDialog } from '@/ui/Dialog';
+import { dissolveThen } from '@/store/dissolve';
 
 /**
  * Open / edit / delete for an expense row, the same on every screen that lists
@@ -31,44 +32,45 @@ export function useExpenseActions(tripId: string) {
     router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } });
   };
 
-  /** Delete (asks first). `onDone` runs once it's gone from the list (e.g. leave the detail screen). */
-  const remove = async (e: Expense, onDone?: () => void) => {
+  /**
+   * Delete (asks first). `leave` runs as soon as it's confirmed (e.g. close the
+   * expense screen); then the row turns to dust in the list and is gone, with
+   * no "not found" screen in between.
+   */
+  const remove = async (e: Expense, leave?: () => void) => {
     if (blockedInDemo(qc)) return;
-    // A new expense that never reached the server: just drop it from the phone
+    // Wait for the screen to close so the dust is seen in the list
+    const after = (fn: () => void) => {
+      leave?.();
+      dissolveThen(e.id, fn, leave ? 320 : 0);
+    };
     // Restored on this phone and not sent yet: it just stays deleted
-    if (e.pending_op === 'restore') {
-      useOutbox.getState().remove(restoreKey(e.id));
-      onDone?.();
-      return;
-    }
+    if (e.pending_op === 'restore') return after(() => useOutbox.getState().remove(restoreKey(e.id)));
+    // A new expense that never reached the server: just drop it from the phone
     if (e.pending_op === 'create') {
-      if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) {
-        useOutbox.getState().remove(e.id);
-        onDone?.();
-      }
+      if (await confirmDialog(t('sync.discardConfirm'), t('sync.discardBody'), t('common.delete'), t('common.cancel'), true)) after(() => useOutbox.getState().remove(e.id));
       return;
     }
     const ok = await confirmDialog(t('expenses.deleteConfirm'), t('expenses.deleteConfirmBody'), t('common.delete'), t('common.cancel'), true);
     if (!ok) return;
     // No signal: hidden now (totals follow), deleted on the server when the connection returns
-    const queue = () => {
+    const queue = () =>
       useOutbox.getState().queueDelete({ expenseId: e.id, expectedVersion: e.version, tripId: e.trip_id, createdBy: userId ?? '', queuedAt: new Date().toISOString(), snapshot: e });
-      onDone?.();
-    };
-    if (!onlineManager.isOnline()) return queue();
-    del.mutate(
-      { id: e.id, version: e.version },
-      {
-        onSuccess: () => {
-          // Nothing queued for it may be sent later
-          useOutbox.getState().remove(editKey(e.id));
-          useOutbox.getState().remove(deleteKey(e.id));
-          qc.invalidateQueries({ queryKey: keys.deleted(tripId) });
-          onDone?.();
+    after(() => {
+      if (!onlineManager.isOnline()) return queue();
+      del.mutate(
+        { id: e.id, version: e.version },
+        {
+          onSuccess: () => {
+            // Nothing queued for it may be sent later
+            useOutbox.getState().remove(editKey(e.id));
+            useOutbox.getState().remove(deleteKey(e.id));
+            qc.invalidateQueries({ queryKey: keys.deleted(tripId) });
+          },
+          onError: (err) => (errorCode(err) === 'network' ? queue() : showDialog(t('errors.title'), t(`errors.${errorCode(err)}`))),
         },
-        onError: (err) => (errorCode(err) === 'network' ? queue() : showDialog(t('errors.title'), t(`errors.${errorCode(err)}`))),
-      },
-    );
+      );
+    });
   };
 
   /**

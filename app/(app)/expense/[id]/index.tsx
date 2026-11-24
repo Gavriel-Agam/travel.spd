@@ -4,6 +4,7 @@ import { LocationRow } from '@/ui/LocationRow';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
+import { useEffect, useRef } from 'react';
 import { Image, View } from 'react-native';
 import { useReceiptSrc } from '@/api/queries';
 import { BookingCard } from '@/ui/BookingCard';
@@ -32,13 +33,14 @@ export default function ExpenseDetails() {
   const e = expenses.find((x) => x.id === id);
   const receipt = useReceiptSrc(e?.receipt_path);
 
-  if (isLoading) return <Loading />;
-  if (!e)
-    return (
-      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>
-        <EmptyState emoji="🫥" title={t('errors.not_found')} action={t('common.back')} onAction={() => goBack('/expenses')} />
-      </Screen>
-    );
+  // Deleted (here, or by a partner meanwhile): straight back to the list, no "not found" screen
+  const gone = !isLoading && !e;
+  const left = useRef(false);
+  useEffect(() => {
+    if (gone && !left.current) goBack('/expenses');
+  }, [gone]);
+
+  if (isLoading || !e) return <Loading />;
 
   const cat = e.category_id ? categoryById.get(e.category_id) : undefined;
   const payer = memberById.get(e.paid_by_member_id ?? '');
@@ -47,7 +49,11 @@ export default function ExpenseDetails() {
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
   const isHome = e.currency === HOME_CURRENCY;
 
-  const remove = () => actions.remove(e!, () => goBack('/expenses'));
+  const remove = () =>
+    actions.remove(e, () => {
+      left.current = true;
+      goBack('/expenses');
+    });
 
   const Line = ({ label, value }: { label: string; value: string }) => (
     <Row style={{ justifyContent: 'space-between' }} gap={space.md}>

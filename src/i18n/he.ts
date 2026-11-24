@@ -2,6 +2,7 @@ import type { Dict } from './en';
 
 const he: Dict = {
   common: {
+    close: 'סגירה',
     save: 'שמירה',
     cancel: 'ביטול',
     delete: 'מחיקה',
@@ -551,6 +552,10 @@ const he: Dict = {
     daysLeft_other: 'תימחק לצמיתות בעוד {{count}} ימים',
   },
   location: {
+    locating: 'איתור מיקום…',
+    showMap: 'הצגה במפה',
+    hideMap: 'הסתרת המפה',
+    clear: 'הסרת המקום מההוצאה',
     label: 'מקום',
     none: 'לא נשמר מיקום',
     openMap: 'פתיחה במפה',
@@ -587,7 +592,12 @@ const he: Dict = {
     summary: { app: 'אפליקציה', trip: 'טיול', dates: 'תאריכים', destinations: 'יעדים', total: 'סה"כ הוצאות (ש"ח)', exported: 'תאריך ייצוא' },
     split: { equal: 'שווה', personal: 'אישי', treat: 'על חשבון המשלם', percent: 'אחוזים', amount: 'סכומים', settlement: 'החזר' },
   },
+  fab: {
+    type: 'הקלדה',
+    voice: 'הקלטה',
+  },
   pull: {
+    done: 'הכל מעודכן',
     pull: 'משיכה לרענון',
     release: 'שחרור לרענון',
     refreshing: 'רענון…',
@@ -613,6 +623,11 @@ const he: Dict = {
     payback: 'החזר',
   },
   voice: {
+    holdHint: 'החזקה להקלטה, החלקה למעלה לנעילה',
+    releaseHint: 'שחרור לשליחה, החלקה למעלה לנעילה',
+    lockedHint: 'הקלטה בלי ידיים',
+    starting: 'הפעלת המיקרופון…',
+    discardRecording: 'מחיקת ההקלטה',
     record: 'אמירת הוצאה',
     recording: 'בהקלטה…',
     hint: 'למשל: "שילמתי 85 על ארוחת בוקר"',

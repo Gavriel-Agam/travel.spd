@@ -1,53 +1,66 @@
 import { onlineManager } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { tap } from '@/ui/primitives';
+import * as Haptics from 'expo-haptics';
+
+// (Not from ui/primitives, which uses this hook)
+const tap = () => {
+  if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+};
 
 /** How far to pull (after damping) before letting go refreshes. */
 export const PULL_TRIGGER = 64;
 const PULL_MAX = 110;
+/** The ✓ stays this long before the header closes. */
+export const DONE_HOLD_MS = 600;
+const NOTE_MS = 2200;
 
-export type PullState = { pull: number; refreshing: boolean; result: 'offline' | 'error' | null };
+export type PullPhase = 'idle' | 'pulling' | 'refreshing' | 'done' | 'offline' | 'error';
+export type PullState = { pull: number; phase: PullPhase };
 
 /**
  * Pull down from the top of a scroll view to refresh (the web build has no
- * native pull-to-refresh). While refreshing, `refreshing` stays true until
- * `onRefresh` has fully finished; offline or a failure ends with a short
- * `result` instead. Spread `touchProps` onto the ScrollView.
+ * native pull-to-refresh). The header opens with the finger, shows a spinner
+ * until `onRefresh` has fully finished, then a green ✓ for a moment (or a
+ * short note when offline or it failed) and closes. Spread `touchProps` onto
+ * the ScrollView and render <PullHeader {...state} /> above it.
  */
 export function usePullToRefresh(onRefresh: () => Promise<unknown>, p: { getY: () => number; enabled?: boolean }) {
-  const [state, setState] = useState<PullState>({ pull: 0, refreshing: false, result: null });
+  const [state, setState] = useState<PullState>({ pull: 0, phase: 'idle' });
   const start = useRef<{ y: number; x: number } | null>(null);
   const pullRef = useRef(0);
   const armed = useRef(false);
   const busy = useRef(false);
+  const live = useRef(p);
+  live.current = p;
 
-  // A result shows for a moment
+  // The ✓ or a note shows for a moment, then the header closes
   useEffect(() => {
-    if (!state.result) return;
-    const id = setTimeout(() => setState((s) => ({ ...s, result: null })), 2500);
+    if (state.phase !== 'done' && state.phase !== 'offline' && state.phase !== 'error') return;
+    const id = setTimeout(() => setState({ pull: 0, phase: 'idle' }), state.phase === 'done' ? DONE_HOLD_MS : NOTE_MS);
     return () => clearTimeout(id);
-  }, [state.result]);
+  }, [state.phase]);
 
   async function refresh() {
     if (busy.current) return;
     busy.current = true;
-    setState({ pull: 0, refreshing: true, result: null });
-    let result: PullState['result'] = null;
+    setState({ pull: 0, phase: 'refreshing' });
+    let phase: PullPhase = 'done';
     try {
-      if (!onlineManager.isOnline()) result = 'offline';
+      if (!onlineManager.isOnline()) phase = 'offline';
       else await onRefresh();
     } catch {
-      result = onlineManager.isOnline() ? 'error' : 'offline';
+      phase = onlineManager.isOnline() ? 'error' : 'offline';
     } finally {
       busy.current = false;
-      setState({ pull: 0, refreshing: false, result });
+      if (phase === 'done') tap();
+      setState({ pull: 0, phase });
     }
   }
 
   const set = (pull: number) => {
     pullRef.current = pull;
-    setState((s) => (s.pull === pull ? s : { ...s, pull }));
+    setState((s) => (s.phase !== 'idle' && s.phase !== 'pulling' ? s : s.pull === pull ? s : { pull, phase: pull > 0 ? 'pulling' : 'idle' }));
   };
 
   const touchProps =
@@ -55,7 +68,7 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>, p: { getY: (
       ? {
           onTouchStart: (e: { nativeEvent: { touches: ArrayLike<{ pageY: number; pageX: number }> } }) => {
             const tch = e.nativeEvent.touches[0];
-            start.current = p.enabled !== false && !busy.current && p.getY() <= 0 && tch ? { y: tch.pageY, x: tch.pageX } : null;
+            start.current = live.current.enabled !== false && !busy.current && live.current.getY() <= 0 && tch ? { y: tch.pageY, x: tch.pageX } : null;
             armed.current = false;
           },
           onTouchMove: (e: { nativeEvent: { touches: ArrayLike<{ pageY: number; pageX: number }> } }) => {
@@ -64,7 +77,7 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>, p: { getY: (
             const dy = tch.pageY - start.current.y;
             const dx = Math.abs(tch.pageX - start.current.x);
             // Sideways (a swipe on a row) or scrolled away from the top: not a pull
-            if (dx > Math.abs(dy) || p.getY() > 0) {
+            if (dx > Math.abs(dy) || live.current.getY() > 0) {
               start.current = null;
               return set(0);
             }

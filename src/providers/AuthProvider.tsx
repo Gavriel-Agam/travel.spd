@@ -5,6 +5,7 @@ import { AppState, Platform } from 'react-native';
 import { finishPendingTransfer, hasPendingTransfer } from '@/lib/auth';
 import { clearLaunchSnapshot } from '@/lib/launchSnapshot';
 import { clearReceiptCache } from '@/lib/receiptCache';
+import { setUserExpected, takeMissedUser } from '@/lib/sessionGuard';
 import { errorCode, readStoredSession, readStoredSessionNow, supabase } from '@/lib/supabase';
 
 type AuthState = {
@@ -22,7 +23,16 @@ const AuthContext = createContext<AuthState>({ session: null, loading: true, rec
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   // Web: the saved login is read synchronously, so the first render is already the app
-  const [session, setSession] = useState<Session | null>(() => (openedFromAuthLink() ? null : usableSaved(readStoredSessionNow())));
+  const [session, setSessionState] = useState<Session | null>(() => {
+    const s = openedFromAuthLink() ? null : usableSaved(readStoredSessionNow());
+    setUserExpected(!!s);
+    return s;
+  });
+  // Requests check this at once (before React re-renders): someone is signed in here
+  const setSession = (s: Session | null) => {
+    setUserExpected(!!s);
+    setSessionState(s);
+  };
   const [loading, setLoading] = useState(() => !session);
   const [recovery, setRecovery] = useState(false);
   const [transferring, setTransferring] = useState(false);
@@ -54,7 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const stored = await readStoredSession();
       const saved = openedFromAuthLink() ? null : usableSaved(stored);
       if (saved) {
-        setSession((cur) => cur ?? saved);
+        setUserExpected(true);
+        setSessionState((cur) => cur ?? saved);
         setLoading(false);
       }
       const { data, error } = await supabase.auth.getSession();
@@ -79,6 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (event === 'SIGNED_IN') void afterSignIn(s);
       setSession(s);
+      // Requests were held back while the token couldn't be refreshed: reload everything now
+      if (s && (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') && takeMissedUser()) void qc.invalidateQueries();
       setLoading(false);
     });
 

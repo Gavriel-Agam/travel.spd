@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { usePrefs } from '@/store/prefs';
 import { isNetworkError, noteNetworkFailure, noteServerReached } from './connectivity';
+import { isUserExpected, noteMissedUser, sentWithoutUser } from './sessionGuard';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -56,6 +57,13 @@ const SMART_PARSE_TIMEOUT = 60_000;
 const guardedFetch: typeof fetch = (input, init) => {
   if (usePrefs.getState().demo) return Promise.reject(new Error('demo_readonly'));
   const href = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+  // Signed in but the token couldn't be refreshed: never read data as "nobody"
+  // (an empty trip list would look like the trips were gone). Treat it as offline.
+  if (isUserExpected() && sentWithoutUser(href, init?.headers ?? (input instanceof Request ? input.headers : undefined), anonKey)) {
+    noteMissedUser();
+    noteNetworkFailure();
+    return Promise.reject(new TypeError('Network request failed: sign-in not refreshed yet'));
+  }
   const upload = /\/storage\/v1\/object/.test(href) && (init?.method ?? 'GET') !== 'GET';
   const ctrl = new AbortController();
   const smartParse = /\/functions\/v1\/smart-parse-expenses/.test(href);

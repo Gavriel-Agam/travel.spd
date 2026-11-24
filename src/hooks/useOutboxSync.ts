@@ -12,7 +12,7 @@ import {
 } from '@/lib/pendingChanges';
 import { applyChecklistChanges } from '@/lib/checklist';
 import { errorCode, supabase } from '@/lib/supabase';
-import { useOutbox, useSyncFlash, type ChangeItem, type CreateItem, type OutboxItem } from '@/store/outbox';
+import { useOutbox, useSyncFlash, type ChangeItem, type CreateItem, type NewTripItem, type OutboxItem } from '@/store/outbox';
 import type { Budget, Category, ChecklistItem, Member, Trip } from '@/types/db';
 import { useIsDemo } from '@/store/prefs';
 
@@ -40,6 +40,21 @@ async function send(item: OutboxItem): Promise<string | null> {
     const code = errorCode(error);
     // Gone for good (over 30 days) or not visible: nothing left to do
     return code === 'not_found' ? null : code;
+  }
+  if (item.kind === 'newTrip') {
+    const { trip, member } = item;
+    const { error } = await supabase.rpc('create_trip', {
+      p_name: trip.name,
+      p_member_name: member.display_name,
+      p_start_date: trip.start_date,
+      p_end_date: trip.end_date,
+      p_default_currency: trip.default_currency,
+      p_timezone: trip.timezone,
+      p_color: member.color,
+      p_trip_id: trip.id,
+      p_member_id: member.id,
+    });
+    return error ? errorCode(error) : null;
   }
   if (item.kind === 'update') {
     const { version: _v, ...payload } = item.payload;
@@ -115,8 +130,12 @@ async function sendChange(item: ChangeItem): Promise<string | null> {
 }
 
 /** Once the server has a settings change: put it into the saved copy too, so the screen doesn't flick back until the next reload. */
-function keepInCache(qc: ReturnType<typeof useQueryClient>, item: ChangeItem) {
-  if (item.kind === 'trip') qc.setQueryData<Trip[]>(keys.trips, (list) => list && applyTripChanges(list, [item]));
+function keepInCache(qc: ReturnType<typeof useQueryClient>, item: ChangeItem | NewTripItem) {
+  // A new trip stays listed (and keeps its owner) until the reload brings the server's copy
+  if (item.kind === 'newTrip') {
+    qc.setQueryData<Trip[]>(keys.trips, (list) => (list?.some((t) => t.id === item.tripId) ? list : [item.trip, ...(list ?? [])]));
+    qc.setQueryData<Member[]>(keys.members(item.tripId), (list) => (list?.some((m) => m.id === item.member.id) ? list : [item.member, ...(list ?? [])]));
+  } else if (item.kind === 'trip') qc.setQueryData<Trip[]>(keys.trips, (list) => list && applyTripChanges(list, [item]));
   else if (item.kind === 'member') qc.setQueryData<Member[]>(keys.members(item.tripId), (list) => list && applyMemberChanges(list, [item]));
   else if (item.kind === 'budget') qc.setQueryData<Budget[]>(keys.budgets(item.tripId), (list) => list && applyBudgetChanges(list, [item], item.tripId));
   else if (item.kind === 'checklist') qc.setQueryData<ChecklistItem[]>(keys.checklist(item.tripId), (list) => list && applyChecklistChanges(list, [item], item.tripId));
@@ -126,6 +145,7 @@ function keepInCache(qc: ReturnType<typeof useQueryClient>, item: ChangeItem) {
 /** What to reload after a sync, by the kinds of change sent. */
 function keysFor(item: OutboxItem) {
   if (isExpenseItem(item)) return [keys.expenses(item.tripId)];
+  if (item.kind === 'newTrip') return [keys.trips, keys.members(item.tripId), keys.budgets(item.tripId), keys.categories(item.tripId)];
   if (item.kind === 'trip') return [keys.trips];
   if (item.kind === 'member') return [keys.members(item.tripId)];
   if (item.kind === 'budget') return [keys.budgets(item.tripId)];
@@ -162,12 +182,13 @@ export function useOutboxSync() {
         if (code === 'network') break;
         touch(item);
         if (code === null) {
-          if (!isExpenseItem(item)) keepInCache(qc, item as ChangeItem);
+          if (!isExpenseItem(item)) keepInCache(qc, item as ChangeItem | NewTripItem);
           // Only if it wasn't changed again while it was being sent (that change still has to go)
           useOutbox.getState().remove(item.clientId, item.queuedAt);
           continue;
         }
-        if (isExpenseItem(item)) useOutbox.getState().fail(item.clientId, code);
+        // A new trip is never dropped: it stays (marked) with everything added to it
+        if (isExpenseItem(item) || item.kind === 'newTrip') useOutbox.getState().fail(item.clientId, code);
         else {
           // A settings change the server refuses (the trip was deleted, or you were removed
           // from it) can't be fixed by hand: drop it; the reload shows what the trip has

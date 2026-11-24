@@ -741,4 +741,21 @@ await asAnon(`insert into client_errors (code, message, context) values ('unknow
 assert.ok((await as(A, `select * from trips`)).length > 0);
 ok('anon: no trip data (refused, not an empty list); error log still writable; signed-in reads work');
 
+// Trip created offline (0030): ids from the phone, a resend returns the same trip
+{
+  const T = 'cccccccc-0000-4000-8000-000000000001';
+  const M = 'cccccccc-0000-4000-8000-000000000002';
+  const call = (who) => as(who, `select create_trip('Offline trip', 'Partner A', null, null, 'THB', 'Asia/Bangkok', null, 50000, '#4F7CFF', $1, $2)`, [T, M]);
+  assert.equal((await call(A))[0].create_trip, T);
+  assert.equal((await call(A))[0].create_trip, T);
+  assert.equal((await db.query(`select count(*)::int n from trips where id = $1`, [T])).rows[0].n, 1);
+  const owner = (await db.query(`select id, role, user_id from trip_members where trip_id = $1`, [T])).rows;
+  assert.deepEqual(owner.map((m) => [m.id, m.role, m.user_id]), [[M, 'owner', A]]);
+  assert.equal((await db.query(`select count(*)::int n from budgets where trip_id = $1`, [T])).rows[0].n, 1);
+  await rejects(call(B), /conflict/);
+  // Without ids (older app versions) it still works
+  assert.ok((await as(A, `select create_trip('Old app', 'Partner A')`))[0].create_trip);
+  ok('create_trip: client ids, resend returns the same trip, someone else cannot claim it');
+}
+
 console.log(`\n${passed} SQL checks passed`);

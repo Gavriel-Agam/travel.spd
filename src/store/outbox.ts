@@ -61,12 +61,24 @@ export type ChecklistChange = Base & {
   fields: Partial<Pick<ChecklistItem, 'title' | 'is_checked' | 'sort_order'>>;
 };
 
+/**
+ * A trip created on this device (offline or not yet confirmed). The ids are made
+ * here, so the trip, its owner and anything added to it meanwhile show at once;
+ * sent first (it is queued before anything that belongs to it).
+ */
+export type NewTripItem = Base & {
+  kind: 'newTrip';
+  trip: Trip;
+  member: Member;
+};
+
 export type ChangeItem = TripItem | CategoryItem | OverrideItem | BudgetItem | MemberItem | ChecklistChange;
-export type OutboxItem = CreateItem | UpdateItem | DeleteItem | RestoreItem | ChangeItem;
+export type OutboxItem = CreateItem | UpdateItem | DeleteItem | RestoreItem | ChangeItem | NewTripItem;
 
 export const editKey = (expenseId: string) => `edit:${expenseId}`;
 export const deleteKey = (expenseId: string) => `del:${expenseId}`;
 export const restoreKey = (expenseId: string) => `restore:${expenseId}`;
+export const newTripKey = (tripId: string) => `newtrip:${tripId}`;
 
 type OutboxState = {
   items: OutboxItem[];

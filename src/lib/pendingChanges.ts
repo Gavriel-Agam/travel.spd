@@ -5,7 +5,7 @@
 // expenses and applied on top of the saved data wherever it is shown, so the
 // screen shows the change at once and keeps showing it after a restart.
 import builtins from '@/data/categories.json';
-import type { BudgetItem, CategoryItem, ChecklistChange, MemberItem, OutboxItem, OverrideItem, TripItem } from '@/store/outbox';
+import type { BudgetItem, CategoryItem, ChecklistChange, MemberItem, NewTripItem, OutboxItem, OverrideItem, TripItem } from '@/store/outbox';
 import type { Budget, Category, Member, Trip } from '@/types/db';
 
 export const isTripItem = (i: OutboxItem): i is TripItem => i.kind === 'trip';
@@ -13,6 +13,7 @@ export const isCategoryItem = (i: OutboxItem): i is CategoryItem => i.kind === '
 export const isOverrideItem = (i: OutboxItem): i is OverrideItem => i.kind === 'override';
 export const isBudgetItem = (i: OutboxItem): i is BudgetItem => i.kind === 'budget';
 export const isMemberItem = (i: OutboxItem): i is MemberItem => i.kind === 'member';
+export const isNewTripItem = (i: OutboxItem): i is NewTripItem => i.kind === 'newTrip';
 export const isChecklistItem = (i: OutboxItem): i is ChecklistChange => i.kind === 'checklist';
 /** A queued change to an expense (new, edit or delete) rather than to the trip's settings. */
 export const isExpenseItem = (i: OutboxItem) => !i.kind || i.kind === 'create' || i.kind === 'update' || i.kind === 'delete' || i.kind === 'restore';
@@ -43,9 +44,19 @@ export function mergeChange(prev: OutboxItem, next: OutboxItem): OutboxItem {
 
 /** Trips with their queued changes. */
 export function applyTripChanges(trips: Trip[], items: OutboxItem[]): Trip[] {
+  // Trips created on this device that the server doesn't list yet come first (newest)
+  const fresh = items.filter(isNewTripItem).filter((n) => !trips.some((t) => t.id === n.tripId)).map((n) => n.trip).reverse();
+  const list = fresh.length ? [...fresh, ...trips] : trips;
   const patches = items.filter(isTripItem);
-  if (!patches.length) return trips;
-  return trips.map((trip) => patches.filter((p) => p.tripId === trip.id).reduce((t, p) => ({ ...t, ...p.patch }), trip));
+  if (!patches.length) return list;
+  return list.map((trip) => patches.filter((p) => p.tripId === trip.id).reduce((t, p) => ({ ...t, ...p.patch }), trip));
+}
+
+/** A trip created on this device: its owner (you) shows before the server has the trip. */
+export function applyNewTripMembers(members: Member[], items: OutboxItem[], tripId: string): Member[] {
+  const n = items.find((i): i is NewTripItem => isNewTripItem(i) && i.tripId === tripId);
+  if (!n || members.some((m) => m.id === n.member.id)) return members;
+  return [n.member, ...members];
 }
 
 const BUILTIN = new Map(builtins.map((b) => [b.key, b]));
@@ -126,4 +137,21 @@ export function applyMemberChanges(members: Member[], items: OutboxItem[]): Memb
   const patches = items.filter(isMemberItem);
   if (!patches.length) return members;
   return members.map((m) => patches.filter((p) => p.memberId === m.id).reduce((x, p) => ({ ...x, ...p.patch }), m));
+}
+
+/**
+ * The shared built-in categories for a trip created on this device, taken from
+ * any trip's saved category list (their ids are the server's), with each one's
+ * default name, icon and colour (another trip's own edits are not carried over).
+ * Empty when no trip's categories were ever loaded here.
+ */
+export function builtInsForNewTrip(saved: (Category[] | undefined)[]): Category[] {
+  const list = saved.find((l) => l?.some((c) => c.trip_id === null));
+  if (!list) return [];
+  return list
+    .filter((c) => c.trip_id === null)
+    .map((c) => {
+      const d = c.key ? BUILTIN.get(c.key) : undefined;
+      return { id: c.id, trip_id: null, key: c.key, name: d?.name ?? c.name, icon: d?.icon ?? c.icon, color: d?.color ?? c.color, sort_order: c.sort_order, archived: c.archived, image: d ? null : (c.image ?? null) };
+    });
 }

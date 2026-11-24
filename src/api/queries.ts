@@ -17,14 +17,17 @@ import {
   applyBudgetChanges,
   applyCategoryChanges,
   applyMemberChanges,
+  applyNewTripMembers,
   applyTripChanges,
   budgetChangeKey,
+  builtInsForNewTrip,
   categoryChangeKey,
   memberChangeKey,
   overrideChangeKey,
   tripChangeKey,
 } from '@/lib/pendingChanges';
-import { useOutbox, type ChangeItem, type TripPatch } from '@/store/outbox';
+import { newTripKey, useOutbox, type ChangeItem, type TripPatch } from '@/store/outbox';
+import { useUserId } from '@/providers/AuthProvider';
 
 export const keys = {
   trips: ['trips'] as const,
@@ -76,37 +79,70 @@ export function useActiveTrip() {
   return { ...trips, trip };
 }
 
+export type NewTripInput = {
+  name: string;
+  memberName: string;
+  startDate: string | null;
+  endDate: string | null;
+  defaultCurrency: string;
+  timezone: string;
+  totalBudgetMinor: number | null;
+  dailyBudgetMinor: number | null;
+  color: string;
+};
+
+/**
+ * Creates a trip, with or without a connection. The ids are made on this
+ * device, so the trip opens at once (owner, built-in categories, budgets) and
+ * anything added to it is queued after it; the outbox sends it right away when
+ * online, otherwise as soon as the connection returns (create_trip, 0030: a
+ * resend returns the same trip).
+ */
 export function useCreateTrip() {
   const qc = useQueryClient();
+  const userId = useUserId();
   const setActive = usePrefs((s) => s.setActiveTrip);
   return useMutation({
-    mutationFn: async (p: {
-      name: string;
-      memberName: string;
-      startDate: string | null;
-      endDate: string | null;
-      defaultCurrency: string;
-      timezone: string;
-      totalBudgetMinor: number | null;
-      dailyBudgetMinor: number | null;
-      color: string;
-    }) =>
-      unwrap(
-        await supabase.rpc('create_trip', {
-          p_name: p.name,
-          p_member_name: p.memberName,
-          p_start_date: p.startDate,
-          p_end_date: p.endDate,
-          p_default_currency: p.defaultCurrency,
-          p_timezone: p.timezone,
-          p_total_budget_ils_minor: p.totalBudgetMinor,
-          p_daily_budget_ils_minor: p.dailyBudgetMinor,
-          p_color: p.color,
-        }),
-      ) as string,
-    onSuccess: async (tripId) => {
+    mutationFn: async (p: NewTripInput) => {
+      if (usePrefs.getState().demo) throw new Error('demo_readonly');
+      if (!userId) throw new Error('not_authenticated');
+      const now = new Date().toISOString();
+      const tripId = Crypto.randomUUID();
+      const trip: Trip = {
+        id: tripId,
+        name: p.name,
+        start_date: p.startDate,
+        end_date: p.endDate,
+        home_currency: 'ILS',
+        default_currency: p.defaultCurrency,
+        timezone: p.timezone,
+        shared: false,
+        created_by: userId,
+        created_at: now,
+        theme_color: null,
+        cover_path: null,
+        category_order: null,
+        payment_methods: [],
+        card_fx_fee_pct: null,
+      };
+      const member: Member = { id: Crypto.randomUUID(), trip_id: tripId, user_id: userId, display_name: p.memberName, color: p.color, role: 'owner', joined_at: now };
+      // What the trip's screens read, so they open without waiting for the server
+      const builtIns = builtInsForNewTrip(qc.getQueriesData<Category[]>({ queryKey: ['categories'] }).map(([, d]) => d));
+      if (builtIns.length) qc.setQueryData(keys.categories(tripId), builtIns);
+      qc.setQueryData(keys.members(tripId), [member]);
+      qc.setQueryData(keys.expenses(tripId), []);
+      qc.setQueryData(keys.budgets(tripId), []);
+      qc.setQueryData(keys.checklist(tripId), []);
+      qc.setQueryData<Trip[]>(keys.trips, (list) => [trip, ...(list ?? []).filter((t) => t.id !== tripId)]);
+      const outbox = useOutbox.getState();
+      outbox.add({ kind: 'newTrip', clientId: newTripKey(tripId), tripId, createdBy: userId, queuedAt: now, trip, member });
+      // Budgets go after the trip, like any budget set offline
+      for (const [scope, amount] of [['total', p.totalBudgetMinor], ['daily', p.dailyBudgetMinor]] as const) {
+        if (amount == null) continue;
+        outbox.queueChange({ kind: 'budget', clientId: budgetChangeKey(tripId, scope, null, null), tripId, createdBy: userId, queuedAt: now, scope, categoryId: null, memberId: null, amount });
+      }
       setActive(tripId);
-      await qc.invalidateQueries({ queryKey: keys.trips });
+      return tripId;
     },
   });
 }
@@ -143,8 +179,9 @@ export function useMembers(tripId: string | undefined) {
   const { t, i18n } = useTranslation();
   const changes = useOutbox((s) => s.items);
   const select = useCallback(
-    (list: Member[]) => applyMemberChanges(list, changes).map((m) => ({ ...m, display_name: displayMemberName(m.display_name, t) })),
-    [t, i18n.language, changes],
+    (list: Member[]) =>
+      applyMemberChanges(applyNewTripMembers(list, changes, tripId ?? ''), changes).map((m) => ({ ...m, display_name: displayMemberName(m.display_name, t) })),
+    [t, i18n.language, changes, tripId],
   );
   return useQuery({
     queryKey: keys.members(tripId ?? ''),

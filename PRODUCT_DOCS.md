@@ -139,6 +139,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 
 | Date | Decision |
 |---|---|
+| 2026-11-24 | A trip can be created with no connection: it opens at once (owner, built-in categories, budgets) and everything added to it is queued after it; sent when the connection returns with the same ids (`create_trip` 0030, a resend returns the same trip). Joining with a code still needs a connection. |
 | 2026-11-24 | Signed-out requests get no access to trip data (0029): `anon` grants removed from trips, members, invites, expenses, splits, categories, budgets, profiles, push tokens, currencies, rates (all their policies were for signed-in users only). A request without a user token is now refused instead of answered with an empty list. `client_errors` keeps insert-only access for sign-in screens. |
 | 2026-11-24 | Signed in but the login token could not be refreshed (app back from the background on a weak signal): data requests are no longer sent without the user's token (the server answered with an empty trip list and the app showed the welcome screen as if the trip were gone). They are held back as if offline (saved data and the offline bar stay; changes queue), and everything reloads once the token is refreshed. |
 | 2026-11-24 | Speed dial: Voice above Type, bigger pills; backdrop flicker fixed (one timing value, backdrop stays mounted and fades its own colour and blur). |

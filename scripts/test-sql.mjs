@@ -732,4 +732,13 @@ const [kept] = await as(A, `select * from save_expense($1::jsonb, $2)`, [JSON.st
 assert.equal(kept.location_name, 'Silom, Bangkok');
 ok('location: saved with an expense, kept on edits, both-or-neither, ranges checked');
 
+// No trip data for signed-out requests (0029): refused, never an empty list
+for (const t of ['trips', 'trip_members', 'trip_invites', 'expenses', 'expense_splits', 'expense_categories', 'budgets', 'profiles', 'currencies']) {
+  await rejects(asAnon(`select * from ${t} limit 1`), /permission denied/);
+}
+await rejects(asAnon(`insert into budgets (trip_id) values ('${trip}')`), /permission denied/);
+await asAnon(`insert into client_errors (code, message, context) values ('unknown', 'still logs', 'test')`);
+assert.ok((await as(A, `select * from trips`)).length > 0);
+ok('anon: no trip data (refused, not an empty list); error log still writable; signed-in reads work');
+
 console.log(`\n${passed} SQL checks passed`);

@@ -139,6 +139,7 @@ _Specs for new work go here, one sub-section each: problem, goals / non-goals, U
 
 | Date | Decision |
 |---|---|
+| 2026-11-24 | Signed-out requests get no access to trip data (0029): `anon` grants removed from trips, members, invites, expenses, splits, categories, budgets, profiles, push tokens, currencies, rates (all their policies were for signed-in users only). A request without a user token is now refused instead of answered with an empty list. `client_errors` keeps insert-only access for sign-in screens. |
 | 2026-11-24 | Signed in but the login token could not be refreshed (app back from the background on a weak signal): data requests are no longer sent without the user's token (the server answered with an empty trip list and the app showed the welcome screen as if the trip were gone). They are held back as if offline (saved data and the offline bar stay; changes queue), and everything reloads once the token is refreshed. |
 | 2026-11-24 | Speed dial: Voice above Type, bigger pills; backdrop flicker fixed (one timing value, backdrop stays mounted and fades its own colour and blur). |
 | 2026-11-24 | + becomes a speed dial (Type / Voice); voice bar WhatsApp-style (hold, slide to lock, tap = hands-free); dust delete with no "not found" screen; pull-to-refresh header with spinner then ✓ on every screen (skeleton dropped); place shown inside its field; budget alert × per trip; balance banner removed from Expenses. |

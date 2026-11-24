@@ -8,32 +8,45 @@ import { Text, type IconName } from './primitives';
 
 const FAB = 62;
 const FAB_TOP = -76;
-const PILL_H = 48;
-const PILL_GAP = 12;
+const PILL_H = 58;
+const PILL_GAP = 14;
+const DIM = 'rgba(8, 12, 20, 0.48)';
+const CLEAR = 'rgba(8, 12, 20, 0)';
 
 /**
  * The floating + (always one tap away). Tapping it dims the screen and raises
- * two pills above it, Type and Voice; tapping one opens that flow, tapping the
- * dimmed screen or × closes the menu. Sits above the tab bar.
+ * two pills above it, Voice on top and Type next to +; tapping one opens that
+ * flow, tapping the dimmed screen or × closes the menu. Sits above the tab bar.
+ *
+ * One timing value drives everything (no spring, so no overshoot), and the
+ * backdrop stays mounted and only fades its own colour and blur, so opening
+ * never flashes a fully dimmed frame.
  */
 export function SpeedDial({ open, hidden, onToggle, onType, onVoice }: { open: boolean; hidden?: boolean; onToggle: (open: boolean) => void; onType: () => void; onVoice: () => void }) {
   const c = useColors();
   const { t } = useT();
   const still = useReducedMotion();
   const { height } = useWindowDimensions();
-  const anim = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(false);
+  const anim = useRef(new Animated.Value(open ? 1 : 0)).current;
+  // Shown from the moment it opens until the closing fade has finished
+  const [shown, setShown] = useState(open);
 
   useEffect(() => {
-    if (open) setMounted(true);
-    const done = ({ finished }: { finished: boolean }) => finished && !open && setMounted(false);
+    if (open) setShown(true);
+    anim.stopAnimation();
     if (still) {
       anim.setValue(open ? 1 : 0);
-      if (!open) setMounted(false);
+      if (!open) setShown(false);
       return;
     }
-    if (open) Animated.spring(anim, { toValue: 1, friction: 8, tension: 120, useNativeDriver: false }).start(done);
-    else Animated.timing(anim, { toValue: 0, duration: 160, easing: Easing.in(Easing.quad), useNativeDriver: false }).start(done);
+    Animated.timing(anim, {
+      toValue: open ? 1 : 0,
+      duration: open ? 220 : 170,
+      easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.quad),
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished && !open) setShown(false);
+    });
   }, [open, still]);
 
   // Esc closes it (web)
@@ -47,23 +60,30 @@ export function SpeedDial({ open, hidden, onToggle, onType, onVoice }: { open: b
   if (hidden) return null;
 
   const items: { key: string; icon: IconName; label: string; onPress: () => void }[] = [
-    { key: 'type', icon: 'create-outline', label: t('fab.type'), onPress: onType },
+    // Top to bottom: Voice, then Type (nearest to +)
     { key: 'voice', icon: 'mic-outline', label: t('fab.voice'), onPress: onVoice },
+    { key: 'type', icon: 'create-outline', label: t('fab.type'), onPress: onType },
   ];
 
   return (
     <>
-      {mounted ? (
+      {/* Dims (and on the web blurs) everything behind, the tab bar included. Always mounted: only its colour and blur fade */}
+      <Animated.View
+        pointerEvents={open ? 'auto' : 'none'}
+        style={[
+          { position: 'absolute', start: 0, end: 0, bottom: 0, height, display: shown ? 'flex' : 'none', backgroundColor: anim.interpolate({ inputRange: [0, 1], outputRange: [CLEAR, DIM] }) },
+          Platform.OS === 'web'
+            ? ({
+                backdropFilter: anim.interpolate({ inputRange: [0, 1], outputRange: ['blur(0px)', 'blur(3px)'] }),
+                WebkitBackdropFilter: anim.interpolate({ inputRange: [0, 1], outputRange: ['blur(0px)', 'blur(3px)'] }),
+              } as object)
+            : null,
+        ]}
+      >
+        <Pressable accessibilityRole="button" accessibilityLabel={t('common.close')} onPress={() => onToggle(false)} style={[{ flex: 1 }, Platform.OS === 'web' ? ({ cursor: 'default' } as object) : null]} />
+      </Animated.View>
+      {shown ? (
         <>
-          {/* Dims (and on the web blurs) everything behind, the tab bar included */}
-          <Animated.View style={{ position: 'absolute', start: 0, end: 0, bottom: 0, height, opacity: anim }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
-              onPress={() => onToggle(false)}
-              style={[{ flex: 1, backgroundColor: 'rgba(8, 12, 20, 0.48)' }, Platform.OS === 'web' ? ({ backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', cursor: 'default' } as object) : null]}
-            />
-          </Animated.View>
           {/* Stacked pills above +, the nearest one first in, last out */}
           {items.map((it, i) => {
             const fromFab = items.length - 1 - i;
@@ -87,9 +107,10 @@ export function SpeedDial({ open, hidden, onToggle, onType, onVoice }: { open: b
                   style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: space.sm,
+                    gap: 10,
                     height: PILL_H,
-                    paddingHorizontal: 18,
+                    minWidth: 148,
+                    paddingHorizontal: 24,
                     borderRadius: PILL_H / 2,
                     backgroundColor: pressed ? c.cardAlt : c.card,
                     shadowColor: '#000',
@@ -99,8 +120,8 @@ export function SpeedDial({ open, hidden, onToggle, onType, onVoice }: { open: b
                     elevation: 6,
                   })}
                 >
-                  <Ionicons name={it.icon} size={20} color={c.primary} />
-                  <Text style={{ fontWeight: '700' }}>{it.label}</Text>
+                  <Ionicons name={it.icon} size={26} color={c.primary} />
+                  <Text style={{ fontWeight: '700', fontSize: 18 }}>{it.label}</Text>
                 </Pressable>
               </Animated.View>
             );

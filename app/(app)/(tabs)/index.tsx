@@ -1,4 +1,5 @@
 import { onlineManager } from '@tanstack/react-query';
+import { primeKeyboard } from '@/lib/keyboardPrimer';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -660,7 +661,10 @@ export default function Home() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('home.addFirst')}
-          onPress={() => router.push('/expense/new')}
+          onPress={() => {
+            primeKeyboard();
+            router.push('/expense/new');
+          }}
           style={({ pressed }) => ({
             alignItems: 'center',
             gap: space.md,

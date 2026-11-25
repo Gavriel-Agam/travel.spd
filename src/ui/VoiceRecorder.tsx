@@ -7,6 +7,7 @@ import { useT } from '@/i18n';
 import { blobToBase64, canRecord, startRecording, type Recorder } from '@/lib/recorder';
 import { VOICE_MAX_SECONDS, VOICE_MIN_MS, VOICE_TEXT_MAX } from '@/lib/voice';
 import { radius, space, useColors } from '@/theme';
+import { isRTL } from './Dropdown';
 import { Row, Text, tap, useTextFieldDirection } from './primitives';
 
 const web = Platform.OS === 'web';
@@ -18,6 +19,10 @@ const clock = (ms: number) => {
 const BARS = 40;
 /** Slide up this far while holding to lock. */
 const LOCK_DY = 70;
+/** Slide toward the bin this far while holding to cancel (like WhatsApp). */
+const CANCEL_DX = 90;
+/** One size for the mic, lock, send and bin icons. */
+const ICON = 28;
 /** A press shorter than this is a tap: it starts a locked (hands-free) recording. */
 const TAP_MS = 250;
 
@@ -47,6 +52,7 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
   const modeRef = useRef<Mode>(mode);
   modeRef.current = mode;
   const lift = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(0)).current;
   const appear = useRef(new Animated.Value(still ? 1 : 0)).current;
   const input = useRef<TextInputInstance | null>(null);
   const dir = useTextFieldDirection(text);
@@ -140,8 +146,8 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
   }
 
   // The gesture below is made once; it always calls the latest of these
-  const act = useRef({ begin, send, lock });
-  act.current = { begin, send, lock };
+  const act = useRef({ begin, send, lock, discard });
+  act.current = { begin, send, lock, discard };
 
   // Hold the mic to talk; slide up to lock; a quick tap records hands-free
   const pan = useRef(
@@ -158,10 +164,19 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
       onPanResponderMove: (_e, g) => {
         if (!holding.current) return;
         const up = Math.max(0, -g.dy);
+        // Toward the bin: left in Hebrew, right in English
+        const side = Math.max(0, isRTL() ? -g.dx : g.dx);
         lift.setValue(Math.min(1, up / LOCK_DY));
+        slide.setValue(Math.min(1, side / CANCEL_DX));
+        if (side >= CANCEL_DX) {
+          holding.current = false;
+          act.current.discard();
+          return;
+        }
         if (up >= LOCK_DY) {
           holding.current = false;
           lift.setValue(0);
+          slide.setValue(0);
           act.current.lock();
         }
       },
@@ -169,6 +184,7 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
         const wasHolding = holding.current;
         holding.current = false;
         lift.setValue(0);
+        slide.setValue(0);
         if (!wasHolding) return;
         // A tap: keep recording hands-free
         if (Date.now() - pressAt.current < TAP_MS) {
@@ -180,12 +196,14 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
       onPanResponderTerminate: () => {
         holding.current = false;
         lift.setValue(0);
+        slide.setValue(0);
         if (modeRef.current === 'holding') setMode('locked');
       },
     }),
   ).current;
 
-  const hint = mode === 'holding' ? t('voice.releaseHint') : mode === 'locked' ? t('voice.lockedHint') : mode === 'starting' ? t('voice.starting') : t('voice.holdHint');
+  // Like WhatsApp: one short line, only while it helps
+  const hint = mode === 'holding' || mode === 'starting' ? t('voice.slideCancel') : t('voice.holdHint');
 
   return (
     <Animated.View
@@ -287,16 +305,16 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
                     alignItems: 'center',
                     gap: 2,
                     paddingVertical: 8,
-                    width: 40,
-                    borderRadius: 20,
+                    width: 46,
+                    borderRadius: 23,
                     backgroundColor: c.cardAlt,
                     borderWidth: 1,
                     borderColor: c.border,
                     transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }],
                   }}
                 >
-                  <Ionicons name="lock-open-outline" size={18} color={c.textMuted} />
-                  <Ionicons name="chevron-up" size={16} color={c.textMuted} />
+                  <Ionicons name="lock-open-outline" size={ICON - 6} color={c.textMuted} />
+                  <Ionicons name="chevron-up" size={ICON - 8} color={c.textMuted} />
                 </Animated.View>
               ) : null}
               <View
@@ -317,7 +335,7 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
                   ...(web ? ({ touchAction: 'none', userSelect: 'none', cursor: mode === 'ready' ? 'pointer' : 'default' } as object) : null),
                 }}
               >
-                <Ionicons name={mode === 'locked' ? 'lock-closed' : 'mic'} size={26} color="#fff" />
+                <Ionicons name={mode === 'locked' ? 'lock-closed' : 'mic'} size={ICON} color="#fff" />
               </View>
             </View>
 
@@ -329,12 +347,23 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
                   onPress={() => void send()}
                   style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed ? 0.94 : 1 }] })}
                 >
-                  <Ionicons name="checkmark" size={30} color="#fff" />
+                  <Ionicons name="checkmark" size={ICON} color="#fff" />
                 </Pressable>
               ) : (
-                <Text variant="caption" color={message ? c.warning : c.textMuted} center numberOfLines={2} style={{ fontWeight: message ? '600' : '400' }}>
-                  {message ?? hint}
-                </Text>
+                <Animated.View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    opacity: mode === 'holding' ? slide.interpolate({ inputRange: [0, 1], outputRange: [1, 0.2] }) : 1,
+                    transform: [{ translateX: mode === 'holding' ? slide.interpolate({ inputRange: [0, 1], outputRange: [0, isRTL() ? -40 : 40] }) : 0 }],
+                  }}
+                >
+                  {mode === 'holding' && !message ? <Ionicons name={isRTL() ? 'chevron-back' : 'chevron-forward'} size={16} color={c.textMuted} /> : null}
+                  <Text variant="caption" color={message ? c.warning : c.textMuted} center numberOfLines={2} style={{ fontWeight: message ? '600' : '400' }}>
+                    {message ?? hint}
+                  </Text>
+                </Animated.View>
               )}
             </View>
 
@@ -342,26 +371,6 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
               <RoundIcon icon="trash-outline" label={t('voice.discardRecording')} color={c.danger} onPress={discard} />
             </View>
           </View>
-          {mode === 'ready' ? (
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => {
-                  setMessage(null);
-                  setMode('typing');
-                  setTimeout(() => input.current?.focus(), 50);
-                }}
-              >
-                <Text variant="caption" color={c.primary} style={{ fontWeight: '700' }}>
-                  {t('voice.typeInstead')}
-                </Text>
-              </Pressable>
-              <Text variant="caption" faint>
-                {t('voice.privacy')}
-              </Text>
-            </Row>
-          ) : null}
         </>
       )}
     </Animated.View>
@@ -376,9 +385,9 @@ function RoundIcon({ icon, label, color, onPress }: { icon: 'trash-outline'; lab
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => ({ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? c.cardAlt : 'transparent' })}
+      style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? c.cardAlt : 'transparent' })}
     >
-      <Ionicons name={icon} size={24} color={color} />
+      <Ionicons name={icon} size={ICON} color={color} />
     </Pressable>
   );
 }

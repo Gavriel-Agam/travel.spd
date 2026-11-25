@@ -288,7 +288,7 @@ export default function Stats() {
                           <Pressable
                             key={e.id}
                             accessibilityRole="button"
-                            onPress={() => actions.open(e)}
+                            onPress={() => actions.open(e, true)}
                             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8, backgroundColor: pressed ? c.cardAlt : 'transparent' })}
                           >
                             <View style={{ flex: 1 }}>

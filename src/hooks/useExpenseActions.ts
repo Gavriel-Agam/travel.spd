@@ -25,7 +25,8 @@ export function useExpenseActions(tripId: string) {
   const del = useDeleteExpense(tripId);
   const userId = useUserId();
 
-  const open = (e: Expense) => router.push({ pathname: '/expense/[id]', params: { id: e.id } });
+  /** `fromView`: opened from Statistics or a filtered list, so its screen offers "Show in source". */
+  const open = (e: Expense, fromView = false) => router.push({ pathname: '/expense/[id]', params: fromView ? { id: e.id, src: '1' } : { id: e.id } });
 
   const edit = (e: Expense) => {
     if (blockedInDemo(qc)) return;

@@ -176,7 +176,7 @@ export default function SettleUp() {
               category={e.category_id ? categoryById.get(e.category_id) : undefined}
               payer={memberById.get(e.paid_by_member_id ?? '')}
               recipient={memberById.get(e.expense_splits[0]?.member_id)}
-              onPress={() => router.push({ pathname: '/expense/[id]', params: { id: e.id } })}
+              onPress={() => router.push({ pathname: '/expense/[id]', params: { id: e.id, src: '1' } })}
             />
           ))}
         </Card>

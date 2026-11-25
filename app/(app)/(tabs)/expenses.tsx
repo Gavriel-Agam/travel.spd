@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, RefreshControl, ScrollView, useWindowDimensions, View, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { blockedInDemo } from '@/lib/demoPrompt';
@@ -48,7 +48,7 @@ export default function Expenses() {
 
   const [query, setQuery] = useState('');
   // Home's menu › Filter opens this screen with the filters showing
-  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
+  const { filter: filterParam, focus: focusParam } = useLocalSearchParams<{ filter?: string; focus?: string }>();
   const [showFilters, setShowFilters] = useState(false);
   useEffect(() => {
     if (filterParam !== '1') return;
@@ -64,6 +64,48 @@ export default function Expenses() {
   const [to, setTo] = useState<Date | null>(null);
   // Quick filter: only expenses with a receipt, or with a flight / hotel booking
   const [attach, setAttach] = useState<'receipt' | 'booking' | null>(null);
+
+  // "Show in source" (from Statistics or a filtered list): the whole list, then
+  // scroll to that expense among its day and ring it for a moment
+  const [glowId, setGlowId] = useState<string | null>(null);
+  const rows = useRef(new Map<string, ViewInstance | null>());
+  const { height: winH } = useWindowDimensions();
+  useEffect(() => {
+    if (!focusParam) return;
+    setQuery('');
+    setCategoryId(null);
+    setPayerId(null);
+    setFrom(null);
+    setTo(null);
+    setAttach(null);
+    setShowFilters(false);
+    setGlowId(focusParam);
+    router.setParams({ focus: undefined });
+  }, [focusParam]);
+  useEffect(() => {
+    if (!glowId) return;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const go = () => {
+      const row = rows.current.get(glowId);
+      // The list may still be drawing (just switched tabs): try again shortly
+      if (!row) {
+        if (tries++ < 20) timer = setTimeout(go, 100);
+        return;
+      }
+      row.measureInWindow((_x, y, _w, h) => {
+        // Centred, so the rest of its day shows above and below it
+        const target = Math.max(0, drag.scroll.current.y + y - (winH - h) / 2);
+        drag.scrollRef.current?.scrollTo({ y: target, animated: true });
+      });
+    };
+    timer = setTimeout(go, 120);
+    const done = setTimeout(() => setGlowId(null), 3600);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(done);
+    };
+  }, [glowId]);
 
   const tz = trip?.timezone ?? 'UTC';
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
@@ -249,6 +291,7 @@ export default function Expenses() {
                 key: item.id,
                 radius: radius.lg,
                 node: (
+                  <View ref={(v) => void rows.current.set(item.id, v)} collapsable={false}>
                   <SwipeableExpenseRow
                     expense={item}
                     first={index === 0}
@@ -258,11 +301,13 @@ export default function Expenses() {
                     memberById={memberById}
                     meId={data.me?.id}
                     recipient={memberById.get(item.expense_splits[0]?.member_id)}
-                    onOpen={() => actions.open(item)}
+                    onOpen={() => actions.open(item, activeFilters > 0 || !!query.trim())}
                     onEdit={() => actions.edit(item)}
                     onDelete={() => actions.remove(item)}
                     holdToDrag
+                    glow={glowId === item.id}
                   />
+                  </View>
                 ),
               })),
             ])}

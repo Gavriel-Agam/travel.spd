@@ -4,6 +4,7 @@ import type { Category, Expense, Member } from '@/types/db';
 import { ExpenseRow } from './ExpenseRow';
 import { SwipeRow } from './SwipeRow';
 import { Dissolve } from './Dissolve';
+import { Glow } from './Glow';
 
 /**
  * One expense row (Expenses list, Home › Recent). Swipe towards the start to reveal
@@ -23,6 +24,7 @@ export function SwipeableExpenseRow({
   onDelete,
   inset = true,
   holdToDrag = false,
+  glow = false,
 }: {
   expense: Expense;
   first: boolean;
@@ -40,6 +42,8 @@ export function SwipeableExpenseRow({
   inset?: boolean;
   /** The row sits in a list that can be rearranged by holding a row. */
   holdToDrag?: boolean;
+  /** A ring around the row for a moment ("Show in source" landed here). */
+  glow?: boolean;
 }) {
   const c = useColors();
   const { t } = useT();
@@ -67,6 +71,7 @@ export function SwipeableExpenseRow({
         <ExpenseRow expense={expense} category={category} payer={payer} recipient={recipient} memberById={memberById} meId={meId} onPress={guardTap(onOpen)} onLongPress={holdToDrag ? () => {} : undefined} />
       )}
     </SwipeRow>
+    {glow ? <Glow color={c.primary} bottom={last ? space.md : 0} /> : null}
     </Dissolve>
   );
 }

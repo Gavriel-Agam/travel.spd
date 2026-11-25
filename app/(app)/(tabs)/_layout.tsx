@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { primeKeyboard } from '@/lib/keyboardPrimer';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -101,6 +102,7 @@ function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProp
         }}
         onType={() => {
           setDial(false);
+          primeKeyboard();
           router.push('/expense/new');
         }}
         onVoice={() => {

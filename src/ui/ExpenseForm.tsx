@@ -8,6 +8,7 @@ import { goBack } from '@/lib/nav';
 import { useConfetti } from './Confetti';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { releaseKeyboard } from '@/lib/keyboardPrimer';
 import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View, type ScrollViewInstance, type TextInputInstance, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadReceipt, useRates, useReceiptUrl, useSaveExpense, useTripChanges, type SaveExpenseInput } from '@/api/queries';
@@ -178,6 +179,23 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
   );
   const amountRef = useRef<TextInputInstance>(null);
   const amountTyping = useAmountTyping(getCurrency(currency).minor_units, setAmountText, amountRef);
+  // A new expense starts at the amount, keyboard open: focus now and again once
+  // the sheet has slid in (focus during the slide can be dropped)
+  useEffect(() => {
+    if (existing) return;
+    const go = () => amountRef.current?.focus();
+    go();
+    const raf = requestAnimationFrame(go);
+    const later = setTimeout(() => {
+      go();
+      releaseKeyboard();
+    }, 350);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(later);
+      releaseKeyboard();
+    };
+  }, []);
 
   // ---------------------------------------------------------------- rates
   const tz = trip?.timezone ?? 'UTC';
@@ -579,7 +597,7 @@ export function ExpenseForm({ existing }: { existing?: Expense }) {
                 placeholderTextColor={c.textFaint}
                 keyboardType={cur.minor_units > 0 ? 'decimal-pad' : 'number-pad'}
                 autoFocus={!existing}
-                {...(Platform.OS === 'web' ? ({ dir: 'ltr' } as object) : null)}
+                {...(Platform.OS === 'web' ? ({ dir: 'ltr', inputMode: 'decimal' } as object) : null)}
                 onFocus={() => setAmountFocused(true)}
                 onBlur={() => setAmountFocused(false)}
                 style={[

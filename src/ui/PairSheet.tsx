@@ -42,7 +42,7 @@ export function PairSheet({ otherId, onClose }: { otherId: string | null; onClos
         accessibilityRole="button"
         onPress={() => {
           onClose();
-          router.push({ pathname: '/expense/[id]', params: { id: e.id } });
+          router.push({ pathname: '/expense/[id]', params: { id: e.id, src: '1' } });
         }}
         style={({ pressed }) => ({ paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}
       >

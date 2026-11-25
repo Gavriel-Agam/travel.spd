@@ -1,0 +1,857 @@
+import { useRefreshAll } from '@/hooks/useRefreshAll';
+import { PasskeysCard } from '@/ui/Passkeys';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Clipboard from 'expo-clipboard';
+import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
+import { onlineManager, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Linking, Platform, Pressable, Share, View, type ScrollViewInstance } from 'react-native';
+import { inviteLink, sitePage, whatsappUrl } from '@/lib/inviteLink';
+import { versionLabel } from '@/lib/version';
+import { DropdownButton } from '@/ui/Dropdown';
+import { checklistItem, Topbar, useThemeMenuItem } from '@/ui/Topbar';
+import * as ImagePicker from 'expo-image-picker';
+import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useTripChanges, useTrips } from '@/api/queries';
+import { errorCode } from '@/lib/supabase';
+import { TRIP_THEMES, type TripTheme } from '@/palette';
+import { useTripLook } from '@/store/tripLook';
+import { useTripData } from '@/hooks/useTripData';
+import { applyDirection, initI18n, useT, type Lang } from '@/i18n';
+import { currencyName, getCurrency, HOME_CURRENCY } from '@/lib/currencies';
+import { canvasToJpegUrl } from '@/lib/image';
+import { groupThousands } from '@/lib/amountInput';
+import { minorToInput, parseAmount } from '@/lib/money';
+import { useAuth, useUserId } from '@/providers/AuthProvider';
+import { useExitDemo } from '@/hooks/useExitDemo';
+import { useSignOut } from '@/hooks/useSignOut';
+import { blockedInDemo } from '@/lib/demoPrompt';
+import { seedDemo } from '@/lib/demoSeed';
+import i18n from '@/i18n';
+import { useIsDemo, usePrefs } from '@/store/prefs';
+import { useScrollTopOnTabTap } from '@/store/tabTap';
+import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
+import { confirmDialog, showDialog } from '@/ui/Dialog';
+import { CurrencyPicker } from '@/ui/CurrencyPicker';
+import { DateField } from '@/ui/DateField';
+import { ImageCropper } from '@/ui/ImageCropper';
+import { Sheet } from '@/ui/Sheet';
+import { SettingsGroup } from '@/ui/SettingsGroup';
+import { Avatar, Button, Card, Chip, Divider, Field, hitArea, ListRow, Row, Screen, Text, Toggle, type IconName } from '@/ui/primitives';
+import { CountryPicker } from '@/ui/CountryPicker';
+import { countryFlag, countryName } from '@/lib/countries';
+import { feeFromInput, feeToInput, memberFeePct, vatRule } from '@/lib/taxFree';
+import { UploadZone } from '@/ui/UploadZone';
+import { SwipeRow } from '@/ui/SwipeRow';
+import type { Trip } from '@/types/db';
+
+const LANGS: { value: Lang; label: string }[] = [
+  { value: 'he', label: 'עברית' },
+  { value: 'en', label: 'English' },
+];
+
+function isoDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export type SettingsSection = 'trips' | 'trip' | 'members' | 'import' | 'prefs' | 'legal';
+export const SETTINGS_SECTIONS: SettingsSection[] = ['trips', 'trip', 'members', 'import', 'prefs', 'legal'];
+
+/**
+ * Settings. The tab shows your profile (photo and name, like WhatsApp) and a
+ * short list of categories; each category opens its own page (settings/[section]).
+ */
+export function SettingsScreen({ section }: { section?: SettingsSection }) {
+  const { t, lang } = useT();
+  const refreshAll = useRefreshAll();
+  const saveLocation = usePrefs((s) => s.saveLocation);
+  const setSaveLocation = usePrefs((s) => s.setSaveLocation);
+  const c = useColors();
+  const { trip, members, me, budgets } = useTripData();
+  const trips = useTrips();
+  const invite = useInviteCode(trip && !trip.shared ? trip.id : undefined);
+  // Trip settings, colour, budget and your name: shown at once, sent when there is a connection (also offline)
+  const changes = useTripChanges(trip?.id ?? '');
+  const totalBudget = budgets.find((b) => b.scope === 'total')?.amount_ils_minor ?? null;
+  const removeMember = useRemoveMember(trip?.id ?? '');
+  const userId = useUserId();
+  const deleteTrip = useDeleteTrip();
+  const setLang = usePrefs((s) => s.setLang);
+  const setActiveTrip = usePrefs((s) => s.setActiveTrip);
+  const queryClient = useQueryClient();
+  const isAnonymous = useAuth().session?.user.is_anonymous ?? false;
+  const demo = useIsDemo();
+  const exitDemo = useExitDemo();
+  const signOut = useSignOut();
+  const isCreator = !!trip && !trip.shared && !demo && trip.created_by === userId;
+  const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  useScrollTopOnTabTap(section ? 'settings-sub' : 'settings', scrollRef);
+  const [text, setText] = useState('');
+  const [copied, setCopied] = useState<null | 'code' | 'message'>(null);
+  const themeItem = useThemeMenuItem();
+  const [hasDates, setHasDates] = useState(false);
+  const [start, setStart] = useState(new Date());
+  const [end, setEnd] = useState(new Date());
+  const [currency, setCurrency] = useState('THB');
+  const [themeColor, setThemeColor] = useState<TripTheme>('blue');
+  // Total trip budget in shekels, as typed; empty = no budget
+  const [budgetText, setBudgetText] = useState('');
+  // Card foreign-transaction fee (%) as typed, and the trip's destinations (VAT refund rules)
+  const [feeText, setFeeText] = useState('');
+  const [countries, setCountries] = useState<string[]>([]);
+  const [pickCountries, setPickCountries] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  // A picked profile photo waiting to be cropped (browser)
+  const [cropUri, setCropUri] = useState<string | null>(null);
+  const coverUrl = useTripLook((s) => s.coverUrl);
+  const [pickCurrency, setPickCurrency] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  /** Opens Trip settings with the trip's current values. */
+  function openTripEdit() {
+    if (!trip) return;
+    setText(trip.name);
+    setHasDates(!!trip.start_date);
+    setStart(trip.start_date ? new Date(trip.start_date + 'T12:00:00') : new Date());
+    setEnd(trip.end_date ? new Date(trip.end_date + 'T12:00:00') : new Date(Date.now() + 14 * 86_400_000));
+    setCurrency(trip.default_currency);
+    setThemeColor((trip.theme_color as TripTheme | null) ?? 'blue');
+    setBudgetText(totalBudget ? groupThousands(minorToInput(totalBudget, HOME_CURRENCY)) : '');
+    setFeeText(feeToInput(memberFeePct(me, trip)));
+    setCountries(trip.countries ?? []);
+    setFormError(null);
+    setEdit('trip');
+  }
+  // Opened from Home's "No budget set" link: straight to Trip settings
+  const { edit: editParam } = useLocalSearchParams<{ edit?: string }>();
+  useEffect(() => {
+    if (editParam !== 'trip' || !trip) return;
+    openTripEdit();
+    router.setParams({ edit: undefined });
+  }, [editParam, trip?.id]);
+
+  /**
+   * Swipe › Delete on a trip. Its creator is asked to confirm, then the trip
+   * and everything in it is deleted for everyone. Anyone else is told that
+   * only the creator can delete it.
+   */
+  async function askDeleteTrip(tr: Trip) {
+    if (blockedInDemo(queryClient)) return;
+    if (tr.created_by !== userId) {
+      showDialog(t('settings.deleteTripOnlyCreator'), t('settings.deleteTripOnlyCreatorBody'));
+      return;
+    }
+    if (!onlineManager.isOnline()) {
+      showDialog(t('settings.deleteTrip'), t('settings.deleteTripOffline'));
+      return;
+    }
+    const yes = await confirmDialog(t('settings.deleteTripConfirm'), t('settings.deleteTripBody', { name: tr.name }), t('common.delete'), t('common.cancel'), true);
+    if (!yes) return;
+    try {
+      await deleteTrip.mutateAsync(tr.id);
+    } catch (e) {
+      showDialog(t('errors.title'), t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    }
+  }
+
+  if (!trip) return null;
+
+  function openMe() {
+    if (!me) return;
+    setText(me.display_name);
+    setEdit('me');
+  }
+
+  async function pickCover() {
+    if (!trip || blockedInDemo(queryClient)) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (res.canceled || !res.assets[0]) return;
+    await saveCover(res.assets[0].uri);
+  }
+
+  async function saveCover(uri: string) {
+    if (!trip || blockedInDemo(queryClient)) return;
+    setCoverBusy(true);
+    setFormError(null);
+    try {
+      await uploadTripCover(trip.id, uri, trip.cover_path);
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setCoverBusy(false);
+    }
+  }
+
+  async function pickMemberPhoto() {
+    if (!trip || !me || blockedInDemo(queryClient)) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: Platform.OS !== 'web', aspect: [1, 1] });
+    if (res.canceled || !res.assets[0]) return;
+    // Browser: crop and zoom first; the phone app's picker already did
+    if (Platform.OS === 'web') return setCropUri(res.assets[0].uri);
+    await saveMemberPhoto(res.assets[0].uri);
+  }
+
+  async function saveMemberPhoto(uri: string) {
+    if (!trip || !me) return;
+    setPhotoBusy(true);
+    setFormError(null);
+    try {
+      await uploadMemberPhoto(trip.id, me.id, uri, me.photo_path);
+      await queryClient.invalidateQueries({ queryKey: ['members', trip.id] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function dropMemberPhoto() {
+    if (!trip || !me?.photo_path || blockedInDemo(queryClient)) return;
+    setPhotoBusy(true);
+    try {
+      await removeMemberPhoto(me.id, me.photo_path);
+      await queryClient.invalidateQueries({ queryKey: ['members', trip.id] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function dropCover() {
+    if (!trip?.cover_path || blockedInDemo(queryClient)) return;
+    setCoverBusy(true);
+    try {
+      await removeTripCover(trip.id, trip.cover_path);
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    } catch (e) {
+      setFormError(t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    } finally {
+      setCoverBusy(false);
+    }
+  }
+
+  function changeLang(l: Lang) {
+    setLang(l);
+    initI18n(l);
+    // The sample trip's names are written in the chosen language
+    if (demo) seedDemo(queryClient, i18n.t);
+    if (applyDirection(l)) showDialog(t('settings.language'), t('settings.languageRestart'));
+  }
+
+  async function removePartner(memberId: string, name: string) {
+    if (blockedInDemo(queryClient)) return;
+    const yes = await confirmDialog(
+      t('settings.removeMemberTitle', { name }),
+      t('settings.removeMemberBody', { name }),
+      t('settings.removeMemberConfirm'),
+      t('common.cancel'),
+      true,
+    );
+    if (!yes) return;
+    try {
+      await removeMember.mutateAsync(memberId);
+    } catch (e) {
+      showDialog(t('errors.title'), t(`errors.${errorCode(e)}`, { defaultValue: t('errors.unknown') }));
+    }
+  }
+
+  const inviteMessage = (code: string) => t('settings.inviteShare', { trip: trip.name, link: inviteLink(code), code });
+
+  function whatsappInvite() {
+    if (!invite.data) return;
+    Linking.openURL(whatsappUrl(inviteMessage(invite.data))).catch(() => {});
+  }
+
+  /** Says what was copied in the invite row for a moment. */
+  function flashCopied(what: 'code' | 'message') {
+    setCopied(what);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function copyInviteCode() {
+    if (!invite.data) return;
+    await Clipboard.setStringAsync(invite.data);
+    flashCopied('code');
+  }
+
+  /** The phone's share sheet where there is one; otherwise the invite message is copied. */
+  async function shareInvite() {
+    if (!invite.data) return;
+    const message = inviteMessage(invite.data);
+    if (Platform.OS !== 'web') {
+      await Share.share({ message });
+      return;
+    }
+    const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { share?: (d: { text: string }) => Promise<void> }) : null;
+    if (nav?.share) {
+      try {
+        await nav.share({ text: message });
+        return;
+      } catch (e) {
+        // Closed without sharing: nothing to do
+        if ((e as { name?: string }).name === 'AbortError') return;
+      }
+    }
+    await Clipboard.setStringAsync(message);
+    flashCopied('message');
+  }
+
+  // One row; + (at the end: top left in Hebrew) opens Copy code, WhatsApp, Share link.
+  // In the Members card and in Trip settings › Participants (not in the shared MVP trip or the demo)
+  const inviteRow =
+    !trip.shared && !demo ? (
+    <DropdownButton
+      label={t('settings.invite')}
+      minWidth={240}
+      items={[
+        { key: 'copy', icon: 'copy-outline', label: t('settings.inviteCopyCode'), disabled: !invite.data, onPress: () => void copyInviteCode() },
+        { key: 'whatsapp', icon: 'logo-whatsapp', label: t('settings.inviteWhatsapp'), disabled: !invite.data, onPress: whatsappInvite },
+        { key: 'share', icon: 'share-outline', label: t('settings.inviteShareLink'), disabled: !invite.data, onPress: () => void shareInvite() },
+      ]}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 }}
+    >
+      {() => (
+        <>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontWeight: '600' }}>{t('settings.invite')}</Text>
+            <Text variant="caption" muted>
+              {copied
+                ? t(copied === 'code' ? 'settings.codeCopied' : 'settings.inviteCopied')
+                : invite.data
+                  ? t('settings.inviteCode', { code: invite.data })
+                  : t('common.loading')}
+            </Text>
+          </View>
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={copied ? 'checkmark' : 'add'} size={24} color={c.primary} />
+          </View>
+        </>
+      )}
+    </DropdownButton>
+    ) : null;
+
+  /** A legal page, in a new tab on the web. */
+  function openPage(file: string) {
+    const url = sitePage(file);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.open(url, '_blank', 'noopener');
+    else Linking.openURL(url).catch(() => {});
+  }
+
+  /** A category row on the main page: a coloured square icon, like the phone's own settings. */
+  const categoryRow = (key: SettingsSection, icon: IconName, color: string, title: string, subtitle?: string) => (
+    <ListRow
+      key={key}
+      icon={<Ionicons name={icon} size={20} color="#FFFFFF" />}
+      iconBg={color}
+      title={title}
+      subtitle={subtitle}
+      chevron
+      onPress={() => router.push({ pathname: '/settings/[section]', params: { section: key } })}
+    />
+  );
+
+  const tripRange =
+    trip.start_date && trip.end_date
+      ? t('stats.range', {
+          from: new Date(trip.start_date + 'T12:00:00Z').toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }),
+          to: new Date(trip.end_date + 'T12:00:00Z').toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+        })
+      : undefined;
+
+  // ------------------------------------------------------------ sections
+  const tripsCard = (
+    <Card style={{ gap: 0 }}>
+      <Text variant="caption" faint style={{ marginBottom: space.xs }}>
+        {t('settings.tripsHint')}
+      </Text>
+      {/* Swipe a trip (right in Hebrew) for Delete: the creator confirms, anyone else is told only the creator can */}
+      {(trips.data ?? []).map((tr) => (
+        <SwipeRow
+          key={tr.id}
+          background={c.card}
+          style={{ borderRadius: radius.md }}
+          actions={[
+            {
+              key: 'delete',
+              icon: 'trash-outline',
+              color: tr.created_by === userId ? c.danger : c.textFaint,
+              label: t('common.delete'),
+              onPress: () => void askDeleteTrip(tr),
+            },
+          ]}
+        >
+          {(guardTap) => (
+            <ListRow
+              icon={<Ionicons name={tr.id === trip.id ? 'radio-button-on' : 'radio-button-off'} size={20} color={c.primary} />}
+              title={tr.name}
+              subtitle={deleteTrip.isPending && deleteTrip.variables === tr.id ? t('common.loading') : undefined}
+              onPress={guardTap(() => setActiveTrip(tr.id))}
+            />
+          )}
+        </SwipeRow>
+      ))}
+      <Divider />
+      <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/create')} />
+      <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/join')} />
+    </Card>
+  );
+
+  const tripCard = (
+    <Card style={{ gap: 0 }}>
+      <ListRow icon={<Text style={{ fontSize: 20 }}>🧳</Text>} title={trip.name} subtitle={tripRange} chevron onPress={openTripEdit} />
+      <Divider />
+      <ListRow icon={<Text style={{ fontSize: 20 }}>✅</Text>} title={t('checklist.title')} chevron onPress={() => router.push('/checklist')} />
+      <Divider />
+      <ListRow icon={<Text style={{ fontSize: 20 }}>🏷️</Text>} title={t('categories.manage')} chevron onPress={() => router.push('/categories')} />
+    </Card>
+  );
+
+  const membersCard = (
+    <Card>
+      {members.map((m) => (
+        <Row key={m.id} gap={space.md}>
+          <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} size={40} />
+          <Text style={{ flex: 1, fontWeight: '600' }}>
+            {m.display_name}
+            {m.id === me?.id ? ` (${t('common.you')})` : ''}
+          </Text>
+          {m.id === me?.id ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={t('settings.editMyName')} onPress={openMe} style={hitArea(20)}>
+              <Ionicons name="create-outline" size={20} color={c.primary} />
+            </Pressable>
+          ) : isCreator && m.user_id !== trip.created_by ? (
+            // Trip creator only: remove a partner (the server checks this too)
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.removeMember', { name: m.display_name })}
+              onPress={() => removePartner(m.id, m.display_name)}
+              disabled={removeMember.isPending}
+              style={hitArea(18)}
+            >
+              <Ionicons name="trash-outline" size={18} color={c.danger} />
+            </Pressable>
+          ) : null}
+        </Row>
+      ))}
+      {inviteRow ? (
+        <>
+          <Divider />
+          {inviteRow}
+        </>
+      ) : null}
+    </Card>
+  );
+
+  const importCard = (
+    <Card style={{ gap: 0 }}>
+      <ListRow icon={<Text style={{ fontSize: 20 }}>⚡</Text>} title={t('ingestion.title')} subtitle={t('ingestion.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/ingestion')} />
+      <Divider />
+      <ListRow icon={<Text style={{ fontSize: 20 }}>📄</Text>} title={t('statement.title')} subtitle={t('statement.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/statement')} />
+    </Card>
+  );
+
+  const prefsCards = (
+    <>
+      {/* Language: a globe and a dropdown like every other menu */}
+      <Card>
+        <Row gap={space.md}>
+          <Ionicons name="globe-outline" size={22} color={c.primary} />
+          <Text style={{ flex: 1, fontWeight: '600' }}>{t('settings.language')}</Text>
+          <DropdownButton
+            label={t('settings.language')}
+            minWidth={180}
+            items={LANGS.map((l) => ({ key: l.value, label: l.label, selected: lang === l.value, onPress: () => lang !== l.value && changeLang(l.value) }))}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: c.cardAlt }}
+          >
+            {(open) => (
+              <>
+                <Text style={{ fontWeight: '600' }}>{LANGS.find((l) => l.value === lang)?.label}</Text>
+                <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.textMuted} />
+              </>
+            )}
+          </DropdownButton>
+        </Row>
+      </Card>
+
+      {/* Save where new expenses are added (the phone's position and a place name) */}
+      <Card>
+        <Row gap={space.md}>
+          <Ionicons name="location-outline" size={22} color={c.primary} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontWeight: '600' }}>{t('location.setting')}</Text>
+            <Text variant="caption" muted>
+              {t('location.settingHint')}
+            </Text>
+          </View>
+          <Toggle value={saveLocation} onValueChange={setSaveLocation} label={t('location.setting')} />
+        </Row>
+      </Card>
+
+      {/* Face ID / passkey (only where supported and turned on) */}
+      <PasskeysCard />
+    </>
+  );
+
+  // Accessibility statement, Privacy Policy, Terms of Use (public pages next to the app)
+  const legalCard = (
+    <Card style={{ gap: 0 }}>
+      <ListRow icon={<Ionicons name="accessibility-outline" size={20} color={c.primary} />} title={t('legal.accessibility')} chevron onPress={() => openPage('accessibility.html')} />
+      <Divider />
+      <ListRow icon={<Ionicons name="shield-checkmark-outline" size={20} color={c.primary} />} title={t('legal.privacy')} chevron onPress={() => openPage('privacy.html')} />
+      <Divider />
+      <ListRow icon={<Ionicons name="document-text-outline" size={20} color={c.primary} />} title={t('legal.terms')} chevron onPress={() => openPage('terms.html')} />
+    </Card>
+  );
+
+  const sectionTitle: Record<SettingsSection, string> = {
+    trips: t('settings.trips'),
+    trip: t('settings.trip'),
+    members: t('settings.members'),
+    import: t('settings.import'),
+    prefs: t('settings.prefs'),
+    legal: t('legal.title'),
+  };
+  // The shared MVP trip has no trip list (a separate trip would be invisible to the partner)
+  const view = section === 'trips' && trip.shared ? undefined : section;
+
+  return (
+    <Screen ref={scrollRef} onRefresh={refreshAll}>
+      {view ? (
+        <Topbar title={sectionTitle[view]} onBack={() => goBack('/settings')} menu={[themeItem]} />
+      ) : (
+        <Topbar
+          title={t('settings.title')}
+          menuLabel={t('menu.settingsTitle')}
+          menu={[
+            { key: 'tripSettings', icon: 'options-outline', label: t('menu.tripSettings'), onPress: openTripEdit },
+            checklistItem(t),
+            themeItem,
+            { key: 'a11y', icon: 'accessibility-outline', label: t('legal.accessibility'), onPress: () => openPage('accessibility.html') },
+            { key: 'privacy', icon: 'shield-checkmark-outline', label: t('legal.privacy'), onPress: () => openPage('privacy.html') },
+            { key: 'terms', icon: 'document-text-outline', label: t('legal.terms'), onPress: () => openPage('terms.html') },
+          ]}
+        />
+      )}
+
+      {view === 'trips' ? tripsCard : null}
+      {view === 'trip' ? tripCard : null}
+      {view === 'members' ? membersCard : null}
+      {view === 'import' ? importCard : null}
+      {view === 'prefs' ? prefsCards : null}
+      {view === 'legal' ? legalCard : null}
+
+      {!view ? (
+        <>
+          {/* Profile, like WhatsApp: your photo and name; tap to change them */}
+          <Card onPress={me ? openMe : undefined} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+            <View accessibilityLabel={t('settings.memberPhoto')}>
+              <Avatar name={me?.display_name ?? '?'} color={me?.color ?? c.primary} photoPath={me?.photo_path} size={64} />
+              {me ? (
+                <View style={{ position: 'absolute', bottom: -2, end: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.card }}>
+                  <Ionicons name="camera" size={13} color={c.primaryText} />
+                </View>
+              ) : null}
+            </View>
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text variant="h2" numberOfLines={1}>
+                {me?.display_name ?? ''}
+              </Text>
+              <Text variant="caption" muted numberOfLines={1}>
+                {t('settings.profileHint')}
+              </Text>
+            </View>
+            {me ? <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={18} color={c.textFaint} /> : null}
+          </Card>
+
+          <Card style={{ gap: 0, paddingVertical: space.sm }}>
+            {!trip.shared ? categoryRow('trips', 'airplane', '#4F7CFF', t('settings.trips'), trip.name) : null}
+            {categoryRow('trip', 'briefcase', '#F59E0B', t('settings.trip'), tripRange)}
+            {categoryRow('members', 'people', '#10B981', t('settings.members'), t('settings.membersCount', { count: members.length }))}
+          </Card>
+          <Card style={{ gap: 0, paddingVertical: space.sm }}>
+            {categoryRow('import', 'flash', '#8B5CF6', t('settings.import'), t('settings.importHint'))}
+            {categoryRow('prefs', 'options', '#64748B', t('settings.prefs'), t('settings.prefsHint'))}
+            {categoryRow('legal', 'shield-checkmark', '#0EA5E9', t('legal.title'))}
+          </Card>
+
+          {/* Anonymous (MVP) devices would come back as a new traveller, so no sign-out */}
+          {demo ? (
+            <Button title={t('demo.exit')} variant="secondary" icon="exit-outline" onPress={exitDemo} />
+          ) : !isAnonymous ? (
+            <Button title={t('settings.signOut')} variant="danger" icon="log-out-outline" onPress={signOut} />
+          ) : null}
+          <Text variant="caption" faint center>
+            {t('settings.version', { v: versionLabel() })}
+          </Text>
+        </>
+      ) : null}
+
+      <Sheet visible={!!edit} onClose={() => setEdit(null)} title={edit === 'trip' ? t('settings.tripDetails') : t('settings.myName')}>
+        <View style={{ padding: space.lg, gap: space.md }}>
+          {edit === 'trip' ? (
+            <>
+              {/* Four groups, most used first: General, Destinations & VAT, Budget & currency, Participants */}
+              <SettingsGroup icon="information-circle-outline" title={t('tripSettings.general')}>
+                <Field label={t('settings.tripName')} value={text} onChangeText={setText} maxLength={80} />
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <Text variant="label" muted>
+                    {t('settings.tripDates')}
+                  </Text>
+                  <Toggle value={hasDates} onValueChange={setHasDates} label={t('settings.tripDates')} />
+                </Row>
+                {hasDates ? (
+                  <>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Text muted>{t('onboarding.startDate')}</Text>
+                      <DateField value={start} onChange={setStart} />
+                    </Row>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Text muted>{t('onboarding.endDate')}</Text>
+                      <DateField value={end} onChange={setEnd} minimumDate={start} />
+                    </Row>
+                  </>
+                ) : null}
+                {/* Accent colour for this trip (both partners see it) */}
+                <View style={{ gap: space.sm }}>
+                  <Text variant="label" muted>
+                    {t('settings.tripColor')}
+                  </Text>
+                  <Row style={{ flexWrap: 'wrap' }} gap={space.sm}>
+                    {(Object.keys(TRIP_THEMES) as TripTheme[]).map((key) => (
+                      <Pressable
+                        key={key}
+                        accessibilityRole="radio"
+                        accessibilityLabel={t(`themes.${key}`)}
+                        accessibilityState={{ selected: themeColor === key }}
+                        onPress={() => setThemeColor(key)}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          backgroundColor: TRIP_THEMES[key].light.primary,
+                          borderWidth: 3,
+                          borderColor: themeColor === key ? c.text : 'transparent',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {themeColor === key ? <Ionicons name="checkmark" size={18} color="#FFFFFF" /> : null}
+                      </Pressable>
+                    ))}
+                  </Row>
+                </View>
+                {/* Trip photo: saved right away (not with Save), shown on Home and behind every screen */}
+                <View style={{ gap: space.sm }}>
+                  <Text variant="label" muted>
+                    {t('settings.tripPhoto')}
+                  </Text>
+                  <UploadZone
+                    title={trip.cover_path ? t('settings.changePhoto') : t('settings.addPhoto')}
+                    onPress={pickCover}
+                    onDropFile={(uri) => void saveCover(uri)}
+                    busy={coverBusy}
+                    compact
+                  />
+                  {trip.cover_path ? (
+                    <Button title={t('settings.removePhoto')} icon="trash-outline" variant="danger" disabled={coverBusy} onPress={dropCover} />
+                  ) : null}
+                  {coverUrl ? <Image source={{ uri: coverUrl }} resizeMode="cover" style={{ width: '100%', height: 100, borderRadius: radius.md }} /> : null}
+                </View>
+              </SettingsGroup>
+              <SettingsGroup icon="earth-outline" title={t('tripSettings.destinations')}>
+                {/* Destinations: the expense's location is picked from these, and they set the VAT refund rules */}
+                <View style={{ gap: space.sm }}>
+                  <Text variant="label" muted>
+                    {t('taxFree.countries')}
+                  </Text>
+                  {countries.length ? (
+                    <Row style={{ flexWrap: 'wrap' }} gap={6}>
+                      {countries.map((code) => (
+                        <Chip
+                          key={code}
+                          // A green check on destinations with a VAT refund
+                          icon={
+                            <Row gap={4}>
+                              {vatRule(code) && !vatRule(code)!.noRefund ? <Ionicons name="checkmark-circle" size={15} color={c.success} accessibilityLabel={t('countries.hasRefund')} /> : null}
+                              <Text style={{ fontSize: 15 }}>{countryFlag(code)}</Text>
+                            </Row>
+                          }
+                          label={`${countryName(code, lang)}  ✕`}
+                          selected
+                          onPress={() => setCountries((list) => list.filter((x) => x !== code))}
+                        />
+                      ))}
+                    </Row>
+                  ) : null}
+                  <Button title={t('countries.add')} icon="add" variant="secondary" onPress={() => setPickCountries(true)} />
+                  <Text variant="caption" muted>
+                    {t('taxFree.countriesHint')}
+                  </Text>
+                </View>
+                <Field
+                  label={t('taxFree.feeLabel')}
+                  value={feeText}
+                  onChangeText={(v) => setFeeText(v.replace(',', '.').replace(/[^\d.]/g, '').slice(0, 5))}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  hint={t('taxFree.feeHint')}
+                />
+              </SettingsGroup>
+              <SettingsGroup icon="wallet-outline" title={t('tripSettings.budget')}>
+                <Pressable
+                  onPress={() => setPickCurrency(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.tripCurrency')}
+                  aria-haspopup="dialog"
+                  style={{ backgroundColor: c.card, borderRadius: radius.md, paddingHorizontal: space.md, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.sm }}
+                >
+                  <Text variant="label" muted style={{ flex: 1 }}>
+                    {t('settings.tripCurrency')}
+                  </Text>
+                  <Text style={{ fontSize: 20 }}>{getCurrency(currency).flag}</Text>
+                  <Text style={{ fontWeight: '600' }}>
+                    {currencyName(getCurrency(currency), lang)} · {currency}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={c.textMuted} />
+                </Pressable>
+                {/* The whole trip's budget in shekels (Home shows progress against it); empty = none */}
+                <Field
+                  label={members.length < 2 ? t('settings.tripBudgetSolo') : t('settings.tripBudget')}
+                  value={budgetText}
+                  onChangeText={setBudgetText}
+                  amountDecimals={2}
+                  keyboardType="decimal-pad"
+                  placeholder={t('settings.tripBudgetPlaceholder')}
+                  hint={members.length < 2 ? t('settings.tripBudgetHintSolo') : t('settings.tripBudgetHint')}
+                />
+              </SettingsGroup>
+              <SettingsGroup icon="people-outline" title={t('tripSettings.participants')}>
+                <Row style={{ flexWrap: 'wrap' }} gap={space.sm}>
+                  {members.map((m) => (
+                    <Row key={m.id} gap={6} style={{ backgroundColor: c.card, borderRadius: 999, paddingVertical: 4, paddingStart: 4, paddingEnd: space.md }}>
+                      <Avatar name={m.display_name} color={m.color} photoPath={m.photo_path} size={28} />
+                      <Text variant="caption" style={{ fontWeight: '600' }}>
+                        {m.display_name}
+                        {m.id === me?.id ? ` (${t('common.you')})` : ''}
+                      </Text>
+                    </Row>
+                  ))}
+                </Row>
+                {inviteRow}
+              </SettingsGroup>
+              {formError ? <Text color={c.danger}>{formError}</Text> : null}
+            </>
+          ) : (
+            <Field value={text} onChangeText={setText} autoFocus maxLength={40} />
+          )}
+          {edit === 'me' && me ? (
+            // Your photo: shown in your circle everywhere instead of your initial
+            <Row style={{ justifyContent: 'center' }} gap={space.md}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('settings.memberPhoto')} onPress={pickMemberPhoto} disabled={photoBusy}>
+                <Avatar name={me.display_name} color={me.color} photoPath={me.photo_path} size={64} />
+                <View style={{ position: 'absolute', bottom: -2, end: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.card }}>
+                  <Ionicons name="camera" size={13} color={c.primaryText} />
+                </View>
+              </Pressable>
+              <View style={{ gap: space.xs, flexShrink: 1 }}>
+                <UploadZone
+                  title={me.photo_path ? t('settings.changePhoto') : t('settings.addPhoto')}
+                  onPress={pickMemberPhoto}
+                  onDropFile={(uri) => !blockedInDemo(queryClient) && setCropUri(uri)}
+                  busy={photoBusy}
+                  compact
+                />
+                {me.photo_path ? <Button title={t('settings.removePhoto')} icon="trash-outline" variant="ghost" disabled={photoBusy} onPress={dropMemberPhoto} /> : null}
+              </View>
+            </Row>
+          ) : null}
+          {edit === 'me' ? (
+            <Row style={{ justifyContent: 'center' }} gap={space.md}>
+              {MEMBER_COLORS.map((col) => (
+                <Pressable
+                  key={col}
+                  accessibilityRole="radio"
+                  accessibilityLabel={t('settings.myColor')}
+                  accessibilityState={{ checked: me?.color === col }}
+                  style={hitArea(34)}
+                  onPress={() => me && !blockedInDemo(queryClient) && changes.updateMyMember(me.id, { color: col })}
+                >
+                  <View
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      backgroundColor: col,
+                      borderWidth: 3,
+                      borderColor: me?.color === col ? c.text : 'transparent',
+                    }}
+                  />
+                </Pressable>
+              ))}
+            </Row>
+          ) : null}
+          <Button
+            title={t('common.save')}
+            disabled={!text.trim()}
+            onPress={() => {
+              if (blockedInDemo(queryClient)) return setEdit(null);
+              if (edit === 'trip') {
+                const s = hasDates ? isoDate(start) : null;
+                const e = hasDates ? isoDate(end) : null;
+                if (s && e && e < s) return setFormError(t('settings.datesInvalid'));
+                const budget = budgetText.trim() ? parseAmount(budgetText, HOME_CURRENCY) : null;
+                if (budgetText.trim() && (budget == null || budget <= 0)) return setFormError(t('errors.invalid_amount'));
+                if (budget !== totalBudget) changes.setBudget('total', budget);
+                // 0 is a real fee (0%), empty is unset
+                const fee = feeFromInput(feeText);
+                if (fee != null && Number.isNaN(fee)) return setFormError(t('errors.invalid_fee'));
+                changes.updateTrip({
+                  name: text.trim(),
+                  start_date: s,
+                  end_date: e,
+                  default_currency: currency,
+                  theme_color: themeColor === 'blue' ? null : themeColor,
+                  countries,
+                });
+                // The card fee is each person's own (their card), saved on their member row
+                const myFee = memberFeePct(me, trip);
+                if (me && (myFee == null ? null : Number(myFee)) !== fee) changes.updateMyMember(me.id, { card_fx_fee_pct: fee });
+              }
+              else if (me) changes.updateMyMember(me.id, { display_name: text.trim() });
+              setEdit(null);
+            }}
+          />
+        </View>
+      </Sheet>
+      <CurrencyPicker visible={pickCurrency} value={currency} onSelect={setCurrency} onClose={() => setPickCurrency(false)} />
+      <CountryPicker
+        visible={pickCountries}
+        multi
+        title={t('taxFree.countries')}
+        selected={countries}
+        onPick={(code) => setCountries((list) => (list.includes(code) ? list.filter((x) => x !== code) : list.length >= 10 ? list : [...list, code]))}
+        onClose={() => setPickCountries(false)}
+      />
+      <ImageCropper
+        uri={cropUri}
+        shape="circle"
+        outputSize={512}
+        fit="cover"
+        onCancel={() => setCropUri(null)}
+        onConfirm={async (canvas) => {
+          const url = await canvasToJpegUrl(canvas);
+          setCropUri(null);
+          try {
+            await saveMemberPhoto(url);
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        }}
+      />
+    </Screen>
+  );
+}

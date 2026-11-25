@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { useTrips } from '@/api/queries';
 import { useT } from '@/i18n';
 import { displayTripName } from '@/lib/defaultNames';
@@ -33,6 +33,7 @@ export default function Ingestion() {
   const [fresh, setFresh] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
 
   const tokens = useQuery({
     queryKey: ['ingestion-tokens', userId],
@@ -109,7 +110,7 @@ export default function Ingestion() {
         {l}
       </Text>
       <Row gap={space.sm} style={{ backgroundColor: c.cardAlt, borderRadius: radius.md, padding: space.md, borderWidth: 1, borderColor: copied === id ? c.primary : 'transparent' }}>
-        <Text variant="caption" style={{ flex: 1, fontFamily: 'monospace', writingDirection: 'ltr', textAlign: 'left' }} selectable numberOfLines={secret ? 3 : 2}>
+        <Text variant="caption" style={{ flex: 1, minWidth: 0, fontFamily: 'monospace', writingDirection: 'ltr', textAlign: 'left' }} selectable numberOfLines={secret ? 3 : 2}>
           {value}
         </Text>
         <IconButton name={copied === id ? 'checkmark' : 'copy-outline'} onPress={() => copy(id, value)} label={t('common.copy')} />
@@ -124,11 +125,22 @@ export default function Ingestion() {
           {n}
         </Text>
       </View>
-      <Text style={{ flex: 1 }}>{text}</Text>
+      <Text style={{ flex: 1, minWidth: 0 }}>{text}</Text>
     </Row>
   );
 
   const myTrips = trips.data ?? [];
+
+  // Building the Apple Pay automation by hand: the address, three steps, the body
+  const walletSteps = (
+    <>
+      <CopyBox id="url" label={t('ingestion.url')} value={ENDPOINT} />
+      <Step n={1} text={t('ingestion.wallet1')} />
+      <Step n={2} text={t('ingestion.wallet2')} />
+      <Step n={3} text={t('ingestion.wallet3')} />
+      <CopyBox id="wallet" label={t('ingestion.body')} value={'{"source":"shortcut_wallet","amount":"<Amount>","merchant":"<Merchant>","card_label":"<Card or Pass>"}'} />
+    </>
+  );
 
   return (
     <Screen>
@@ -136,9 +148,25 @@ export default function Ingestion() {
       <Text muted>{t('ingestion.intro')}</Text>
       {error ? <Banner text={error} color={c.danger} icon="alert-circle" /> : null}
 
-      {/* Keys */}
+      {/* Connect Apple Pay: one tap installs the ready-made shortcut */}
       <Card>
-        <Text variant="h2">{t('ingestion.keys')}</Text>
+        <Row gap={space.sm}>
+          <Ionicons name="logo-apple" size={22} color={c.text} />
+          <Text variant="h2" style={{ flex: 1 }}>
+            {t('ingestion.setup')}
+          </Text>
+        </Row>
+        {SHORTCUT_INSTALL_URL ? (
+          <>
+            <Button title={t('ingestion.install')} icon="download-outline" onPress={install} />
+            <Step n={1} text={t('ingestion.install1')} />
+            <Step n={2} text={t('ingestion.install2')} />
+            <Step n={3} text={t('ingestion.install3')} />
+          </>
+        ) : (
+          // No ready-made shortcut yet: the steps to build it, right here
+          walletSteps
+        )}
         {fresh ? (
           <View style={{ gap: space.sm, padding: space.md, borderRadius: radius.md, backgroundColor: c.warning + '1A' }}>
             <Row gap={6}>
@@ -149,37 +177,13 @@ export default function Ingestion() {
             <Button title={t('ingestion.savedIt')} variant="secondary" onPress={() => setFresh(null)} />
           </View>
         ) : null}
-        {(tokens.data ?? []).map((row) => (
-          <View key={row.id}>
-            <Row gap={space.md}>
-              <Ionicons name="phone-portrait-outline" size={20} color={c.textMuted} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '600' }}>{row.label}</Text>
-                <Text variant="caption" muted>
-                  {row.last_used_at
-                    ? t('ingestion.lastUsed', { when: new Date(row.last_used_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) })
-                    : t('ingestion.neverUsed')}
-                </Text>
-              </View>
-              <Button title={t('ingestion.revoke')} variant="ghost" onPress={() => revoke(row)} />
-            </Row>
-            <Divider />
-          </View>
-        ))}
-        {!tokens.data?.length && !fresh ? <Text muted>{t('ingestion.noKeys')}</Text> : null}
-        <Row gap={space.sm} align="flex-end">
-          <View style={{ flex: 1 }}>
-            <Field label={t('ingestion.deviceName')} value={label} onChangeText={setLabel} placeholder="iPhone" maxLength={40} />
-          </View>
-          <Button title={t('ingestion.create')} icon="add" onPress={create} />
-        </Row>
       </Card>
 
       {/* Where payments go */}
       <Card>
         <Text variant="h2">{t('ingestion.routing')}</Text>
         <Row gap={space.md}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
             <Text style={{ fontWeight: '600' }}>{t('ingestion.byDates')}</Text>
             <Text variant="caption" muted>
               {t('ingestion.byDatesHint')}
@@ -212,43 +216,75 @@ export default function Ingestion() {
         </Text>
       </Card>
 
-      {/* iPhone setup */}
+      {/* Keys: one per iPhone */}
       <Card>
-        <Text variant="h2">{t('ingestion.setup')}</Text>
-        {SHORTCUT_INSTALL_URL ? (
-          <>
-            <Button title={t('ingestion.install')} icon="download-outline" onPress={install} />
-            <Step n={1} text={t('ingestion.install1')} />
-            <Step n={2} text={t('ingestion.install2')} />
-            <Step n={3} text={t('ingestion.install3')} />
+        <Text variant="h2">{t('ingestion.keys')}</Text>
+        {(tokens.data ?? []).map((row) => (
+          <View key={row.id} style={{ gap: space.sm }}>
+            <Row gap={space.md}>
+              <Ionicons name="phone-portrait-outline" size={20} color={c.textMuted} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontWeight: '600' }} numberOfLines={1}>
+                  {row.label}
+                </Text>
+                <Text variant="caption" muted numberOfLines={1}>
+                  {row.last_used_at
+                    ? t('ingestion.lastUsed', { when: new Date(row.last_used_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) })
+                    : t('ingestion.neverUsed')}
+                </Text>
+              </View>
+              <IconButton name="trash-outline" color={c.danger} onPress={() => revoke(row)} label={t('ingestion.revoke')} />
+            </Row>
             <Divider />
-            <Text variant="caption" muted>
-              {t('ingestion.manualTitle')}
-            </Text>
-          </>
-        ) : null}
-        <CopyBox id="url" label={t('ingestion.url')} value={ENDPOINT} />
-        <Text style={{ fontWeight: '700' }}>💳 {t('ingestion.walletTitle')}</Text>
-        <Step n={1} text={t('ingestion.wallet1')} />
-        <Step n={2} text={t('ingestion.wallet2')} />
-        <Step n={3} text={t('ingestion.wallet3')} />
-        <CopyBox id="wallet" label={t('ingestion.body')} value={'{"source":"shortcut_wallet","amount":"<Amount>","merchant":"<Merchant>","card_label":"<Card or Pass>"}'} />
-        <Divider />
-        <Text style={{ fontWeight: '700' }}>✉️ {t('ingestion.smsTitle')}</Text>
-        <Step n={1} text={t('ingestion.sms1')} />
-        <Step n={2} text={t('ingestion.sms2')} />
-        <CopyBox id="sms" label={t('ingestion.body')} value={'{"source":"shortcut_notification","raw_text":"<Message>","title":"<Sender>"}'} />
-        <Divider />
-        <Text style={{ fontWeight: '700' }}>📤 {t('ingestion.shareTitle')}</Text>
-        <Step n={1} text={t('ingestion.share1')} />
-        <Step n={2} text={t('ingestion.share2')} />
-        <CopyBox id="share" label={t('ingestion.body')} value={'{"source":"shortcut_share","text":"<Shortcut Input>","image_base64":"<Base64 Encoded>","mime_type":"image/jpeg"}'} />
-        <Divider />
-        <Text style={{ fontWeight: '700' }}>📡 {t('ingestion.offlineTitle')}</Text>
-        <Text muted>{t('ingestion.offlineBody')}</Text>
+          </View>
+        ))}
+        {!tokens.data?.length && !fresh ? <Text muted>{t('ingestion.noKeys')}</Text> : null}
+        <Field label={t('ingestion.deviceName')} value={label} onChangeText={setLabel} placeholder="iPhone" maxLength={40} />
+        <Button title={t('ingestion.create')} icon="add" variant="secondary" onPress={create} />
         <Text variant="caption" muted>
           {t('ingestion.headerNote')}
         </Text>
+      </Card>
+
+      {/* Manual setup: folded away, for building the shortcuts by hand */}
+      <Card style={{ gap: manual ? space.md : 0 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: manual }}
+          onPress={() => setManual((v) => !v)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 }}
+        >
+          <Ionicons name="construct-outline" size={20} color={c.textMuted} />
+          <Text variant="h2" style={{ flex: 1 }}>
+            {t('ingestion.manualTitle')}
+          </Text>
+          <Ionicons name={manual ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
+        </Pressable>
+        {manual ? (
+          <>
+            {SHORTCUT_INSTALL_URL ? (
+              <>
+                <Text style={{ fontWeight: '700' }}>💳 {t('ingestion.walletTitle')}</Text>
+                {walletSteps}
+                <Divider />
+              </>
+            ) : (
+              <CopyBox id="url2" label={t('ingestion.url')} value={ENDPOINT} />
+            )}
+            <Text style={{ fontWeight: '700' }}>✉️ {t('ingestion.smsTitle')}</Text>
+            <Step n={1} text={t('ingestion.sms1')} />
+            <Step n={2} text={t('ingestion.sms2')} />
+            <CopyBox id="sms" label={t('ingestion.body')} value={'{"source":"shortcut_notification","raw_text":"<Message>","title":"<Sender>"}'} />
+            <Divider />
+            <Text style={{ fontWeight: '700' }}>📤 {t('ingestion.shareTitle')}</Text>
+            <Step n={1} text={t('ingestion.share1')} />
+            <Step n={2} text={t('ingestion.share2')} />
+            <CopyBox id="share" label={t('ingestion.body')} value={'{"source":"shortcut_share","text":"<Shortcut Input>","image_base64":"<Base64 Encoded>","mime_type":"image/jpeg"}'} />
+            <Divider />
+            <Text style={{ fontWeight: '700' }}>📡 {t('ingestion.offlineTitle')}</Text>
+            <Text muted>{t('ingestion.offlineBody')}</Text>
+          </>
+        ) : null}
       </Card>
     </Screen>
   );

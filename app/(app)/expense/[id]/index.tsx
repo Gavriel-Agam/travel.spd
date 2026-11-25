@@ -24,7 +24,7 @@ import { CategoryIcon } from '@/ui/CategoryIcon';
 import { Avatar, Banner, Button, Card, Divider, EmptyState, IconButton, Loading, Row, Screen, Text } from '@/ui/primitives';
 
 export default function ExpenseDetails() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, src } = useLocalSearchParams<{ id: string; src?: string }>();
   const { t, lang } = useT();
   const c = useColors();
   const { trip, isLoading, expenses, memberById, categoryById, members, me } = useTripData();
@@ -115,6 +115,15 @@ export default function ExpenseDetails() {
           <Text variant="h2" color={c.primary} center>
             ≈ {formatMoney(e.amount_ils_minor, HOME_CURRENCY, { lang })}
           </Text>
+        ) : null}
+        {/* Opened from Statistics or a filtered list: jump to it in Expenses, among its day */}
+        {src ? (
+          <Button
+            title={t('expenses.showInSource')}
+            icon="locate-outline"
+            variant="secondary"
+            onPress={() => router.dismissTo({ pathname: '/expenses', params: { focus: e.id } })}
+          />
         ) : null}
       </View>
 

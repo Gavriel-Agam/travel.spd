@@ -68,10 +68,14 @@ export default function ExpenseDetails() {
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
         <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/expenses')} />
-        {/* An expense with an edit still waiting to sync can be edited again (the newest edit wins) */}
-        {e.kind === 'expense' && (!e.pending || e.pending_op === 'update') ? (
-          <IconButton name="create-outline" onPress={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
-        ) : null}
+        <Row gap={space.xs}>
+          {/* An expense with an edit still waiting to sync can be edited again (the newest edit wins) */}
+          {e.kind === 'expense' && (!e.pending || e.pending_op === 'update') ? (
+            <IconButton name="create-outline" onPress={() => !blockedInDemo(qc) && router.push({ pathname: '/expense/[id]/edit', params: { id: e.id } })} label={t('common.edit')} />
+          ) : null}
+          {/* In the corner (top left in Hebrew). Opened from Statistics or a filtered list: jump to it in Expenses, among its day */}
+          {src ? <IconButton name="open-outline" onPress={() => router.dismissTo({ pathname: '/expenses', params: { focus: e.id } })} label={t('expenses.showInSource')} /> : null}
+        </Row>
       </Row>
 
       {e.pending ? (
@@ -115,15 +119,6 @@ export default function ExpenseDetails() {
           <Text variant="h2" color={c.primary} center>
             ≈ {formatMoney(e.amount_ils_minor, HOME_CURRENCY, { lang })}
           </Text>
-        ) : null}
-        {/* Opened from Statistics or a filtered list: jump to it in Expenses, among its day */}
-        {src ? (
-          <Button
-            title={t('expenses.showInSource')}
-            icon="locate-outline"
-            variant="secondary"
-            onPress={() => router.dismissTo({ pathname: '/expenses', params: { focus: e.id } })}
-          />
         ) : null}
       </View>
 

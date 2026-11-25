@@ -1,6 +1,6 @@
 import { onlineManager } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { currentPosition, placeKey, reverseGeocode, type Place } from '@/lib/location';
+import { currentPosition, FRESH_MS, placeKey, reverseGeocode, type Place } from '@/lib/location';
 import { usePrefs } from '@/store/prefs';
 
 /** A place seen in the last 30 minutes stands in when there is no fix now. */
@@ -8,12 +8,15 @@ const RECENT_MS = 30 * 60_000;
 
 /**
  * Where the phone is now, for a new expense: the position (asks for permission
- * the first time), and a short name from this device's cache or, online, from
+ * the first time only; a place from the last 10 minutes is reused), and a short name from this device's cache or, online, from
  * OpenStreetMap. Null when turned off in Settings, denied, or unknown.
  */
 export async function capturePlace(lang: string): Promise<Place | null> {
   const prefs = usePrefs.getState();
   if (!prefs.saveLocation) return null;
+  // Placed in the last 10 minutes (kept across app restarts): reuse it, no new request
+  const recent = prefs.lastPlace;
+  if (recent && Date.now() - recent.at <= FRESH_MS) return { lat: recent.lat, lng: recent.lng, name: recent.name };
   const pos = await currentPosition();
   if (!pos) {
     const last = usePrefs.getState().lastPlace;

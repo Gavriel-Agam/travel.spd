@@ -2,6 +2,7 @@
 // Opus in Ogg where the browser can write it, else AAC in MP4 (Safari), else
 // Opus in WebM (Chrome). Mono speech at a low bitrate keeps 30 s under ~100 KB.
 import { Platform } from 'react-native';
+import { forgetPerm, notePerm, permState } from './permissions';
 
 const TYPES = ['audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
 
@@ -34,15 +35,24 @@ export type Recorder = {
   cancel: () => void;
 };
 
-/** Asks for the microphone (first time) and starts recording. Throws 'mic_denied' or 'mic_unavailable'. */
-export async function startRecording(): Promise<Recorder> {
+/**
+ * Asks for the microphone (only here, when recording really starts) and records.
+ * Throws 'mic_denied' or 'mic_unavailable'. After a "no" it doesn't ask again
+ * (no repeated prompts on iPhone) unless `retry` (the person tapped to try again).
+ */
+export async function startRecording(retry = false): Promise<Recorder> {
+  if (retry) forgetPerm('microphone');
+  else if ((await permState('microphone')) === 'denied') throw new Error('mic_denied');
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
   } catch (e) {
     const name = (e as { name?: string })?.name;
-    throw new Error(name === 'NotAllowedError' || name === 'SecurityError' ? 'mic_denied' : 'mic_unavailable');
+    const denied = name === 'NotAllowedError' || name === 'SecurityError';
+    if (denied) notePerm('microphone', 'denied');
+    throw new Error(denied ? 'mic_denied' : 'mic_unavailable');
   }
+  notePerm('microphone', 'granted');
   const type = pickType();
   const rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : null), audioBitsPerSecond: 24000 });
   const chunks: Blob[] = [];

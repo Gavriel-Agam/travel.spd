@@ -4,6 +4,7 @@ import { Animated, Easing, PanResponder, Platform, Pressable, TextInput, View, t
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useVoiceExpense } from '@/hooks/useVoiceExpense';
 import { useT } from '@/i18n';
+import { permState, storedPerm } from '@/lib/permissions';
 import { blobToBase64, canRecord, startRecording, type Recorder } from '@/lib/recorder';
 import { VOICE_MAX_SECONDS, VOICE_MIN_MS, VOICE_TEXT_MAX } from '@/lib/voice';
 import { radius, space, useColors } from '@/theme';
@@ -21,8 +22,10 @@ const BARS = 40;
 const LOCK_DY = 70;
 /** Slide toward the bin this far while holding to cancel (like WhatsApp). */
 const CANCEL_DX = 90;
-/** One size for the mic, lock, send and bin icons. */
-const ICON = 28;
+/** One icon size (and stroke) for the mic, lock, send and bin. */
+const ICON = 24;
+/** One circle size for the lock, send and bin (and the mic they replace). */
+const BTN = 52;
 /** A press shorter than this is a tap: it starts a locked (hands-free) recording. */
 const TAP_MS = 250;
 
@@ -40,8 +43,12 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
   const { t } = useT();
   const { submit } = useVoiceExpense();
   const still = useReducedMotion();
-  const [mode, setMode] = useState<Mode>(canRecord() ? 'ready' : 'typing');
-  const [message, setMessage] = useState<string | null>(canRecord() ? null : t('voice.micUnavailable'));
+  // Microphone refused before: open on typing with a short note, never a new prompt
+  const blocked = canRecord() && storedPerm('microphone') === 'denied';
+  const [mode, setMode] = useState<Mode>(canRecord() && !blocked ? 'ready' : 'typing');
+  const [message, setMessage] = useState<string | null>(!canRecord() ? t('voice.micUnavailable') : blocked ? t('voice.micDenied') : null);
+  // The person tapped "Record instead" after a refusal: this time the phone may ask
+  const retry = useRef(false);
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0));
   const [text, setText] = useState('');
@@ -62,6 +69,21 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
     if (!still) Animated.timing(appear, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
     // Stop the microphone if the bar goes away mid-recording
     return () => rec.current?.cancel();
+  }, []);
+
+  // Remembered "no", but the phone's settings now allow it: back to the mic (no prompt involved)
+  useEffect(() => {
+    if (!blocked) return;
+    let live = true;
+    permState('microphone').then((st) => {
+      if (live && st !== 'denied' && modeRef.current === 'typing' && !text) {
+        setMessage(null);
+        setMode('ready');
+      }
+    });
+    return () => {
+      live = false;
+    };
   }, []);
 
   // Time and waveform while recording; hard stop at 30 s
@@ -97,7 +119,8 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
     setMessage(null);
     setMode('starting');
     try {
-      rec.current = await startRecording();
+      rec.current = await startRecording(retry.current);
+      retry.current = false;
       started.current = Date.now();
       setElapsed(0);
       setLevels(Array(BARS).fill(0));
@@ -268,7 +291,16 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
             <RoundIcon icon="trash-outline" label={t('voice.discardRecording')} color={c.danger} onPress={discard} />
           </Row>
           {canRecord() ? (
-            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setMode('ready')} style={{ alignSelf: 'flex-start' }}>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => {
+                retry.current = storedPerm('microphone') === 'denied';
+                setMessage(null);
+                setMode('ready');
+              }}
+              style={{ alignSelf: 'flex-start' }}
+            >
               <Text variant="caption" color={c.primary} style={{ fontWeight: '700' }}>
                 🎙 {t('voice.recordInstead')}
               </Text>
@@ -301,7 +333,7 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
                   pointerEvents="none"
                   style={{
                     position: 'absolute',
-                    bottom: 72,
+                    bottom: BTN + 12,
                     alignItems: 'center',
                     gap: 2,
                     paddingVertical: 8,
@@ -325,17 +357,17 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
                 {...(web && mode === 'ready' ? ({ onKeyDown: (e: { key: string }) => (e.key === 'Enter' || e.key === ' ') && ((holding.current = false), void begin()) } as object) : null)}
                 focusable={mode === 'ready'}
                 style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 30,
+                  width: BTN,
+                  height: BTN,
+                  borderRadius: BTN / 2,
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: recording ? c.danger : c.primary,
-                  transform: [{ scale: mode === 'holding' ? 1.15 : 1 }],
+                  transform: [{ scale: mode === 'holding' ? 1.12 : 1 }],
                   ...(web ? ({ touchAction: 'none', userSelect: 'none', cursor: mode === 'ready' ? 'pointer' : 'default' } as object) : null),
                 }}
               >
-                <Ionicons name={mode === 'locked' ? 'lock-closed' : 'mic'} size={ICON} color="#fff" />
+                <Ionicons name={mode === 'locked' ? 'lock-closed-outline' : 'mic'} size={ICON} color="#fff" />
               </View>
             </View>
 
@@ -345,7 +377,7 @@ export function VoiceBar({ onClose }: { onClose: () => void }) {
                   accessibilityRole="button"
                   accessibilityLabel={t('voice.send')}
                   onPress={() => void send()}
-                  style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed ? 0.94 : 1 }] })}
+                  style={({ pressed }) => ({ width: BTN, height: BTN, borderRadius: BTN / 2, backgroundColor: c.success, alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed ? 0.94 : 1 }] })}
                 >
                   <Ionicons name="checkmark" size={ICON} color="#fff" />
                 </Pressable>
@@ -385,7 +417,7 @@ function RoundIcon({ icon, label, color, onPress }: { icon: 'trash-outline'; lab
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? c.cardAlt : 'transparent' })}
+      style={({ pressed }) => ({ width: BTN, height: BTN, borderRadius: BTN / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: color + (pressed ? '33' : '1A') })}
     >
       <Ionicons name={icon} size={ICON} color={color} />
     </Pressable>

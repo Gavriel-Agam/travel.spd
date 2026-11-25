@@ -637,7 +637,7 @@ const en = {
     recordInstead: 'Record instead',
     typePlaceholder: 'Paid 85 for breakfast',
     tooShort: "Didn't hear anything",
-    micDenied: 'The microphone is blocked. Allow it for this site in your browser settings, or type it.',
+    micDenied: 'The microphone is blocked. On iPhone: Settings › Safari › Microphone. You can type meanwhile.',
     micUnavailable: "Recording isn't available here. Type it instead.",
     privacy: 'The recording is not stored.',
     processing: 'Processing…',

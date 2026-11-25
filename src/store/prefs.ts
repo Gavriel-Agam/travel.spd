@@ -1,4 +1,5 @@
 // Per-device preferences and caches (not shared between partners).
+import { forgetPerm } from '@/lib/permissions';
 import type { StoredSplit } from '@/lib/voice';
 import { persistStorage } from '@/lib/deviceStorage';
 import { create } from 'zustand';
@@ -91,7 +92,11 @@ export const usePrefs = create<PrefsState>()(
       noteSplitUsed: (tripId, split) => set((s) => ({ lastSplit: { ...s.lastSplit, [tripId]: split } })),
       voiceSplit: {},
       saveLocation: true,
-      setSaveLocation: (saveLocation) => set({ saveLocation }),
+      setSaveLocation: (saveLocation) => {
+        // Turned on again: a past "no" may have been changed in the phone's settings, so asking is allowed again
+        if (saveLocation) forgetPerm('geolocation');
+        set({ saveLocation });
+      },
       places: {},
       lastPlace: null,
       dismissedAlerts: {},

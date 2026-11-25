@@ -2,6 +2,8 @@
 // entered, with a short place name looked up online (OpenStreetMap). Never
 // blocks saving: no permission, no fix in time, or offline just means less.
 
+import { notePerm, permState } from './permissions';
+
 export type Place = { lat: number; lng: number; name: string | null };
 
 /** Coordinates kept with an expense: ~1 m (5 decimals) is plenty. */
@@ -18,23 +20,44 @@ export function canLocate(): boolean {
   return typeof document !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.geolocation;
 }
 
-/** The current position, or null (denied, unavailable, or not within `timeoutMs`). A fix up to 10 min old is fine. */
-export function currentPosition(timeoutMs = 8000): Promise<{ lat: number; lng: number } | null> {
-  if (!canLocate()) return Promise.resolve(null);
+/** A fix this recent is reused as is (no new request, so no prompt on iPhone). */
+export const FRESH_MS = 10 * 60_000;
+let lastFix: { lat: number; lng: number; at: number } | null = null;
+
+/**
+ * The current position, or null (denied, unavailable, or not within `timeoutMs`).
+ * A fix from the last 10 minutes is reused without asking the phone again.
+ * Once location was refused, it is not asked again (no repeated prompts);
+ * turning "Save location" back on in Settings clears that.
+ */
+export async function currentPosition(timeoutMs = 5000): Promise<{ lat: number; lng: number } | null> {
+  if (!canLocate()) return null;
+  if (lastFix && Date.now() - lastFix.at <= FRESH_MS) return { lat: lastFix.lat, lng: lastFix.lng };
+  if ((await permState('geolocation')) === 'denied') return null;
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), timeoutMs + 500);
     navigator.geolocation.getCurrentPosition(
       (p) => {
         clearTimeout(timer);
-        resolve({ lat: roundCoord(p.coords.latitude), lng: roundCoord(p.coords.longitude) });
+        notePerm('geolocation', 'granted');
+        const fix = { lat: roundCoord(p.coords.latitude), lng: roundCoord(p.coords.longitude) };
+        lastFix = { ...fix, at: Date.now() };
+        resolve(fix);
       },
-      () => {
+      (err) => {
         clearTimeout(timer);
+        // Refused: remembered, so the next expense doesn't ask again
+        if (err.code === 1) notePerm('geolocation', 'denied');
         resolve(null);
       },
-      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 10 * 60_000 },
+      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: FRESH_MS },
     );
   });
+}
+
+/** For tests: forget the reused fix. */
+export function resetLastFix() {
+  lastFix = null;
 }
 
 /** A short name from an OpenStreetMap (Nominatim) reverse lookup: neighbourhood or town, then the city. */

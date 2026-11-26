@@ -1,4 +1,6 @@
 import type { Dict } from './en';
+// A string that starts with an English word gets the right-to-left mark (backslash u200f) first, so it lays out
+// right to left like the rest of the Hebrew app (otherwise its punctuation lands on the wrong side).
 
 const he: Dict = {
   common: {
@@ -257,7 +259,7 @@ const he: Dict = {
     cardEmpty: 'קנייה שמסומנת כ־Tax free בטופס ההוצאה תופיע כאן עם ההחזר הצפוי',
     cardNoRules_one: 'קנייה אחת בלי נתוני החזר',
     cardNoRules_other: '{{count}} קניות בלי נתוני החזר',
-    toggle: 'Tax free (החזר מע״מ)',
+    toggle: '‏Tax free (החזר מע״מ)',
     eligibleTitle: '🧾 החזר מע״מ',
     eligibleBody: 'הקנייה הזו מזכה בהחזר מע״מ. יש לבקש מהמוכר טופס/קבלה ייעודית להחזר מס בשדה התעופה.',
     markTaxFree: 'סימון כ-Tax free',
@@ -472,7 +474,7 @@ const he: Dict = {
     install3: 'רשות, ל-SMS: אוטומציה › + › הודעה, שולח = חברת האשראי, SmartTrip.',
     manualTitle: 'הגדרה ידנית',
     title: 'קיצורים',
-    rowHint: 'Apple Pay ו-SMS ישר מהאייפון',
+    rowHint: '‏Apple Pay ו-SMS ישר מהאייפון',
     intro: 'תשלומים מהאייפון ממתינים לאישור בדף הבית, ועד אז רק לך.',
     keys: 'מפתחות',
     key: 'המפתח שלך',
@@ -501,7 +503,7 @@ const he: Dict = {
     wallet1: 'קיצורים › אוטומציה › חדשה › עסקה (ארנק). בוחרים את הכרטיסים ו"הפעלה מיידית".',
     wallet2: 'מוסיפים "קבלת תוכן של URL" עם הכתובת למעלה ושיטה POST. מוסיפים כותרת בשם Authorization, ובערך שלה כותבים Bearer, רווח, ואז המפתח שלך.',
     wallet3: 'גוף בקשה JSON כמו למטה, עם השדות של הקלט. הסכום נשאר כטקסט (עם המטבע, למשל ‎฿300.00), לא כמספר.',
-    smsTitle: 'SMS מהאשראי',
+    smsTitle: '‏SMS מהאשראי',
     sms1: 'אוטומציה › חדשה › הודעה. שולח: חברת האשראי. ההודעה מכילה: עסקה.',
     sms2: 'מוסיפים "קבלת תוכן של URL" כמו למעלה, עם טקסט ההודעה ב-raw_text. קודים חד-פעמיים ותזכורות חיוב לא נקלטים.',
     shareTitle: 'גיליון שיתוף',
@@ -696,7 +698,7 @@ const he: Dict = {
     addFileLabel: 'הוספת גיליון או מסמך',
     readingFile: 'קריאה…',
     removeFile: 'הסרת הקובץ',
-    fileTypes: 'Excel, CSV, Google Sheets, Word, Google Docs או טקסט. הקובץ נקרא במכשיר.',
+    fileTypes: '‏Excel, CSV, Google Sheets, Word, Google Docs או טקסט. הקובץ נקרא במכשיר.',
     fileParts: 'בקובץ {{total}} תווים, יותר מ-{{max}}. חלק {{n}} מתוך {{parts}} מופיע בתיבה. החלק הבא ימתין אחרי זיהוי החלק הזה.',
     prevPart: 'החלק הקודם',
     nextPart: 'החלק הבא',
@@ -781,8 +783,8 @@ const he: Dict = {
     sources: {
       manual: 'הוזן ידנית',
       smart_import: 'ייבוא חכם',
-      shortcut_notification: 'SMS מהכרטיס (קיצור דרך)',
-      shortcut_wallet: 'Apple Pay (קיצור דרך)',
+      shortcut_notification: '‏SMS מהכרטיס (קיצור דרך)',
+      shortcut_wallet: '‏Apple Pay (קיצור דרך)',
       shortcut_share: 'גיליון שיתוף (קיצור דרך)',
       statement_import: 'דף פירוט כרטיס',
       voice: 'הקלטה קולית',
@@ -917,7 +919,7 @@ const he: Dict = {
   },
   passkeys: {
     signIn: 'כניסה עם Face ID / מפתח גישה',
-    title: 'Face ID / מפתח גישה',
+    title: '‏Face ID / מפתח גישה',
     about: 'בפעם הבאה נכנסים עם Face ID, טביעת אצבע או קוד המכשיר. בלי סיסמה ובלי להקליד.',
     add: 'הגדרה במכשיר הזה',
     added: 'נשמר. בפעם הבאה לוחצים על "כניסה עם Face ID / מפתח גישה".',
@@ -970,7 +972,7 @@ const he: Dict = {
     items: {
       metro: 'מטרו / רכבת תחתית',
       duty_free: 'דיוטי פרי',
-      sim: 'SIM / eSIM',
+      sim: '‏SIM / eSIM',
       pharmacy: 'בית מרקחת',
       train_bus: 'רכבת ואוטובוס',
       taxi: 'מונית',
@@ -983,14 +985,14 @@ const he: Dict = {
     trademarks: 'הלוגואים הם סימנים מסחריים של בעליהם.',
   },
   legal: {
-    title: 'מסמכים משפטיים ונגישות',
+    title: 'מסמכים ונגישות',
     accessibility: 'הצהרת נגישות',
     privacy: 'מדיניות פרטיות',
     terms: 'תנאי שימוש',
   },
   settings: {
     import: 'קיצורים וייבוא',
-    importHint: 'Apple Pay, SMS ודף פירוט',
+    importHint: '‏Apple Pay, SMS ודף פירוט',
     prefs: 'העדפות',
     prefsHint: 'שפה, מיקום וכניסה מהירה',
     profileHint: 'שם, תמונה וצבע',

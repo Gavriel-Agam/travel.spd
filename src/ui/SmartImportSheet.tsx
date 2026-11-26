@@ -338,11 +338,6 @@ function PendingRow({ rec, time, onOpen, onRetry, onDiscard }: { rec: SmartImpor
         <Text variant="caption" faint style={{ flex: 1 }}>
           {t('smartImport.queuedAt', { time })}
         </Text>
-        <Pressable accessibilityRole="button" onPress={onDiscard} style={linkHit}>
-          <Text variant="caption" color={c.textMuted} style={{ fontWeight: '700' }}>
-            {t('smartImport.discard')}
-          </Text>
-        </Pressable>
         {rec.status === 'ready_for_review' ? (
           <Pressable accessibilityRole="button" onPress={onOpen} style={linkHit}>
             <Text variant="caption" color={c.primary} style={{ fontWeight: '700' }}>
@@ -356,6 +351,12 @@ function PendingRow({ rec, time, onOpen, onRetry, onDiscard }: { rec: SmartImpor
             </Text>
           </Pressable>
         ) : null}
+        {/* Main action first, discard after it */}
+        <Pressable accessibilityRole="button" onPress={onDiscard} style={linkHit}>
+          <Text variant="caption" color={c.textMuted} style={{ fontWeight: '700' }}>
+            {t('smartImport.discard')}
+          </Text>
+        </Pressable>
       </Row>
     </View>
   );

@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { goBack } from '@/lib/nav';
+import { Topbar } from '@/ui/Topbar';
 import { getCalendars } from 'expo-localization';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
@@ -11,7 +12,7 @@ import { errorCode } from '@/lib/supabase';
 import { MEMBER_COLORS, radius, space, useColors } from '@/theme';
 import { CurrencyPicker } from '@/ui/CurrencyPicker';
 import { DateField } from '@/ui/DateField';
-import { Button, Card, Divider, Field, IconButton, Row, Screen, Text, Toggle } from '@/ui/primitives';
+import { Button, Card, Divider, Field, Row, Screen, Text, Toggle } from '@/ui/primitives';
 import { FadeIn } from '@/ui/FadeIn';
 
 function isoDate(d: Date) {
@@ -66,10 +67,8 @@ export default function CreateTrip() {
 
   return (
     <Screen>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/onboarding')} />
-      </Row>
-      <Text variant="title">{t('onboarding.create')}</Text>
+      {/* Back and the title in the top bar, like every other pushed screen */}
+      <Topbar title={t('onboarding.create')} onBack={() => goBack('/onboarding')} />
 
       <Field label={t('onboarding.tripName')} value={name} onChangeText={setName} placeholder={t('onboarding.tripNamePlaceholder')} maxLength={80} />
       <Field label={t('onboarding.yourName')} value={memberName} onChangeText={setMemberName} placeholder={t('onboarding.yourNamePlaceholder')} maxLength={40} />

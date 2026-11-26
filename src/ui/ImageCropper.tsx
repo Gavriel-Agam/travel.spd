@@ -296,8 +296,9 @@ export function ImageCropper({
 
         <View style={{ flex: 1 }} />
         <Row gap={space.sm} style={{ paddingHorizontal: space.lg }}>
-          <Button title={t('common.cancel')} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
+          {/* Main action first (at the reading start), like every other action row */}
           <Button title={t('crop.use')} icon="checkmark" onPress={confirm} loading={busy} disabled={!pic} style={{ flex: 1 }} />
+          <Button title={t('common.cancel')} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
         </Row>
       </View>
     </Modal>

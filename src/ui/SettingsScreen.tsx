@@ -300,7 +300,7 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
     flashCopied('message');
   }
 
-  // One row; + (at the end: top left in Hebrew) opens Copy code, WhatsApp, Share link.
+  // One row with the + tile at the start, like New trip; a tap opens Copy code, WhatsApp, Share link.
   // In the Members card and in Trip settings › Participants (not in the shared MVP trip or the demo)
   const inviteRow =
     !trip.shared && !demo ? (
@@ -316,6 +316,10 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
     >
       {() => (
         <>
+          {/* The same + tile at the start as every other "add" row (New trip, Join a trip) */}
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.cardAlt, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={copied ? 'checkmark' : 'add'} size={20} color={c.primary} />
+          </View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ fontWeight: '600' }}>{t('settings.invite')}</Text>
             <Text variant="caption" muted>
@@ -325,9 +329,6 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
                   ? t('settings.inviteCode', { code: invite.data })
                   : t('common.loading')}
             </Text>
-          </View>
-          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={copied ? 'checkmark' : 'add'} size={24} color={c.primary} />
           </View>
         </>
       )}
@@ -454,12 +455,19 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
     </Card>
   );
 
+  // The 40 px icon tile every settings row starts with (ListRow, category rows)
+  const tile = (icon: IconName) => (
+    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.cardAlt, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={icon} size={20} color={c.primary} />
+    </View>
+  );
+
   const prefsCards = (
     <>
-      {/* Language: a globe and a dropdown like every other menu */}
+      {/* Language and saving the place: one card, rows like every other settings page */}
       <Card>
         <Row gap={space.md}>
-          <Ionicons name="globe-outline" size={22} color={c.primary} />
+          {tile('globe-outline')}
           <Text style={{ flex: 1, fontWeight: '600' }}>{t('settings.language')}</Text>
           <DropdownButton
             label={t('settings.language')}
@@ -475,12 +483,10 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
             )}
           </DropdownButton>
         </Row>
-      </Card>
-
-      {/* Save where new expenses are added (the phone's position and a place name) */}
-      <Card>
+        <Divider />
+        {/* Save where new expenses are added (the phone's position and a place name) */}
         <Row gap={space.md}>
-          <Ionicons name="location-outline" size={22} color={c.primary} />
+          {tile('location-outline')}
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ fontWeight: '600' }}>{t('location.setting')}</Text>
             <Text variant="caption" muted>

@@ -52,8 +52,6 @@ export function PendingInbox({
   const [expanded, setExpanded] = useState(false);
   if (!items.length) return null;
   const locale = lang === 'he' ? 'he-IL' : 'en-US';
-  // A Latin merchant name in a Hebrew card still starts at the reading edge
-  const align = { textAlign: lang === 'he' ? 'right' : 'left' } as const;
   // Keeps a name in another script whole inside a sentence ("7-Eleven", not "Eleven-7")
   const isolate = (s: string) => `⁨${s}⁩`;
   const shown = expanded ? items : items.slice(0, SHOWN);
@@ -94,10 +92,10 @@ export function PendingInbox({
           <View key={e.id} style={{ gap: space.sm, paddingTop: space.md, borderTopWidth: 1, borderTopColor: c.border }}>
             <Row gap={space.sm}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[{ fontWeight: '600' }, align]} numberOfLines={1}>
+                <Text style={{ fontWeight: '600' }} numberOfLines={1}>
                   {e.description || e.merchant || t('pending.unnamed')}
                 </Text>
-                <Text variant="caption" muted numberOfLines={1} style={align}>
+                <Text variant="caption" muted numberOfLines={1}>
                   {[new Date(e.occurred_at).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), e.notes].filter(Boolean).join(' · ')}
                 </Text>
               </View>
@@ -107,7 +105,7 @@ export function PendingInbox({
             {dup ? (
               <Row gap={4}>
                 <Ionicons name="copy-outline" size={13} color={c.warning} />
-                <Text variant="caption" color={c.warning} style={[{ flex: 1 }, align]} numberOfLines={1}>
+                <Text variant="caption" color={c.warning} style={{ flex: 1 }} numberOfLines={1}>
                   {t('pending.maybeDuplicate', { name: isolate(dup.description || dup.merchant || '') })}
                 </Text>
               </Row>

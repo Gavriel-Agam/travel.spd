@@ -39,6 +39,15 @@ After any change to the interface:
 4. If something is broken, fix it and take the screenshot again.
 5. Never report the work as done before seeing the result in a screenshot. Text checks (`read_page`, `get_page_text`, JS) do not replace looking at the image.
 
+## UI conventions (keep every screen the same)
+
+- **Action order:** the main action comes first: at the reading start in a row (right in Hebrew), on top in a stack. Cancel / dismiss comes after it, and a destructive action (Delete) last. Dialogs follow the same order (`ui/Dialog`).
+- **Save:** a full-width primary button at the bottom of the form or sheet, never in the header.
+- **Leaving a screen:** a pushed screen uses `Topbar` with → / ← back at the start and the title next to it. A full-screen modal (expense form, image cropper, welcome) has ✕ at the start. On the web, `start`/`end` offsets resolve to left/right, so position absolute controls by language.
+- **Rows:** settings-style rows start with the 40 px icon tile (`ListRow`, radius 12, `cardAlt`). An "add" row is a + tile at the start, not a button at the end.
+- **Text direction:** `Text` aligns to the interface language, not the text's script. A Hebrew string that starts with an English word begins with the right-to-left mark (U+200F). A name in another script inside a sentence is wrapped in U+2068 … U+2069.
+- **Titles** fit on one line at 375 px; shorten the wording rather than letting it truncate.
+
 ## Other notes
 
 - `public/sw.js` must never cache `privacy.html` or `terms.html` as the app shell.

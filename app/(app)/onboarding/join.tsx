@@ -1,14 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
+import { Topbar } from '@/ui/Topbar';
 import { useState } from 'react';
 import { useJoinTrip } from '@/api/queries';
 import { useT } from '@/i18n';
 import { errorCode } from '@/lib/supabase';
 import { MEMBER_COLORS, useColors } from '@/theme';
-import { Button, Field, IconButton, Row, Screen, Text } from '@/ui/primitives';
+import { Button, Field, Screen, Text } from '@/ui/primitives';
 
 export default function JoinTrip() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const c = useColors();
   const params = useLocalSearchParams<{ code?: string }>();
   const join = useJoinTrip();
@@ -30,10 +31,8 @@ export default function JoinTrip() {
 
   return (
     <Screen>
-      <Row>
-        <IconButton name={lang === 'he' ? 'arrow-forward' : 'arrow-back'} onPress={() => goBack('/onboarding')} />
-      </Row>
-      <Text variant="title">{t('onboarding.join')}</Text>
+      {/* Back and the title in the top bar, like every other pushed screen */}
+      <Topbar title={t('onboarding.join')} onBack={() => goBack('/onboarding')} />
       <Field label={t('onboarding.yourName')} value={name} onChangeText={setName} placeholder={t('onboarding.yourNamePlaceholder')} maxLength={40} />
       <Field
         label={t('onboarding.inviteCode')}

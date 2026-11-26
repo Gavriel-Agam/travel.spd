@@ -10,7 +10,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { Button, Card, IconButton, Row, Screen, Text } from '@/ui/primitives';
 
 export default function Onboarding() {
-  const { t } = useT();
+  const { t, lang } = useT();
   const c = useColors();
   const { trip } = useActiveTrip();
   const email = useAuth().session?.user.email;
@@ -18,8 +18,9 @@ export default function Onboarding() {
   return (
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: space.lg }}>
       {trip ? (
-        <View style={{ position: 'absolute', top: space.lg, start: space.lg }}>
-          <IconButton name="close" onPress={() => goBack('/')} />
+        // ✕ at the reading start (top right in Hebrew), like the expense form's ✕; `start` resolves to left on the web
+        <View style={{ position: 'absolute', top: space.lg, [lang === 'he' ? 'right' : 'left']: space.lg }}>
+          <IconButton name="close" onPress={() => goBack('/')} label={t('common.close')} />
         </View>
       ) : null}
       <View style={{ gap: space.sm, marginBottom: space.md }}>

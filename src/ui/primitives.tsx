@@ -102,14 +102,16 @@ export function Text({
   ...rest
 }: TextProps & { variant?: Variant; muted?: boolean; faint?: boolean; color?: string; center?: boolean }) {
   const c = useColors();
+  const { lang } = useT();
   return (
     <RNText
       {...rest}
       style={[
         variants[variant],
         { color: color ?? (faint ? c.textFaint : muted ? c.textMuted : c.text), writingDirection: 'auto' },
-        // Start-aligned text that follows the layout direction
-        { textAlign: center ? 'center' : rtlNumbersOnly(rest.children) ? 'right' : 'auto' },
+        // Start-aligned by the interface language, not by the text's own script: an
+        // English name in the Hebrew app ("Spa offline", "7-Eleven") still starts at the right
+        { textAlign: center ? 'center' : rtlNumbersOnly(rest.children) || lang === 'he' ? 'right' : 'left' },
         style,
       ]}
     />

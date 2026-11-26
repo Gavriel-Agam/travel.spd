@@ -29,6 +29,16 @@ If a change clearly does not affect user data (UI, styling, calculations, tests)
 
 The deploy workflow (`.github/workflows/deploy-web.yml`) prints a warning when sensitive paths change without either page changing. Treat that warning as a reminder to check this rule.
 
+## Visual check after every UI change (required)
+
+After any change to the interface:
+
+1. Open the preview (launch config `web-local`) at iPhone size (`resize_window` preset `mobile`, 375x812), in Hebrew (RTL).
+2. Take a screenshot of every screen the change touched (scroll for parts below the fold).
+3. Look at each image and check: alignment and RTL direction, cut or truncated text, overlapping elements, spacing and padding.
+4. If something is broken, fix it and take the screenshot again.
+5. Never report the work as done before seeing the result in a screenshot. Text checks (`read_page`, `get_page_text`, JS) do not replace looking at the image.
+
 ## Other notes
 
 - `public/sw.js` must never cache `privacy.html` or `terms.html` as the app shell.

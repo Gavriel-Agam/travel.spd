@@ -7,7 +7,7 @@ import { goBack } from '@/lib/nav';
 
 export default function EditExpense() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { isLoading, members, expenses } = useTripData();
+  const { isLoading, members, allExpenses: expenses } = useTripData();
   const expense = expenses.find((e) => e.id === id);
   // Deleted meanwhile (here or by a partner): back to the list, no "not found" screen
   const gone = !isLoading && members.length > 0 && !expense;

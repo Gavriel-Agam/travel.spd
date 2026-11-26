@@ -4,6 +4,17 @@ import type { SaveExpenseInput } from '@/api/queries';
 import type { Expense, Member } from '@/types/db';
 import { inputFromExpense } from './expenseOrder';
 
+/**
+ * Waiting for a tap (a Shortcut payment, a voice expense with no payer yet):
+ * not in any list, total, budget, balance or statistic until confirmed.
+ */
+export const isAwaitingReview = (e: Pick<Expense, 'review_status'>) => e.review_status === 'pending_review';
+
+/** Only the expenses that count: everything except the ones waiting for review. */
+export function confirmedOnly<T extends Pick<Expense, 'review_status'>>(list: readonly T[]): T[] {
+  return list.filter((e) => !isAwaitingReview(e));
+}
+
 /** The person's own items waiting for review, newest first. */
 export function pendingForMe(expenses: readonly Expense[], userId: string | null | undefined): Expense[] {
   if (!userId) return [];

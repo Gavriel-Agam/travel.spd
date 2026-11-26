@@ -27,7 +27,7 @@ export default function ExpenseDetails() {
   const { id, src } = useLocalSearchParams<{ id: string; src?: string }>();
   const { t, lang } = useT();
   const c = useColors();
-  const { trip, isLoading, expenses, memberById, categoryById, members, me } = useTripData();
+  const { trip, isLoading, allExpenses: expenses, memberById, categoryById, members, me } = useTripData();
   const actions = useExpenseActions(trip?.id ?? '');
   const qc = useQueryClient();
   const e = expenses.find((x) => x.id === id);

@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useT } from '@/i18n';
-import { HOME_CURRENCY } from '@/lib/currencies';
 import { formatMoney } from '@/lib/money';
 import { nearDuplicateOf } from '@/lib/pendingReview';
 import { radius, space, useColors } from '@/theme';
@@ -11,15 +10,32 @@ import { Card, Row, Text, tap } from './primitives';
 
 const SHOWN = 4;
 
+/** The small black Apple Pay mark (Apple logo + "Pay"). */
+function ApplePayBadge() {
+  const { t } = useT();
+  return (
+    <View
+      accessible
+      accessibilityLabel={t('pending.applePay')}
+      style={{ flexDirection: 'row', direction: 'ltr', alignItems: 'center', gap: 1, height: 22, paddingHorizontal: 6, borderRadius: 5, backgroundColor: '#000' } as object}
+    >
+      <Ionicons name="logo-apple" size={13} color="#fff" />
+      <Text variant="caption" color="#fff" style={{ fontWeight: '600', fontSize: 12, lineHeight: 14 }}>
+        Pay
+      </Text>
+    </View>
+  );
+}
+
 /**
- * Home › Pending review ("ממתין לאישור"): payments a Shortcut added, shown only
- * while there are some. One tap confirms (shared / personal); edit opens the
- * form; ✕ moves it to Recently deleted.
+ * Home › "הוצאה ממתינה לאישור": payments a Shortcut added, shown only while
+ * there are some. Nothing here counts in a list or total until Approve. Each
+ * shows only what was charged (amount and currency as paid), then Approve
+ * (the last split used in this trip), Cancel (to Recently deleted) and Edit.
  */
 export function PendingInbox({
   items,
   all,
-  solo,
   onConfirm,
   onEdit,
   onDismiss,
@@ -27,8 +43,7 @@ export function PendingInbox({
   items: Expense[];
   /** Every expense of the trip (for the possible-duplicate hint). */
   all: readonly Expense[];
-  solo: boolean;
-  onConfirm: (e: Expense, mode: 'shared' | 'personal') => void;
+  onConfirm: (e: Expense) => void;
   onEdit: (e: Expense) => void;
   onDismiss: (e: Expense) => void;
 }) {
@@ -57,15 +72,17 @@ export function PendingInbox({
   return (
     <Card style={{ borderWidth: 1.5, borderColor: c.warning + '88' }}>
       <Row gap={space.sm}>
-        <Ionicons name="hourglass-outline" size={18} color={c.warning} />
-        <Text variant="h2" style={{ flex: 1 }}>
+        <ApplePayBadge />
+        <Text variant="h2" style={{ flex: 1 }} numberOfLines={1}>
           {t('pending.title')}
         </Text>
-        <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, backgroundColor: c.warning, alignItems: 'center', justifyContent: 'center' }}>
-          <Text variant="caption" color="#fff" style={{ fontWeight: '800' }}>
-            {items.length}
-          </Text>
-        </View>
+        {items.length > 1 ? (
+          <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, backgroundColor: c.warning, alignItems: 'center', justifyContent: 'center' }}>
+            <Text variant="caption" color="#fff" style={{ fontWeight: '800' }}>
+              {items.length}
+            </Text>
+          </View>
+        ) : null}
       </Row>
       {shown.map((e) => {
         const dup = nearDuplicateOf(e, all);
@@ -80,14 +97,8 @@ export function PendingInbox({
                   {[new Date(e.occurred_at).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), e.notes].filter(Boolean).join(' · ')}
                 </Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text variant="mono">{formatMoney(e.amount_minor, e.currency, { lang })}</Text>
-                {e.currency !== HOME_CURRENCY ? (
-                  <Text variant="caption" muted>
-                    ≈ {formatMoney(e.amount_ils_minor, HOME_CURRENCY, { lang })}
-                  </Text>
-                ) : null}
-              </View>
+              {/* Only what was charged, in the currency it was charged in */}
+              <Text variant="mono">{formatMoney(e.amount_minor, e.currency, { lang })}</Text>
             </Row>
             {dup ? (
               <Row gap={4}>
@@ -98,19 +109,10 @@ export function PendingInbox({
               </Row>
             ) : null}
             <Row gap={space.xs}>
-              {solo ? (
-                <Action label={t('pending.confirm')} primary onPress={() => onConfirm(e, 'personal')} />
-              ) : (
-                <>
-                  <Action label={t('pending.shared')} primary onPress={() => onConfirm(e, 'shared')} />
-                  <Action label={t('pending.personal')} onPress={() => onConfirm(e, 'personal')} />
-                </>
-              )}
+              <Action label={t('pending.confirm')} primary onPress={() => onConfirm(e)} />
+              <Action label={t('pending.dismiss')} onPress={() => onDismiss(e)} />
               <Pressable accessibilityRole="button" accessibilityLabel={t('common.edit')} onPress={() => onEdit(e)} style={{ width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: c.cardAlt }}>
                 <Ionicons name="create-outline" size={17} color={c.text} />
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={t('pending.dismiss')} onPress={() => onDismiss(e)} style={{ width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: c.cardAlt }}>
-                <Ionicons name="close" size={18} color={c.danger} />
               </Pressable>
             </Row>
           </View>

@@ -138,7 +138,7 @@ export default function Ingestion() {
       <Step n={1} text={t('ingestion.wallet1')} />
       <Step n={2} text={t('ingestion.wallet2')} />
       <Step n={3} text={t('ingestion.wallet3')} />
-      <CopyBox id="wallet" label={t('ingestion.body')} value={'{"source":"shortcut_wallet","amount":"<Amount>","merchant":"<Merchant>","card_label":"<Card or Pass>"}'} />
+      <CopyBox id="wallet" label={t('ingestion.body')} value={'{"source":"shortcut_wallet","amount":"<Amount>","merchant":"<Merchant>","card_label":"<Card or Pass>","raw_text":"<Shortcut Input>"}'} />
     </>
   );
 

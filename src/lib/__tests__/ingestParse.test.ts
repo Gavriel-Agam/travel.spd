@@ -120,3 +120,38 @@ describe('booking extraction', () => {
     expect(cleanBooking(null)).toBeNull();
   });
 });
+
+describe('exact currency as charged (no guessing)', () => {
+  it('reads each symbol and code next to the amount', () => {
+    const cases: [string, string, string][] = [
+      ['120.00 ₪', '120', 'ILS'],
+      ['ILS 120', '120', 'ILS'],
+      ['$45.00', '45', 'USD'],
+      ['45.00 USD', '45', 'USD'],
+      ['€12,50', '12.5', 'EUR'],
+      ['฿300.00', '300', 'THB'],
+      ['THB 1,250.00', '1250', 'THB'],
+      ['£9.99', '9.99', 'GBP'],
+      ['₫120.000', '120000', 'VND'],
+      ['250,000 VND', '250000', 'VND'],
+      ['¥1,500', '1500', 'JPY'],
+    ];
+    for (const [amount, value, code] of cases) expect(parseWallet({ amount }), amount).toEqual({ amount: value, currency: code, merchant: null });
+  });
+  it('ignores right-to-left marks around a Hebrew amount', () => {
+    expect(parseWallet({ amount: '‏45.90‏ ₪' })).toEqual({ amount: '45.9', currency: 'ILS', merchant: null });
+    const p = parseNotification({ raw_text: 'עסקה בסך ‎12.50 $‎ בבית העסק Starbucks אושרה' });
+    expect(p).toMatchObject({ status: 'ok', amount: '12.5', currency: 'USD' });
+  });
+  it('a capital word is not a currency: "MAX 45.90 ₪" is shekels', () => {
+    expect(currencyOf('MAX')).toBeNull();
+    expect(parseNotification({ raw_text: 'MAX 45.90 ₪ בבית העסק שופרסל' })).toMatchObject({ status: 'ok', amount: '45.9', currency: 'ILS' });
+  });
+  it('a foreign charge from an Israeli issuer keeps its own currency', () => {
+    expect(parseNotification({ raw_text: 'כאל: חיוב בסך 300.00 ฿ בבית העסק 7-Eleven בכרטיס המסתיים ב-1234' })).toMatchObject({ amount: '300', currency: 'THB' });
+  });
+  it('a bare Wallet number takes the currency from the transaction text, else none', () => {
+    expect(parseWallet({ amount: '300', raw_text: 'Apple Pay ฿300.00 at 7-Eleven' })).toEqual({ amount: '300', currency: 'THB', merchant: null });
+    expect(parseWallet({ amount: '300' })).toEqual({ amount: '300', currency: null, merchant: null });
+  });
+});

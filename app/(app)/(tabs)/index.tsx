@@ -104,7 +104,7 @@ export default function Home() {
   const demo = useIsDemo();
   const userId = session?.user.id;
   // Payments a Shortcut added, waiting for this person's OK (only they see them)
-  const pendingReview = useMemo(() => pendingForMe(expenses, userId), [expenses, userId]);
+  const pendingReview = useMemo(() => pendingForMe(data.allExpenses, userId), [data.allExpenses, userId]);
   const confirmPending = useConfirmPending(trip?.id ?? '', members, me?.id ?? null);
   const canFeedback = !!session && !session.user.is_anonymous && !demo;
   const feedbackChecked = useFeedback((s) => s.shownThisSession);
@@ -629,7 +629,7 @@ export default function Home() {
       <PasskeyOffer />
       <BudgetAlertBanner tripId={trip.id} status={data.topAlert} categories={categoryById} members={memberById} />
       <VoiceInbox tripId={trip?.id} />
-      <PendingInbox items={pendingReview} all={expenses} solo={members.length < 2} onConfirm={confirmPending} onEdit={actions.edit} onDismiss={(e) => actions.remove(e)} />
+      <PendingInbox items={pendingReview} all={data.allExpenses} onConfirm={confirmPending} onEdit={actions.edit} onDismiss={(e) => actions.remove(e)} />
 
       {/* Hold a card to drag it; swipe it (right in Hebrew) for Hide. Rows inside a card swipe on their own. */}
       <DraggableGrid

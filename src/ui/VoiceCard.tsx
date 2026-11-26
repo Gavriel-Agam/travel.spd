@@ -28,7 +28,7 @@ export function VoiceCard({ hidden }: { hidden?: boolean }) {
   const card = useVoice((s) => s.card);
   const showCard = useVoice((s) => s.showCard);
   const { undo } = useVoiceExpense();
-  const { trip, expenses, members, memberById, me, allCategories } = useTripData();
+  const { trip, allExpenses: expenses, members, memberById, me, allCategories } = useTripData();
   const [held, setHeld] = useState(false);
   const announced = useRef<string | null>(null);
 

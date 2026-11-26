@@ -37,7 +37,7 @@ export default function Statement() {
   const c = useColors();
   const { t, lang } = useT();
   const qc = useQueryClient();
-  const { trip, expenses, me, categories } = useTripData();
+  const { trip, allExpenses: expenses, me, categories } = useTripData();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);

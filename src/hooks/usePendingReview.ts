@@ -4,6 +4,7 @@ import { confirmInput, merchantPattern } from '@/lib/pendingReview';
 import { errorCode, supabase } from '@/lib/supabase';
 import { useUserId } from '@/providers/AuthProvider';
 import { useOutbox } from '@/store/outbox';
+import { usePrefs } from '@/store/prefs';
 import type { Expense, Member } from '@/types/db';
 
 /** Remembers the category chosen for a merchant (the next payment there gets it). Best effort. */
@@ -17,11 +18,17 @@ export function learnMerchantCategory(merchant: string | null | undefined, categ
   });
 }
 
-/** One-tap confirm from Home: shared with everyone, or personal. Queued while offline. */
+/**
+ * One-tap Approve from Home, with the split last used in this trip (shared
+ * unless the last one saved was personal; alone in the trip, personal).
+ * Queued while offline.
+ */
 export function useConfirmPending(tripId: string, members: readonly Member[], meId: string | null) {
   const qc = useQueryClient();
   const userId = useUserId();
-  return (e: Expense, mode: 'shared' | 'personal') => {
+  return (e: Expense) => {
+    const last = usePrefs.getState().lastSplit[tripId];
+    const mode = members.length < 2 || last === 'personal' ? 'personal' : 'shared';
     const input = confirmInput(e, mode, members, meId);
     // Out of the inbox at once
     qc.setQueryData<Expense[]>(keys.expenses(tripId), (list) => list?.map((x) => (x.id === e.id ? { ...x, review_status: 'confirmed' } : x)));

@@ -6,7 +6,7 @@
 // key per hour.
 //
 // POST one of:
-//   { source: 'shortcut_wallet', amount, currency?, merchant?, card_label?, occurred_at? }
+//   { source: 'shortcut_wallet', amount (as text, with its symbol), currency?, merchant?, card_label?, raw_text?, occurred_at? }
 //   { source: 'shortcut_notification', raw_text, title?, subtitle?, card_label?, occurred_at? }
 //   { source: 'shortcut_share', text?, image_base64?, mime_type?, file_name? }
 //   { source: 'shortcut_auto', amount?, merchant?, card_label?, raw_text? }  (the shared shortcut:
@@ -123,14 +123,14 @@ Deno.serve(async (req) => {
   let source = body?.source;
   if (source === 'shortcut_auto') {
     const hasAmount = (typeof body.amount === 'string' && body.amount.trim()) || typeof body.amount === 'number';
-    source = hasAmount && parseWallet({ amount: body.amount, currency: body.currency, merchant: body.merchant }) ? 'shortcut_wallet' : 'shortcut_notification';
+    source = hasAmount && parseWallet({ amount: body.amount, currency: body.currency, merchant: body.merchant, raw_text: body.raw_text }) ? 'shortcut_wallet' : 'shortcut_notification';
     if (source === 'shortcut_notification' && !short(body?.raw_text, 1000)) return json({ error: 'invalid_input' }, 400);
   }
   const cardLabel = short(body?.card_label, 60);
   let item: Item | null = null;
 
   if (source === 'shortcut_wallet') {
-    const w = parseWallet({ amount: body.amount, currency: body.currency, merchant: body.merchant });
+    const w = parseWallet({ amount: body.amount, currency: body.currency, merchant: body.merchant, raw_text: body.raw_text });
     if (!w) return json({ error: 'invalid_input' }, 400);
     item = { ...w, occurred_at: isoOrNull(body.occurred_at) };
   } else if (source === 'shortcut_notification') {

@@ -4,6 +4,7 @@ import { budgetStatuses, topAlert } from '@/lib/budget';
 import { categoryMap, isSelectable, orderCategories } from '@/lib/categories';
 import { computeBalances, settleUp } from '@/lib/settlement';
 import { mergePending } from '@/lib/pending';
+import { confirmedOnly } from '@/lib/pendingReview';
 import { computeTripStats } from '@/lib/stats';
 import { useUserId } from '@/providers/AuthProvider';
 import { useOutbox } from '@/store/outbox';
@@ -27,10 +28,12 @@ export function useTripData() {
   );
 
   // Saved expenses plus ones queued offline on this device
-  const list = useMemo(
+  const all = useMemo(
     () => (tripId ? mergePending(expenses.data ?? [], outbox, tripId) : []),
     [expenses.data, outbox, tripId],
   );
+  // Payments waiting for the person's OK (Home › Pending review) count nowhere until confirmed
+  const list = useMemo(() => confirmedOnly(all), [all]);
 
   const derived = useMemo(() => {
     // Every member ever in the trip: removed partners stay only so old expenses
@@ -84,6 +87,8 @@ export function useTripData() {
     categories: sortedCategories.filter(isSelectable),
     allCategories: sortedCategories,
     expenses: list,
+    /** Also the ones waiting for review: the inbox, the expense screen, matching and duplicates. */
+    allExpenses: all,
     budgets: budgets.data ?? [],
     isLoading: queries.some((q) => q.isLoading),
     // Offline with nothing saved on this device for this trip yet (paused, or failed for lack of signal)

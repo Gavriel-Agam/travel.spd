@@ -15,30 +15,61 @@ export type Parsed =
 
 const SYMBOLS: [RegExp, string][] = [
   [/^(₪|ש["״']?ח|nis|ils|שקל(ים)?)$/i, 'ILS'],
-  [/^(\$|usd|דולר(ים)?|us\$)$/i, 'USD'],
+  [/^(us\$|\$|usd|דולר(ים)?)$/i, 'USD'],
   [/^(€|eur|יורו|אירו)$/i, 'EUR'],
-  [/^(£|gbp|ליש["״]?ט)$/i, 'GBP'],
+  [/^(£|gbp|ליש["״]?ט|פאונד)$/i, 'GBP'],
   [/^(฿|thb|באט|bht)$/i, 'THB'],
+  [/^(₫|vnd|דונג)$/i, 'VND'],
   [/^(¥|jpy|ין)$/i, 'JPY'],
+  [/^(₩|krw)$/i, 'KRW'],
+  [/^(₹|inr)$/i, 'INR'],
+  [/^(₺|try)$/i, 'TRY'],
+  [/^(₱|php)$/i, 'PHP'],
+  [/^(zł|pln)$/i, 'PLN'],
+  [/^(kč|czk)$/i, 'CZK'],
+  [/^(a\$|aud)$/i, 'AUD'],
+  [/^(c\$|cad)$/i, 'CAD'],
+  [/^(s\$|sgd)$/i, 'SGD'],
+  [/^(hk\$|hkd)$/i, 'HKD'],
 ];
+
+/**
+ * ISO 4217 codes read from text. Only these count as a currency, so a word in
+ * capitals next to a number ("MAX 45.90", "CAL 12") is never taken for one.
+ */
+export const KNOWN_CODES = new Set(
+  ('ILS USD EUR GBP THB VND JPY KRW INR TRY PHP PLN CZK AUD CAD SGD HKD CHF CNY NZD SEK NOK DKK HUF RON BGN ISK MXN BRL ARS CLP COP PEN ' +
+    'ZAR EGP JOD AED SAR QAR BHD KWD OMR MAD TND GEL AMD AZN KZT UZS RUB UAH RSD BAM MKD ALL MDL IDR MYR TWD LKR NPR KHR LAK MMK ' +
+    'MNT KES TZS UGX ETB NGN GHS XOF XAF DOP CRC GTQ PAB UYU BOB PYG CUP JMD TTD BSD BBD FJD MVR MUR SCR').split(' '),
+);
+
+/** Currencies written without cents, where "120.000" means a hundred and twenty thousand. */
+const NO_CENTS = new Set(['VND', 'JPY', 'KRW', 'IDR', 'CLP', 'ISK', 'UGX', 'PYG', 'KHR', 'LAK', 'MMK', 'UZS', 'XOF', 'XAF']);
 
 /** ISO code for a symbol, word or code ("₪", "ש״ח", "usd"), or null. */
 export function currencyOf(token: string | null | undefined): string | null {
   if (!token) return null;
   const t = token.trim();
   for (const [re, code] of SYMBOLS) if (re.test(t)) return code;
-  return /^[A-Za-z]{3}$/.test(t) ? t.toUpperCase() : null;
+  return /^[A-Za-z]{3}$/.test(t) && KNOWN_CODES.has(t.toUpperCase()) ? t.toUpperCase() : null;
 }
 
+/** Right-to-left / left-to-right marks iPhone puts around amounts in Hebrew text. */
+const BIDI = /[\u200e\u200f\u202a-\u202e\u2066-\u2069\u061c]/g;
+export const stripBidi = (s: string) => s.replace(BIDI, '');
+
 /** "1,234.56" / "1.234,56" / "45.9" / "1 200" -> "1234.56" (dot decimals), or null. */
-export function normalizeAmount(raw: string | number | null | undefined): string | null {
+export function normalizeAmount(raw: string | number | null | undefined, currency?: string | null): string | null {
   if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? String(raw) : null;
   if (typeof raw !== 'string') return null;
   let s = raw.replace(/[\s  ]/g, '').replace(/[^\d.,]/g, '');
   if (!/\d/.test(s)) return null;
   const lastDot = s.lastIndexOf('.');
   const lastComma = s.lastIndexOf(',');
-  if (lastDot >= 0 && lastComma >= 0) {
+  // "120.000 ₫" / "1,500 ¥": thousands marks only
+  if (currency && NO_CENTS.has(currency) && /^\d{1,3}([.,]\d{3})+$/.test(s)) {
+    s = s.replace(/[.,]/g, '');
+  } else if (lastDot >= 0 && lastComma >= 0) {
     // The later one is the decimal mark
     s = lastDot > lastComma ? s.replace(/,/g, '') : s.replace(/\./g, '').replace(',', '.');
   } else if (lastComma >= 0) {
@@ -52,19 +83,32 @@ export function normalizeAmount(raw: string | number | null | undefined): string
 }
 
 /** An amount with a currency next to it: "₪45.90", "45.90 ש״ח", "USD 12", "12.50$". */
-const CUR = String.raw`(₪|\$|€|£|฿|¥|ש["״']?ח|שקלים|שקל|דולר|יורו|NIS|ILS|[A-Z]{3})`;
+const CUR = String.raw`(US\$|A\$|C\$|S\$|HK\$|₪|\$|€|£|฿|₫|¥|₩|₹|₺|₱|zł|Kč|ש["״']?ח|שקלים|שקל|דולרים|דולר|יורו|אירו|ליש["״]?ט|פאונד|באט|דונג|NIS|ILS|[A-Za-z]{3})`;
 const NUM = String.raw`(\d{1,3}(?:[,.\s]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)`;
 const MONEY_AFTER = new RegExp(`${NUM}\\s?${CUR}`, 'u');
 const MONEY_BEFORE = new RegExp(`${CUR}\\s?${NUM}`, 'u');
 // A number after "בסך" / "סכום" / "amount" with no currency
 const BARE_AMOUNT = /(?:בסך|סך|סכום(?: של)?|על סך|amount(?: of)?|total)\s*:?\s*(\d[\d,.]*)/iu;
 
-export function findMoney(text: string): { amount: string; currency: string | null } | null {
+/** Every match of a money pattern, so a capital word that is not a currency ("MAX 45") doesn't hide the real one. */
+function allMatches(re: RegExp, text: string): RegExpExecArray[] {
+  return [...text.matchAll(new RegExp(re.source, re.flags + 'g'))];
+}
+
+/** The first amount written with its currency, as charged. */
+export function findMoney(input: string): { amount: string; currency: string | null } | null {
+  const text = stripBidi(input);
   const candidates: { at: number; amount: string | null; currency: string | null }[] = [];
-  const a = MONEY_AFTER.exec(text);
-  if (a && currencyOf(a[2])) candidates.push({ at: a.index, amount: normalizeAmount(a[1]), currency: currencyOf(a[2]) });
-  const b = MONEY_BEFORE.exec(text);
-  if (b && currencyOf(b[1])) candidates.push({ at: b.index, amount: normalizeAmount(b[2]), currency: currencyOf(b[1]) });
+  for (const a of allMatches(MONEY_AFTER, text)) {
+    const cur = currencyOf(a[2]);
+    // The currency word has to end there ("12 USDT" is not dollars)
+    if (cur && !/^\p{L}/u.test(text.slice(a.index + a[0].length))) candidates.push({ at: a.index, amount: normalizeAmount(a[1], cur), currency: cur });
+  }
+  for (const b of allMatches(MONEY_BEFORE, text)) {
+    const cur = currencyOf(b[1]);
+    // ... and start there ("SUSD 12" is not dollars)
+    if (cur && !/\p{L}$/u.test(text.slice(0, b.index))) candidates.push({ at: b.index, amount: normalizeAmount(b[2], cur), currency: cur });
+  }
   const first = candidates.filter((c) => c.amount).sort((x, y) => x.at - y.at)[0];
   if (first) return { amount: first.amount!, currency: first.currency };
   const bare = BARE_AMOUNT.exec(text);
@@ -113,7 +157,7 @@ const PAYMENT_WORDS = /(עסקה|חיוב|רכישה|תשלום|שולם|בוצ�
 
 /** One card push notification (title + subtitle + body). */
 export function parseNotification(p: { raw_text: string; title?: string | null; subtitle?: string | null }): Parsed {
-  const text = [p.title, p.subtitle, p.raw_text].filter((x) => typeof x === 'string' && x.trim()).join(' \n ').slice(0, 1000);
+  const text = stripBidi([p.title, p.subtitle, p.raw_text].filter((x) => typeof x === 'string' && x.trim()).join(' \n ')).slice(0, 1000);
   if (OTP.test(text)) return { status: 'ignored', reason: 'otp' };
   if (BILLING.test(text)) return { status: 'ignored', reason: 'billing' };
   if (DECLINED.test(text)) return { status: 'ignored', reason: 'declined' };
@@ -129,14 +173,19 @@ export function parseNotification(p: { raw_text: string; title?: string | null; 
 }
 
 /** A Wallet automation's fields: the amount often arrives as "₪45.90" or "45,90 €". */
-export function parseWallet(p: { amount: unknown; currency?: unknown; merchant?: unknown }):
+export function parseWallet(p: { amount: unknown; currency?: unknown; merchant?: unknown; raw_text?: unknown }):
   | { amount: string; currency: string | null; merchant: string | null }
   | null {
-  const raw = typeof p.amount === 'number' ? String(p.amount) : typeof p.amount === 'string' ? p.amount : '';
-  const money = findMoney(raw);
-  const amount = money?.amount ?? normalizeAmount(raw);
+  const raw = stripBidi(typeof p.amount === 'number' ? String(p.amount) : typeof p.amount === 'string' ? p.amount : '');
+  const given = currencyOf(typeof p.currency === 'string' ? stripBidi(p.currency) : null);
+  // The amount as charged ("₫120.000", "THB 300.00")
+  const inAmount = findMoney(raw);
+  // A bare number: the currency from the whole transaction text the Shortcut passed, if any
+  const inText = !inAmount && !given && typeof p.raw_text === 'string' ? findMoney(p.raw_text.slice(0, 1000)) : null;
+  const currency = given ?? inAmount?.currency ?? inText?.currency ?? null;
+  const amount = inAmount?.amount ?? normalizeAmount(raw, currency) ?? inText?.amount ?? null;
   if (!amount) return null;
-  const currency = currencyOf(typeof p.currency === 'string' ? p.currency : null) ?? money?.currency ?? null;
+  // Never guessed: null here means none was sent, and the trip's own currency is used
   const merchant = typeof p.merchant === 'string' && p.merchant.trim() ? p.merchant.trim().slice(0, 120) : null;
   return { amount, currency, merchant };
 }

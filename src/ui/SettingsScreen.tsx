@@ -379,9 +379,6 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
   // `bg`: the surface the rows sit on (the swipe needs it to paint over the Delete button)
   const tripsList = (bg: string) => (
     <>
-      <Text variant="caption" faint style={{ marginBottom: space.xs }}>
-        {t('settings.tripsHint')}
-      </Text>
       {/* Swipe a trip (right in Hebrew) for Delete: the creator confirms, anyone else is told only the creator can */}
       {(trips.data ?? []).map((tr) => (
         <SwipeRow
@@ -611,9 +608,6 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text variant="h2" numberOfLines={1}>
                 {me?.display_name ?? ''}
-              </Text>
-              <Text variant="caption" muted numberOfLines={1}>
-                {t('settings.profileHint')}
               </Text>
             </View>
             {me ? <Ionicons name={lang === 'he' ? 'chevron-back' : 'chevron-forward'} size={18} color={c.textFaint} /> : null}

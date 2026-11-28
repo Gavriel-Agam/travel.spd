@@ -7,7 +7,7 @@ Last updated: 2026-11-24
 ## Current state
 - Live at https://gavriel-agam.github.io/travel.spd/ (deploys on push to `main`).
 - Shipped through Stage 4 (trip colour + photo). Migrations 0001-0018 (0017 applied to the live database 2026-11-10: 4 columns, 7 existing accounts marked as already asked; 0018 `delete_trip()` 2026-11-12).
-- Last deploy: `548d031` (collapsible Trips, palm icon, centred photo menu), live 2026-11-28; both Actions runs green. DB: migrations up to 0030.
+- Last deploy: `3dc2632` (Settings hint lines removed), live 2026-11-28; both Actions runs green. DB: migrations up to 0030.
 - Verified: backend, Supabase DB + RLS, Google OAuth.
 - Known: dev-only console warnings on the Stats tab (react-native-svg passes touch handlers of tappable pie slices to the DOM on web); harmless in production.
 - Pending: Facebook sign-in needs a Meta developer app + enabling the provider in Supabase (steps in PRODUCT_DOCS › Facebook sign-in setup); the button is hidden until then.

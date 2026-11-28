@@ -469,7 +469,7 @@ const en = {
     install2: 'Shortcuts › Automation › + › Transaction: pick cards, Run Immediately, SmartTrip.',
     install3: 'Optional, for SMS: Automation › + › Message, sender = card company, SmartTrip.',
     manualTitle: 'Manual setup',
-    title: 'Shortcuts',
+    title: 'Apple Pay Integration',
     rowHint: 'Apple Pay and SMS straight from iPhone',
     intro: 'Payments from your iPhone wait for review on Home, visible only to you.',
     keys: 'Keys',
@@ -987,7 +987,7 @@ const en = {
     terms: 'Terms of use',
   },
   settings: {
-    import: 'Shortcuts & import',
+    import: 'Apple Pay & import',
     importHint: 'Apple Pay, SMS and statements',
     prefs: 'Preferences',
     prefsHint: 'Language, location and quick sign-in',

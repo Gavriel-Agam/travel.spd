@@ -65,8 +65,11 @@ export function Topbar({
   badge,
   extra,
   search,
+  titleIcon,
 }: {
   title: string;
+  /** A mark before the title (the Apple Pay page). */
+  titleIcon?: ReactNode;
   /** A small line above the bar (Home's "Day 3"). */
   eyebrow?: string;
   onBack?: () => void;
@@ -126,6 +129,7 @@ export function Topbar({
       ) : null}
       <View accessibilityRole="header" style={{ flexDirection: 'row', alignItems: 'center', height: TOPBAR_HEIGHT, gap: space.xs }}>
         {onBack ? <TopbarIcon icon={rtl ? 'arrow-forward' : 'arrow-back'} label={t('common.back')} onPress={onBack} color={c.text} /> : null}
+        {titleIcon}
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text variant="title" numberOfLines={1} style={{ flexShrink: 1 }} accessibilityRole="header">
             {title}

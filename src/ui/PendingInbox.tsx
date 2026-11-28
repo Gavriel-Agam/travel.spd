@@ -6,26 +6,10 @@ import { formatMoney } from '@/lib/money';
 import { nearDuplicateOf } from '@/lib/pendingReview';
 import { radius, space, useColors } from '@/theme';
 import type { Expense } from '@/types/db';
+import { ApplePayMark } from './ApplePayMark';
 import { Card, Row, Text, tap } from './primitives';
 
 const SHOWN = 4;
-
-/** The small black Apple Pay mark (Apple logo + "Pay"). */
-function ApplePayBadge() {
-  const { t } = useT();
-  return (
-    <View
-      accessible
-      accessibilityLabel={t('pending.applePay')}
-      style={{ flexDirection: 'row', direction: 'ltr', alignItems: 'center', gap: 1, height: 22, paddingHorizontal: 6, borderRadius: 5, backgroundColor: '#000' } as object}
-    >
-      <Ionicons name="logo-apple" size={13} color="#fff" />
-      <Text variant="caption" color="#fff" style={{ fontWeight: '600', fontSize: 12, lineHeight: 14 }}>
-        Pay
-      </Text>
-    </View>
-  );
-}
 
 /**
  * Home › "הוצאה ממתינה לאישור": payments a Shortcut added, shown only while
@@ -74,7 +58,7 @@ export function PendingInbox({
   return (
     <Card style={{ borderWidth: 1.5, borderColor: c.warning + '88' }}>
       <Row gap={space.sm}>
-        <ApplePayBadge />
+        <ApplePayMark />
         <Text variant="h2" style={{ flex: 1 }} numberOfLines={1}>
           {t('pending.title')}
         </Text>

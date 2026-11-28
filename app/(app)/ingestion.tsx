@@ -13,6 +13,7 @@ import { useUserId } from '@/providers/AuthProvider';
 import { radius, space, useColors } from '@/theme';
 import { confirmDialog } from '@/ui/Dialog';
 import { Banner, Button, Card, Chip, Divider, Field, IconButton, Row, Screen, Segmented, Text, Toggle } from '@/ui/primitives';
+import { ApplePayMark } from '@/ui/ApplePayMark';
 import { Topbar } from '@/ui/Topbar';
 
 type TokenRow = { id: string; label: string; created_at: string; last_used_at: string | null; revoked_at: string | null };
@@ -144,7 +145,7 @@ export default function Ingestion() {
 
   return (
     <Screen>
-      <Topbar title={t('ingestion.title')} onBack={() => goBack('/settings')} />
+      <Topbar title={t('ingestion.title')} titleIcon={<ApplePayMark />} onBack={() => goBack('/settings')} />
       <Text muted>{t('ingestion.intro')}</Text>
       {error ? <Banner text={error} color={c.danger} icon="alert-circle" /> : null}
 

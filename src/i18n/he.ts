@@ -473,7 +473,7 @@ const he: Dict = {
     install2: 'קיצורים › אוטומציה › + › עסקה: בוחרים כרטיסים, "הפעלה מיידית", SmartTrip.',
     install3: 'רשות, ל-SMS: אוטומציה › + › הודעה, שולח = חברת האשראי, SmartTrip.',
     manualTitle: 'הגדרה ידנית',
-    title: 'קיצורים',
+    title: 'ממשק ל APPLE PAY',
     rowHint: '‏Apple Pay ו-SMS ישר מהאייפון',
     intro: 'תשלומים מהאייפון ממתינים לאישור בדף הבית, ועד אז רק לך.',
     keys: 'מפתחות',
@@ -991,7 +991,7 @@ const he: Dict = {
     terms: 'תנאי שימוש',
   },
   settings: {
-    import: 'קיצורים וייבוא',
+    import: '‏APPLE PAY וייבוא',
     importHint: '‏Apple Pay, SMS ודף פירוט',
     prefs: 'העדפות',
     prefsHint: 'שפה, מיקום וכניסה מהירה',

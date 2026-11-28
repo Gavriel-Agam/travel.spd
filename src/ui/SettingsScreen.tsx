@@ -5,7 +5,8 @@ import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ApplePayMark, useApplePayColors } from '@/ui/ApplePayMark';
 import { Image, Linking, Platform, Pressable, Share, View, type ScrollViewInstance } from 'react-native';
 import { inviteLink, sitePage, whatsappUrl } from '@/lib/inviteLink';
 import { versionLabel } from '@/lib/version';
@@ -67,6 +68,7 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
   const saveLocation = usePrefs((s) => s.saveLocation);
   const setSaveLocation = usePrefs((s) => s.setSaveLocation);
   const c = useColors();
+  const applePay = useApplePayColors();
   const { trip, members, me, budgets } = useTripData();
   const trips = useTrips();
   const invite = useInviteCode(trip && !trip.shared ? trip.id : undefined);
@@ -343,10 +345,10 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
   }
 
   /** A category row on the main page: a coloured square icon, like the phone's own settings. */
-  const categoryRow = (key: SettingsSection, icon: IconName, color: string, title: string, subtitle?: string) => (
+  const categoryRow = (key: SettingsSection, icon: IconName | ReactNode, color: string, title: string, subtitle?: string) => (
     <ListRow
       key={key}
-      icon={<Ionicons name={icon} size={20} color="#FFFFFF" />}
+      icon={typeof icon === 'string' ? <Ionicons name={icon as IconName} size={20} color="#FFFFFF" /> : icon}
       iconBg={color}
       title={title}
       subtitle={subtitle}
@@ -449,7 +451,7 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
 
   const importCard = (
     <Card style={{ gap: 0 }}>
-      <ListRow icon={<Text style={{ fontSize: 20 }}>⚡</Text>} title={t('ingestion.title')} subtitle={t('ingestion.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/ingestion')} />
+      <ListRow icon={<ApplePayMark plain color={applePay.fg} />} iconBg={applePay.bg} title={t('ingestion.title')} subtitle={t('ingestion.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/ingestion')} />
       <Divider />
       <ListRow icon={<Text style={{ fontSize: 20 }}>📄</Text>} title={t('statement.title')} subtitle={t('statement.rowHint')} chevron onPress={() => !blockedInDemo(queryClient) && router.push('/statement')} />
     </Card>
@@ -579,7 +581,7 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
             {categoryRow('members', 'people', '#10B981', t('settings.members'), t('settings.membersCount', { count: members.length }))}
           </Card>
           <Card style={{ gap: 0, paddingVertical: space.sm }}>
-            {categoryRow('import', 'flash', '#8B5CF6', t('settings.import'), t('settings.importHint'))}
+            {categoryRow('import', <ApplePayMark plain color={applePay.fg} />, applePay.bg, t('settings.import'), t('settings.importHint'))}
             {categoryRow('prefs', 'options', '#64748B', t('settings.prefs'), t('settings.prefsHint'))}
             {categoryRow('legal', 'shield-checkmark', '#0EA5E9', t('legal.title'))}
           </Card>

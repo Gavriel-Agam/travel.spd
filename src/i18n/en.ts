@@ -1011,6 +1011,8 @@ const en = {
     addPhoto: 'Add a photo',
     changePhoto: 'Change photo',
     removePhoto: 'Remove',
+    removeMyPhoto: 'Remove photo',
+    photoMenu: 'Photo options',
     memberPhoto: 'Your photo',
     datesInvalid: 'The end date is before the start date.',
     editMyName: 'Edit my name and color',

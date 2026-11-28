@@ -10,7 +10,7 @@ import { ApplePayMark, useApplePayColors } from '@/ui/ApplePayMark';
 import { Image, Linking, Platform, Pressable, Share, View, type ScrollViewInstance } from 'react-native';
 import { inviteLink, sitePage, whatsappUrl } from '@/lib/inviteLink';
 import { versionLabel } from '@/lib/version';
-import { DropdownButton } from '@/ui/Dropdown';
+import { DropdownButton, type MenuItem } from '@/ui/Dropdown';
 import { checklistItem, Topbar, useThemeMenuItem } from '@/ui/Topbar';
 import * as ImagePicker from 'expo-image-picker';
 import { removeMemberPhoto, removeTripCover, uploadMemberPhoto, uploadTripCover, useDeleteTrip, useInviteCode, useRemoveMember, useTripChanges, useTrips } from '@/api/queries';
@@ -44,6 +44,8 @@ import { countryFlag, countryName } from '@/lib/countries';
 import { feeFromInput, feeToInput, memberFeePct, vatRule } from '@/lib/taxFree';
 import { UploadZone } from '@/ui/UploadZone';
 import { SwipeRow } from '@/ui/SwipeRow';
+import { Collapse } from '@/ui/Collapse';
+import { PalmIcon } from '@/ui/PalmIcon';
 import type { Trip } from '@/types/db';
 
 const LANGS: { value: Lang; label: string }[] = [
@@ -87,6 +89,8 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
   const signOut = useSignOut();
   const isCreator = !!trip && !trip.shared && !demo && trip.created_by === userId;
   const [edit, setEdit] = useState<null | 'trip' | 'me'>(null);
+  // Settings › Trips opens in place, under its row
+  const [tripsOpen, setTripsOpen] = useState(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollTopOnTabTap(section ? 'settings-sub' : 'settings', scrollRef);
   const [text, setText] = useState('');
@@ -222,6 +226,12 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
       setPhotoBusy(false);
     }
   }
+
+  // Settings › your photo › menu: Change (picker, then crop on the web) and Remove (back to your initial)
+  const photoMenu: MenuItem[] = [
+    { key: 'change', icon: 'image-outline', label: me?.photo_path ? t('settings.changePhoto') : t('settings.addPhoto'), disabled: photoBusy, onPress: () => void pickMemberPhoto() },
+    ...(me?.photo_path ? [{ key: 'remove', icon: 'trash-outline' as const, label: t('settings.removeMyPhoto'), danger: true, disabled: photoBusy, onPress: () => void dropMemberPhoto() }] : []),
+  ];
 
   async function dropCover() {
     if (!trip?.cover_path || blockedInDemo(queryClient)) return;
@@ -366,8 +376,9 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
       : undefined;
 
   // ------------------------------------------------------------ sections
-  const tripsCard = (
-    <Card style={{ gap: 0 }}>
+  // `bg`: the surface the rows sit on (the swipe needs it to paint over the Delete button)
+  const tripsList = (bg: string) => (
+    <>
       <Text variant="caption" faint style={{ marginBottom: space.xs }}>
         {t('settings.tripsHint')}
       </Text>
@@ -375,7 +386,7 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
       {(trips.data ?? []).map((tr) => (
         <SwipeRow
           key={tr.id}
-          background={c.card}
+          background={bg}
           style={{ borderRadius: radius.md }}
           actions={[
             {
@@ -400,7 +411,40 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
       <Divider />
       <ListRow icon={<Ionicons name="add" size={20} color={c.primary} />} title={t('settings.newTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/create')} />
       <ListRow icon={<Ionicons name="enter-outline" size={20} color={c.primary} />} title={t('settings.joinTrip')} onPress={() => !blockedInDemo(queryClient) && router.push('/onboarding/join')} />
-    </Card>
+    </>
+  );
+  const tripsCard = <Card style={{ gap: 0 }}>{tripsList(c.card)}</Card>;
+
+  // Settings › Trips: the row opens the list in place (a chevron that turns), like a dropdown
+  const tripsRow = (
+    <View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('settings.trips')}, ${trip.name}`}
+        accessibilityState={{ expanded: tripsOpen }}
+        aria-expanded={tripsOpen}
+        onPress={() => setTripsOpen((v) => !v)}
+        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+      >
+        <Row gap={space.md} style={{ paddingVertical: 10 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#4F7CFF', alignItems: 'center', justifyContent: 'center' }}>
+            <PalmIcon color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Text style={{ fontWeight: '600' }} numberOfLines={1}>
+              {t('settings.trips')}
+            </Text>
+            <Text variant="caption" muted numberOfLines={1}>
+              {trip.name}
+            </Text>
+          </View>
+          <Ionicons name={tripsOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.textFaint} />
+        </Row>
+      </Pressable>
+      <Collapse open={tripsOpen}>
+        <View style={{ marginTop: space.xs, padding: space.sm, borderRadius: radius.md, backgroundColor: c.cardAlt }}>{tripsList(c.cardAlt)}</View>
+      </Collapse>
+    </View>
   );
 
   const tripCard = (
@@ -576,7 +620,7 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
           </Card>
 
           <Card style={{ gap: 0, paddingVertical: space.sm }}>
-            {!trip.shared ? categoryRow('trips', 'airplane', '#4F7CFF', t('settings.trips'), trip.name) : null}
+            {!trip.shared ? tripsRow : null}
             {categoryRow('trip', 'briefcase', '#F59E0B', t('settings.trip'), tripRange)}
             {categoryRow('members', 'people', '#10B981', t('settings.members'), t('settings.membersCount', { count: members.length }))}
           </Card>
@@ -754,29 +798,25 @@ export function SettingsScreen({ section }: { section?: SettingsSection }) {
               {formError ? <Text color={c.danger}>{formError}</Text> : null}
             </>
           ) : (
-            <Field value={text} onChangeText={setText} autoFocus maxLength={40} />
-          )}
-          {edit === 'me' && me ? (
-            // Your photo: shown in your circle everywhere instead of your initial
-            <Row style={{ justifyContent: 'center' }} gap={space.md}>
-              <Pressable accessibilityRole="button" accessibilityLabel={t('settings.memberPhoto')} onPress={pickMemberPhoto} disabled={photoBusy}>
-                <Avatar name={me.display_name} color={me.color} photoPath={me.photo_path} size={64} />
-                <View style={{ position: 'absolute', bottom: -2, end: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.card }}>
-                  <Ionicons name="camera" size={13} color={c.primaryText} />
+            <>
+              {me ? (
+                // Your photo, centred: a tap opens Change / Remove under it
+                <View style={{ alignItems: 'center' }}>
+                  <DropdownButton label={t('settings.photoMenu')} minWidth={200} items={photoMenu} style={{ opacity: photoBusy ? 0.5 : 1 }}>
+                    {() => (
+                      <View>
+                        <Avatar name={me.display_name} color={me.color} photoPath={me.photo_path} size={96} />
+                        <View style={{ position: 'absolute', bottom: 0, [lang === 'he' ? 'left' : 'right']: 0, width: 30, height: 30, borderRadius: 15, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.card }}>
+                          <Ionicons name="camera" size={15} color={c.primaryText} />
+                        </View>
+                      </View>
+                    )}
+                  </DropdownButton>
                 </View>
-              </Pressable>
-              <View style={{ gap: space.xs, flexShrink: 1 }}>
-                <UploadZone
-                  title={me.photo_path ? t('settings.changePhoto') : t('settings.addPhoto')}
-                  onPress={pickMemberPhoto}
-                  onDropFile={(uri) => !blockedInDemo(queryClient) && setCropUri(uri)}
-                  busy={photoBusy}
-                  compact
-                />
-                {me.photo_path ? <Button title={t('settings.removePhoto')} icon="trash-outline" variant="ghost" disabled={photoBusy} onPress={dropMemberPhoto} /> : null}
-              </View>
-            </Row>
-          ) : null}
+              ) : null}
+              <Field value={text} onChangeText={setText} autoFocus maxLength={40} />
+            </>
+          )}
           {edit === 'me' ? (
             <Row style={{ justifyContent: 'center' }} gap={space.md}>
               {MEMBER_COLORS.map((col) => (
